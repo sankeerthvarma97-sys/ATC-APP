@@ -1,0 +1,248 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  SUPERVISOR
+  ATC
+  PILOT
+  GROUND
+  ANALYST
+  VIEWER
+}
+
+enum FlightStatus {
+  SCHEDULED
+  PUSHBACK
+  TAXI_OUT
+  DEPARTING
+  AIRBORNE
+  APPROACH
+  LANDED
+  TAXI_IN
+  AT_GATE
+  HOLDING
+  DIVERTED
+  CANCELLED
+  EMERGENCY
+}
+
+enum Severity {
+  INFO
+  ADVISORY
+  WARNING
+  CRITICAL
+}
+
+enum EventType {
+  FLIGHT_UPDATE
+  POSITION_UPDATE
+  ATC_MESSAGE
+  PILOT_MESSAGE
+  RESOURCE_CHANGE
+  COMMAND
+  EMERGENCY
+  NOTIFICATION
+  AI_ANALYSIS
+}
+
+enum MessageDirection {
+  ATC_TO_PILOT
+  PILOT_TO_ATC
+  SYSTEM
+}
+
+enum ResourceType {
+  RUNWAY
+  GATE
+  STAND
+  BAGGAGE_BELT
+  CREW
+  VEHICLE
+}
+
+enum ResourceStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  MAINTENANCE
+  CLOSED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          Role      @default(VIEWER)
+  shift         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  assignedFlights Flight[] @relation("AssignedController")
+  auditLogs      AuditLog[]
+  radioMessages  RadioMessage[]
+  events         OperationalEvent[]
+  aiAnalyses     AiAnalysis[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Flight {
+  id                   String       @id @default(cuid())
+  callsign             String       @unique
+  airline              String
+  aircraftType         String
+  status               FlightStatus @default(SCHEDULED)
+  phase                String
+  origin               String
+  destination          String
+  gate                 String?
+  stand                String?
+  runway               String?
+  squawk               String
+  latitude             Float
+  longitude            Float
+  altitudeFt           Int
+  speedKt              Int
+  headingDeg           Int
+  verticalSpeedFpm     Int          @default(0)
+  fuelKg               Int
+  riskScore            Int          @default(12)
+  eta                  DateTime
+  assignedControllerId String?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  assignedController User?              @relation("AssignedController", fields: [assignedControllerId], references: [id])
+  events             OperationalEvent[]
+  radioMessages      RadioMessage[]
+
+  @@index([status])
+  @@index([riskScore])
+  @@index([eta])
+}
+
+model AirportResource {
+  id           String         @id @default(cuid())
+  resourceType ResourceType
+  code         String
+  status       ResourceStatus @default(AVAILABLE)
+  label        String
+  metadata     Json?
+  updatedAt    DateTime       @updatedAt
+  createdAt    DateTime       @default(now())
+
+  @@unique([resourceType, code])
+  @@index([resourceType, status])
+}
+
+model RadioMessage {
+  id         String           @id @default(cuid())
+  channel    String
+  direction  MessageDirection
+  text       String           @db.Text
+  priority   Severity         @default(INFO)
+  createdAt  DateTime         @default(now())
+  fromUserId String?
+  flightId   String?
+
+  fromUser User?   @relation(fields: [fromUserId], references: [id])
+  flight   Flight? @relation(fields: [flightId], references: [id])
+
+  @@index([createdAt])
+  @@index([flightId])
+}
+
+model OperationalEvent {
+  id          String    @id @default(cuid())
+  type        EventType
+  severity    Severity  @default(INFO)
+  title       String
+  detail      String    @db.Text
+  payload     Json?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  flightId    String?
+  userId      String?
+
+  flight Flight? @relation(fields: [flightId], references: [id])
+  user   User?   @relation(fields: [userId], references: [id])
+
+  @@index([type, severity])
+  @@index([createdAt])
+}
+
+model AiAnalysis {
+  id          String   @id @default(cuid())
+  prompt      String   @db.Text
+  response    String   @db.Text
+  model       String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  createdById String?
+
+  createdBy User? @relation(fields: [createdById], references: [id])
+
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String?
+  before    Json?
+  after     Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([actorId, createdAt])
+  @@index([entity, entityId])
+}

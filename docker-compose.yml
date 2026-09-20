@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: aocc
+      POSTGRES_PASSWORD: aocc
+      POSTGRES_DB: aocc
+    ports:
+      - "5432:5432"
+    volumes:
+      - aocc-postgres:/var/lib/postgresql/data
+
+  app:
+    build: .
+    depends_on:
+      - postgres
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      DATABASE_URL: "postgresql://aocc:aocc@postgres:5432/aocc?schema=public"
+      AOCC_USE_DATABASE: "true"
+      NEXTAUTH_URL: "http://localhost:3000"
+      NEXTAUTH_SECRET: "replace-this-before-production"
+      AOCC_SIMULATION_TICK_MS: "2500"
+
+volumes:
+  aocc-postgres:
