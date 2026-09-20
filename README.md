@@ -105,6 +105,29 @@ npm run build
 
 The app uses a custom Node server (`server.mjs`) because Socket.IO needs direct access to the HTTP upgrade lifecycle. Deploy it to a Node runtime that supports long-lived WebSocket connections.
 
+For Vercel, the Next.js App Router pages and route handlers build normally with `npm run build`. If the deployment does not run the custom Socket.IO server, the console automatically falls back to authenticated polling against `/api/operations/snapshot`, and the UI labels that mode as `Polling fallback`.
+
+Recommended Vercel environment variables:
+
+```bash
+DATABASE_URL="..."
+AOCC_USE_DATABASE="true"
+NEXTAUTH_URL="https://your-vercel-domain.vercel.app"
+NEXTAUTH_SECRET="..."
+GOOGLE_GENERATIVE_AI_API_KEY="..."
+AOCC_GOOGLE_MODEL="gemini-3.8-flash"
+NEXT_PUBLIC_MAPBOX_TOKEN="..."
+AWS_ENDPOINT_URL_S3="..."
+AWS_ACCESS_KEY_ID="..."
+AWS_SECRET_ACCESS_KEY="..."
+AWS_REGION="us-east-2"
+S3_BUCKET="aocc-artifacts"
+RESEND_API_KEY="..."
+RESEND_FROM_EMAIL="onboarding@resend.dev"
+```
+
+For full Socket.IO behavior in production, use a Node host or container/runtime that keeps `node server.mjs` running and supports WebSocket upgrades.
+
 For container deployment:
 
 ```bash

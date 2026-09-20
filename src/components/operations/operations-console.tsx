@@ -51,6 +51,7 @@ const FlightMap = dynamic(() => import("@/components/maps/flight-map").then((mod
 });
 
 type Tab = "overview" | "traffic" | "radio" | "ai" | "audit" | "integrations";
+type RealtimeMode = "connecting" | "live" | "fallback";
 
 interface IntegrationHealth {
   database: { enabled: boolean; configured: boolean };
@@ -218,6 +219,7 @@ export function OperationsConsole({ initialSnapshot }: { initialSnapshot: Operat
   const [emailTo, setEmailTo] = useState("");
   const [emailSubject, setEmailSubject] = useState("AOCC simulation notification");
   const [emailText, setEmailText] = useState("AOCC educational simulation notification from the operations console.");
+  const [realtimeMode, setRealtimeMode] = useState<RealtimeMode>("connecting");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
@@ -251,9 +253,39 @@ export function OperationsConsole({ initialSnapshot }: { initialSnapshot: Operat
     const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io({
       path: "/socket.io",
       transports: ["websocket", "polling"],
+      timeout: 3000,
     });
     socketRef.current = socket;
+    let fallbackTimer: ReturnType<typeof setInterval> | null = null;
 
+    const pollSnapshot = async () => {
+      const response = await fetch("/api/operations/snapshot", { cache: "no-store" });
+      if (response.ok) {
+        setSnapshot(await response.json());
+      }
+    };
+
+    const stopFallbackPolling = () => {
+      if (fallbackTimer) {
+        clearInterval(fallbackTimer);
+        fallbackTimer = null;
+      }
+    };
+
+    const startFallbackPolling = () => {
+      setRealtimeMode("fallback");
+      if (!fallbackTimer) {
+        void pollSnapshot();
+        fallbackTimer = setInterval(() => void pollSnapshot(), 5000);
+      }
+    };
+
+    socket.on("connect", () => {
+      setRealtimeMode("live");
+      stopFallbackPolling();
+    });
+    socket.on("connect_error", startFallbackPolling);
+    socket.on("disconnect", startFallbackPolling);
     socket.on(socketEvents.snapshot, setSnapshot);
     socket.on(socketEvents.positions, (flights) => {
       setSnapshot((current) => ({ ...current, flights, generatedAt: new Date().toISOString() }));
@@ -272,6 +304,7 @@ export function OperationsConsole({ initialSnapshot }: { initialSnapshot: Operat
     });
 
     return () => {
+      stopFallbackPolling();
       socket.disconnect();
       socketRef.current = null;
     };
@@ -560,6 +593,9 @@ export function OperationsConsole({ initialSnapshot }: { initialSnapshot: Operat
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="text-xl font-semibold tracking-normal">Airport Operations Control Center</h1>
                   <Badge variant="outline">Educational Simulation</Badge>
+                  <Badge variant={realtimeMode === "live" ? "success" : realtimeMode === "fallback" ? "warning" : "outline"}>
+                    {realtimeMode === "live" ? "Realtime live" : realtimeMode === "fallback" ? "Polling fallback" : "Realtime connecting"}
+                  </Badge>
                   {snapshot.metrics.emergencyCount > 0 && <Badge variant="destructive">Emergency active</Badge>}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">{snapshot.disclaimer}</p>
