@@ -224,6 +224,12 @@ async function runVerification() {
     assert(fplPostRes.status === 201, "POST /api/flight-plans files plan and returns 201 Created");
     const fplPostData = await fplPostRes.json();
     assert(fplPostData.ok === true && fplPostData.flightPlan?.callsign === "AAL992", "New ICAO plan validated and inserted into ATC queue");
+
+    // Fast Global Search API
+    const searchRes = await fetch(`${BASE_URL}/api/search?q=JFK`);
+    assert(searchRes.status === 200, "GET /api/search returns 200 OK");
+    const searchData = await searchRes.json();
+    assert(searchData.ok === true && Array.isArray(searchData.results) && searchData.results.length > 0, "Global search returned selective indexed records");
   } catch (err) {
     assert(false, `Health & Flight Plans verification failed: ${err.message}`);
   }

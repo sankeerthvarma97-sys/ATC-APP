@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useCallback } from "react";
 import type { FlightDTO } from "@/lib/domain";
+import { useOperationalPolling } from "@/lib/hooks/use-operational-polling";
 import { PrimaryFlightDisplay } from "./primary-flight-display";
 
 export function FlightDeckCockpit({
@@ -12,35 +13,26 @@ export function FlightDeckCockpit({
   const [flights, setFlights] = useState<FlightDTO[]>(initialFlights);
   const [selectedFlightId, setSelectedFlightId] = useState<string>("");
 
-  useEffect(() => {
-    let active = true;
-    const fetchFlights = async () => {
-      try {
-        const res = await fetch("/api/flights");
-        if (res.ok) {
-          const data = await res.json();
-          if (active && data.flights) {
-            setFlights(data.flights);
-            if (!selectedFlightId && data.flights.length > 0) {
-              // Default to SC101 or the first active flight
-              const defaultFlight =
-                data.flights.find((f: FlightDTO) => f.callsign === "SC101") || data.flights[0];
-              setSelectedFlightId(defaultFlight.id);
-            }
+  const fetchFlights = useCallback(async () => {
+    try {
+      const res = await fetch("/api/flights");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.flights) {
+          setFlights(data.flights);
+          if (!selectedFlightId && data.flights.length > 0) {
+            const defaultFlight =
+              data.flights.find((f: FlightDTO) => f.callsign === "SC101") || data.flights[0];
+            setSelectedFlightId(defaultFlight.id);
           }
         }
-      } catch {
-        // Fallback gracefully
       }
-    };
-
-    fetchFlights();
-    const interval = setInterval(fetchFlights, 4000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
+    } catch {
+      // Fallback gracefully
+    }
   }, [selectedFlightId]);
+
+  useOperationalPolling(fetchFlights, 4000);
 
   const activeFlight = flights.find((f) => f.id === selectedFlightId) || flights[0];
 

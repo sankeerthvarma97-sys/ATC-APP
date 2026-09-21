@@ -1,7 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useOperationalPolling } from "@/lib/hooks/use-operational-polling";
 import {
   AlertTriangle,
   Compass,
@@ -52,45 +53,22 @@ export function AtcOperationsSection({
   const [squawkInput, setSquawkInput] = useState("");
   const [commandFeedback, setCommandFeedback] = useState<string | null>(null);
 
-  const fetchFlights = async () => {
+  const fetchFlights = useCallback(async () => {
     try {
       const res = await fetch("/api/flights");
       if (!res.ok) return;
       const data = await res.json();
       const list = (data.flights || []) as FlightDTO[];
       setFlights(list);
-      if (list.length > 0 && !selectedFlight) {
-        setSelectedFlight(list[0]);
+      if (list.length > 0) {
+        setSelectedFlight((prev) => prev || list[0]);
       }
     } catch {
       //
     }
-  };
-
-  useEffect(() => {
-    let active = true;
-    const poll = async () => {
-      try {
-        const res = await fetch("/api/flights");
-        if (!res.ok || !active) return;
-        const data = await res.json();
-        const list = (data.flights || []) as FlightDTO[];
-        setFlights(list);
-        if (list.length > 0) {
-          setSelectedFlight((prev) => prev || list[0]);
-        }
-      } catch {
-        //
-      }
-    };
-
-    poll();
-    const interval = setInterval(poll, 4000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
   }, []);
+
+  useOperationalPolling(fetchFlights, 4000);
 
   const handleSelectFlight = (flight: FlightDTO) => {
     setSelectedFlight(flight);

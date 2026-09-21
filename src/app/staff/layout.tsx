@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAuthenticatedUser } from "@/lib/auth/session";
-import { StaffPortalShell } from "@/components/staff/staff-portal-shell";
+import { AoccPortalShell } from "@/components/shell/aocc-portal-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -14,5 +14,5 @@ export default async function StaffLayout({
     redirect("/login?callbackUrl=/staff");
   }
 
-  return <StaffPortalShell user={user}>{children}</StaffPortalShell>;
+  return <AoccPortalShell user={user}>{children}</AoccPortalShell>;
 }

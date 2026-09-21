@@ -1,9 +1,10 @@
+import { cache } from "react";
 import { getServerSession } from "next-auth";
 import type { UserDTO } from "@/lib/domain";
 import { authOptions } from "@/lib/auth/options";
 import { getDemoUser } from "@/lib/data/store";
 
-export async function getCurrentUserOrDemo(): Promise<UserDTO> {
+export const getCurrentUserOrDemo = cache(async (): Promise<UserDTO> => {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.email) {
@@ -17,9 +18,9 @@ export async function getCurrentUserOrDemo(): Promise<UserDTO> {
     role: (session.user.role as UserDTO["role"]) ?? "VIEWER",
     shift: session.user.shift,
   };
-}
+});
 
-export async function getAuthenticatedUser(): Promise<UserDTO | null> {
+export const getAuthenticatedUser = cache(async (): Promise<UserDTO | null> => {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.email) {
@@ -33,4 +34,4 @@ export async function getAuthenticatedUser(): Promise<UserDTO | null> {
     role: (session.user.role as UserDTO["role"]) ?? "VIEWER",
     shift: session.user.shift,
   };
-}
+});

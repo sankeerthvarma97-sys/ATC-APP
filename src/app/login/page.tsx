@@ -163,8 +163,7 @@ function LoginForm() {
         const role = (session?.user as { role?: string } | undefined)?.role;
         const targetRoute = determineTargetRoute(role, email);
 
-        router.push(targetRoute);
-        router.refresh();
+        window.location.href = targetRoute;
       } catch {
         setError("Authentication service unavailable.");
       }

@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import type {
   AirportDTO,
@@ -14,32 +15,99 @@ import { AuthorityHeader } from "./authority-header";
 import { AuthoritySidebar } from "./authority-sidebar";
 import { CommandPalette } from "./command-palette";
 
-// Section Components
-import { OverviewSection } from "./sections/overview-section";
-import { LiveTrafficSection } from "./sections/live-traffic-section";
-import { AtcOperationsSection } from "./sections/atc-operations-section";
-import { GroundOpsSection } from "./sections/ground-ops-section";
-import { BaggageSection } from "./sections/baggage-section";
-import { EmergenciesSection } from "./sections/emergencies-section";
-import { WeatherSection } from "./sections/weather-section";
-import { AirportsSection } from "./sections/airports-section";
-import { RunwaysSection } from "./sections/runways-section";
-import { GatesSection } from "./sections/gates-section";
-import { FlightsSection } from "./sections/flights-section";
-import { AirlinesSection } from "./sections/airlines-section";
-import { AircraftSection } from "./sections/aircraft-section";
-import { TicketingSection } from "./sections/ticketing-section";
-import { BookingsSection } from "./sections/bookings-section";
-import { PassengersSection } from "./sections/passengers-section";
-import { CheckinSection } from "./sections/checkin-section";
-import { VerificationSection } from "./sections/verification-section";
-import { BoardingSection } from "./sections/boarding-section";
-import { StaffSection } from "./sections/staff-section";
-import { DepartmentsSection } from "./sections/departments-section";
-import { RolesPermissionsSection } from "./sections/roles-permissions-section";
-import { AnalyticsSection } from "./sections/analytics-section";
-import { AuditLogsSection } from "./sections/audit-logs-section";
-import { SystemSettingsSection } from "./sections/system-settings-section";
+// Skeleton placeholder for dynamically imported sections
+function SectionSkeleton({ name }: { name?: string }) {
+  return (
+    <div className="space-y-4 font-mono animate-pulse text-slate-100">
+      <div className="h-10 w-64 bg-slate-900 rounded-xl border border-slate-800" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="h-24 bg-slate-900/60 rounded-xl border border-slate-800" />
+        <div className="h-24 bg-slate-900/60 rounded-xl border border-slate-800" />
+        <div className="h-24 bg-slate-900/60 rounded-xl border border-slate-800" />
+      </div>
+      <div className="h-80 bg-slate-900/40 rounded-xl border border-slate-800 flex items-center justify-center text-xs text-slate-600">
+        Loading {name || "operational module"}...
+      </div>
+    </div>
+  );
+}
+
+// Section Components — Dynamically code-split for minimal initial bundle
+const OverviewSection = dynamic(() => import("./sections/overview-section").then((m) => m.OverviewSection), {
+  loading: () => <SectionSkeleton name="Overview Command" />,
+});
+const LiveTrafficSection = dynamic(() => import("./sections/live-traffic-section").then((m) => m.LiveTrafficSection), {
+  loading: () => <SectionSkeleton name="Radar Traffic" />,
+});
+const AtcOperationsSection = dynamic(() => import("./sections/atc-operations-section").then((m) => m.AtcOperationsSection), {
+  loading: () => <SectionSkeleton name="ATC Radar & Sequencing" />,
+});
+const GroundOpsSection = dynamic(() => import("./sections/ground-ops-section").then((m) => m.GroundOpsSection), {
+  loading: () => <SectionSkeleton name="Ground & Turnaround" />,
+});
+const BaggageSection = dynamic(() => import("./sections/baggage-section").then((m) => m.BaggageSection), {
+  loading: () => <SectionSkeleton name="Baggage Handling BHS" />,
+});
+const EmergenciesSection = dynamic(() => import("./sections/emergencies-section").then((m) => m.EmergenciesSection), {
+  loading: () => <SectionSkeleton name="Emergency Crisis Drills" />,
+});
+const WeatherSection = dynamic(() => import("./sections/weather-section").then((m) => m.WeatherSection), {
+  loading: () => <SectionSkeleton name="METAR & Crosswind Station" />,
+});
+const AirportsSection = dynamic(() => import("./sections/airports-section").then((m) => m.AirportsSection), {
+  loading: () => <SectionSkeleton name="Airports Infrastructure" />,
+});
+const RunwaysSection = dynamic(() => import("./sections/runways-section").then((m) => m.RunwaysSection), {
+  loading: () => <SectionSkeleton name="Runways & Surface Mu" />,
+});
+const GatesSection = dynamic(() => import("./sections/gates-section").then((m) => m.GatesSection), {
+  loading: () => <SectionSkeleton name="Gates & Stands" />,
+});
+const FlightsSection = dynamic(() => import("./sections/flights-section").then((m) => m.FlightsSection), {
+  loading: () => <SectionSkeleton name="Flight Manifest" />,
+});
+const AirlinesSection = dynamic(() => import("./sections/airlines-section").then((m) => m.AirlinesSection), {
+  loading: () => <SectionSkeleton name="Airlines Network" />,
+});
+const AircraftSection = dynamic(() => import("./sections/aircraft-section").then((m) => m.AircraftSection), {
+  loading: () => <SectionSkeleton name="Aircraft Fleet" />,
+});
+const TicketingSection = dynamic(() => import("./sections/ticketing-section").then((m) => m.TicketingSection), {
+  loading: () => <SectionSkeleton name="Ticketing & Fares" />,
+});
+const BookingsSection = dynamic(() => import("./sections/bookings-section").then((m) => m.BookingsSection), {
+  loading: () => <SectionSkeleton name="Bookings Database" />,
+});
+const PassengersSection = dynamic(() => import("./sections/passengers-section").then((m) => m.PassengersSection), {
+  loading: () => <SectionSkeleton name="Passengers Directory" />,
+});
+const CheckinSection = dynamic(() => import("./sections/checkin-section").then((m) => m.CheckinSection), {
+  loading: () => <SectionSkeleton name="Check-in & Boarding Passes" />,
+});
+const VerificationSection = dynamic(() => import("./sections/verification-section").then((m) => m.VerificationSection), {
+  loading: () => <SectionSkeleton name="Ticket QR Verification" />,
+});
+const BoardingSection = dynamic(() => import("./sections/boarding-section").then((m) => m.BoardingSection), {
+  loading: () => <SectionSkeleton name="Boarding Turnstile" />,
+});
+const StaffSection = dynamic(() => import("./sections/staff-section").then((m) => m.StaffSection), {
+  loading: () => <SectionSkeleton name="Staff Directory" />,
+});
+const DepartmentsSection = dynamic(() => import("./sections/departments-section").then((m) => m.DepartmentsSection), {
+  loading: () => <SectionSkeleton name="Departments" />,
+});
+const RolesPermissionsSection = dynamic(() => import("./sections/roles-permissions-section").then((m) => m.RolesPermissionsSection), {
+  loading: () => <SectionSkeleton name="RBAC Matrix" />,
+});
+const AnalyticsSection = dynamic(() => import("./sections/analytics-section").then((m) => m.AnalyticsSection), {
+  loading: () => <SectionSkeleton name="Analytics & Throughput" />,
+});
+const AuditLogsSection = dynamic(() => import("./sections/audit-logs-section").then((m) => m.AuditLogsSection), {
+  loading: () => <SectionSkeleton name="Audit Logs" />,
+});
+const SystemSettingsSection = dynamic(() => import("./sections/system-settings-section").then((m) => m.SystemSettingsSection), {
+  loading: () => <SectionSkeleton name="System Settings" />,
+});
 
 const DEFAULT_AIRPORTS: AirportDTO[] = [
   { id: "apt-jfk", iata: "JFK", icao: "KJFK", name: "Kennedy International Simulation Field", city: "New York", country: "USA", latitude: 40.6413, longitude: -73.7781, elevationFt: 13, status: "ACTIVE" },
@@ -199,7 +267,7 @@ export function AuthorityControlCenter({
       case "bookings":
         return (
           <BookingsSection
-            onNavigateToCheckin={(pnr) => handleNavigateTo("checkin", { pnr })}
+            onNavigateToCheckin={(pnr: string) => handleNavigateTo("checkin", { pnr })}
           />
         );
       case "passengers":
@@ -213,7 +281,7 @@ export function AuthorityControlCenter({
       case "verification":
         return <VerificationSection onNavigateTo={handleNavigateTo} />;
       case "boarding":
-        return <BoardingSection onNavigateTo={(sec) => handleNavigateTo(sec)} />;
+        return <BoardingSection onNavigateTo={(sec: string) => handleNavigateTo(sec)} />;
       case "staff":
         return <StaffSection />;
       case "departments":
@@ -240,14 +308,15 @@ export function AuthorityControlCenter({
   };
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#070b13] text-slate-100 antialiased font-sans">
-      {/* Top Authority Header */}
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#070b13] text-slate-100 font-sans select-none antialiased">
+      {/* Top Application Header */}
       <AuthorityHeader
         currentUser={currentUser}
         activeAirport={activeAirport}
         airports={airports}
         onSelectAirport={(apt) => setActiveAirport(apt)}
         onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+        emergencyCount={metrics.emergencyCount}
       />
 
       {/* Main Workspace Layout */}
@@ -267,6 +336,28 @@ export function AuthorityControlCenter({
           </div>
         </main>
       </div>
+
+      {/* Bottom Telemetry Status Bar */}
+      <footer className="h-7 border-t border-slate-800/80 bg-slate-950 px-4 flex items-center justify-between text-[10px] font-mono text-slate-400 shrink-0 z-20">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>LIVE · COMMAND CENTER ONLINE</span>
+          </div>
+          <span className="text-slate-700">|</span>
+          <span>STATION: {activeAirport.iata} ({activeAirport.icao})</span>
+          <span className="text-slate-700 hidden sm:inline">|</span>
+          <span className="hidden sm:inline">RADAR FEEDS: NORMAL</span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="text-slate-500">API: 200 OK</span>
+          <span className="text-slate-700">|</span>
+          <span className="text-emerald-400">DB: HEALTHY</span>
+          <span className="text-slate-700">|</span>
+          <span className="text-slate-500">v0.1.0 PROD</span>
+        </div>
+      </footer>
 
       {/* Global Command Palette (Ctrl+K) */}
       <CommandPalette
