@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { AtcOperationsSection } from "@/components/authority/sections/atc-operations-section";
 import { LiveTrafficSection } from "@/components/authority/sections/live-traffic-section";
+import { AiBriefingDrawer } from "@/components/ai/ai-briefing-drawer";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,8 @@ export default async function StaffAtcPage() {
           Operational aerodrome tower and terminal radar approach control.
         </p>
       </div>
+
+      <AiBriefingDrawer portalName="Air Traffic Control" defaultFocus="airport" />
 
       <div className="space-y-6">
         <AtcOperationsSection />

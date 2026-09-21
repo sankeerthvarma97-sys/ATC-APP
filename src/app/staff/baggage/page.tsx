@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
-import { GroundOpsSection } from "@/components/authority/sections/ground-ops-section";
+import { BaggageSection } from "@/components/authority/sections/baggage-section";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +38,7 @@ export default async function StaffBaggagePage() {
       </div>
 
       <div className="space-y-6">
-        <GroundOpsSection />
+        <BaggageSection />
       </div>
     </div>
   );

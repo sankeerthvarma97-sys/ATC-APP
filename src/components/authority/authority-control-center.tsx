@@ -19,6 +19,7 @@ import { OverviewSection } from "./sections/overview-section";
 import { LiveTrafficSection } from "./sections/live-traffic-section";
 import { AtcOperationsSection } from "./sections/atc-operations-section";
 import { GroundOpsSection } from "./sections/ground-ops-section";
+import { BaggageSection } from "./sections/baggage-section";
 import { EmergenciesSection } from "./sections/emergencies-section";
 import { WeatherSection } from "./sections/weather-section";
 import { AirportsSection } from "./sections/airports-section";
@@ -158,6 +159,8 @@ export function AuthorityControlCenter({
         return <AtcOperationsSection onOpenConsole={onOpenConsole} />;
       case "ground":
         return <GroundOpsSection onNavigateTo={(sec) => handleNavigateTo(sec)} />;
+      case "baggage":
+        return <BaggageSection onNavigateTo={(sec) => handleNavigateTo(sec)} />;
       case "emergencies":
         return <EmergenciesSection />;
       case "weather":

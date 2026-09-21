@@ -163,6 +163,34 @@ async function runVerification() {
     assert(true, "Leaflet MapContainer gracefully handles tile fallback in client");
   }
 
+  // --- 5. AI Tactical Briefing & Baggage Sortation System ---
+  console.log("\n5️⃣ Testing AI Tactical Briefing & Baggage BHS Systems...");
+  try {
+    const aiRes = await fetch(`${BASE_URL}/api/ai/briefing`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        focus: "runways",
+        question: "Analyze active runway friction (mu), crosswinds, and ILS suitability.",
+      }),
+    });
+    assert(aiRes.status === 200, "POST /api/ai/briefing returns 200 OK");
+    const aiData = await aiRes.json();
+    assert(typeof aiData.briefing === "string" && aiData.briefing.length > 20, "AI briefing returned detailed operational text");
+    assert(Array.isArray(aiData.actions) && aiData.actions.length > 0, "AI briefing returned actionable tactical checklist");
+    assert(["INFO", "ADVISORY", "WARNING", "CRITICAL"].includes(aiData.risk), `AI assessed risk severity: ${aiData.risk}`);
+
+    // Check staff baggage portal HTML
+    const baggageRes = await fetch(`${BASE_URL}/staff/baggage`, { redirect: "manual" });
+    assert(baggageRes.status === 200 || baggageRes.status === 307, `Baggage portal route responded with status ${baggageRes.status}`);
+
+    // Check staff pilot portal HTML
+    const pilotRes = await fetch(`${BASE_URL}/staff/pilot`, { redirect: "manual" });
+    assert(pilotRes.status === 200 || pilotRes.status === 307, `Pilot portal route responded with status ${pilotRes.status}`);
+  } catch (err) {
+    assert(false, `AI & Baggage check failed: ${err.message}`);
+  }
+
   console.log(`\n==============================================`);
   console.log(`Results: ${passed} PASSED, ${failed} FAILED`);
   console.log(`==============================================\n`);

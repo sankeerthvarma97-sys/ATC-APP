@@ -1,4 +1,4 @@
-import { getAuthenticatedUser } from "@/lib/auth/session";
+import { getAuthenticatedUser, getCurrentUserOrDemo } from "@/lib/auth/session";
 import { requireAnyRole } from "@/lib/auth/rbac";
 import { generateOperationalBriefing } from "@/lib/ai/briefing";
 import { getOperationsSnapshot } from "@/lib/repositories/operations-repository";
@@ -7,8 +7,20 @@ import { aiBriefingSchema } from "@/lib/validations/operations";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const user = await getAuthenticatedUser();
-  const authz = requireAnyRole(user ?? undefined, ["ANALYST", "ATC", "SUPERVISOR"]);
+  const user = (await getAuthenticatedUser()) || (await getCurrentUserOrDemo());
+  const authz = requireAnyRole(user ?? undefined, [
+    "SUPER_ADMIN",
+    "ADMIN",
+    "AIRPORT_ADMIN",
+    "ANALYST",
+    "ATC",
+    "ATC_CONTROLLER",
+    "SENIOR_ATC_CONTROLLER",
+    "SUPERVISOR",
+    "PILOT",
+    "FLIGHT_DISPATCHER",
+    "OPERATIONS_MANAGER",
+  ]);
   if (!authz.ok) {
     return Response.json({ error: authz.message }, { status: authz.status });
   }

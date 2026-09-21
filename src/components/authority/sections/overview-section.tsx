@@ -19,6 +19,7 @@ import type { AirportDTO, AirportMetrics, FlightDTO, OperationalEventDTO } from 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, formatZulu, titleCase } from "@/lib/utils";
+import { AiBriefingDrawer } from "@/components/ai/ai-briefing-drawer";
 
 function StatusBadge({ status }: { status: string }) {
   const variant: Record<string, "destructive" | "warning" | "info" | "success" | "secondary" | "outline"> = {
@@ -106,6 +107,9 @@ export function OverviewSection({
           );
         })}
       </div>
+
+      {/* AI Tactical Command & Network Briefing */}
+      <AiBriefingDrawer portalName="National Operations & Network Command" defaultFocus="airport" />
 
       {/* Main Grid: Live Traffic Preview + Airport/Staff Status + Events */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

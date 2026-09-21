@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { LiveTrafficSection } from "@/components/authority/sections/live-traffic-section";
 import { WeatherSection } from "@/components/authority/sections/weather-section";
+import { AiBriefingDrawer } from "@/components/ai/ai-briefing-drawer";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,8 @@ export default async function StaffPilotPage() {
           Waypoint navigation, terminal airspace traffic, and aviation weather METAR reports.
         </p>
       </div>
+
+      <AiBriefingDrawer portalName="Flight Deck & Dispatch" defaultFocus="emergencies" />
 
       <div className="space-y-6">
         <LiveTrafficSection />
