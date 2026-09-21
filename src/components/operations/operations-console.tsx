@@ -285,18 +285,28 @@ export function OperationsConsole({ initialSnapshot }: { initialSnapshot: Operat
       }
     };
 
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        void pollSnapshot();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
     socket.on("connect", () => {
       setRealtimeMode("live");
       stopFallbackPolling();
     });
     socket.on("connect_error", startFallbackPolling);
     socket.on("disconnect", startFallbackPolling);
-    socket.on(socketEvents.snapshot, setSnapshot);
+    socket.on(socketEvents.snapshot, (data) => {
+      if (!document.hidden) setSnapshot(data);
+    });
     socket.on(socketEvents.positions, (flights) => {
+      if (document.hidden) return;
       setSnapshot((current) => ({ ...current, flights, generatedAt: new Date().toISOString() }));
     });
     socket.on(socketEvents.metricsUpdate, (metrics) => {
-      setSnapshot((current) => ({ ...current, metrics }));
+      if (!document.hidden) setSnapshot((current) => ({ ...current, metrics }));
     });
     socket.on(socketEvents.radioMessage, (message) => {
       setSnapshot((current) => ({ ...current, messages: [message, ...current.messages].slice(0, 28) }));
@@ -309,6 +319,7 @@ export function OperationsConsole({ initialSnapshot }: { initialSnapshot: Operat
     });
 
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
       stopFallbackPolling();
       socket.disconnect();
       socketRef.current = null;

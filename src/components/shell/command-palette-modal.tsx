@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 
 interface SearchResultItem {
   id: string;
-  category: "PAGES" | "FLIGHTS" | "PASSENGERS" | "GATES" | "RUNWAYS";
+  category: "PAGES" | "FLIGHTS" | "PASSENGERS" | "GATES" | "RUNWAYS" | "BOOKINGS" | "TICKETS" | "EMPLOYEES" | "AIRCRAFT";
   title: string;
   subtitle: string;
   badge?: string;

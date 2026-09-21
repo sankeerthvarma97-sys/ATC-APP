@@ -1,6 +1,6 @@
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { assertPermission } from "@/lib/auth/permissions";
-import { createFlight, listFlights } from "@/lib/services/flight-service";
+import { createFlight, listFlightsPaged } from "@/lib/services/flight-service";
 import { createFlightSchema } from "@/lib/validations/authority";
 
 export const dynamic = "force-dynamic";
@@ -11,16 +11,26 @@ export async function GET(request: Request) {
   const destination = searchParams.get("to") || searchParams.get("destination") || undefined;
   const status = searchParams.get("status") || undefined;
   const query = searchParams.get("q") || undefined;
+  const page = Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10));
+  const pageSize = Math.min(100, Math.max(1, Number.parseInt(searchParams.get("pageSize") || "25", 10)));
 
-  const flights = await listFlights({
+  const paged = await listFlightsPaged({
     origin,
     destination,
     status,
     query,
+    page,
+    pageSize,
   });
 
   return Response.json(
-    { flights },
+    {
+      flights: paged.flights,
+      total: paged.total,
+      page: paged.page,
+      pageSize: paged.pageSize,
+      totalPages: paged.totalPages,
+    },
     {
       headers: {
         "Cache-Control": "public, s-maxage=1, stale-while-revalidate=3",

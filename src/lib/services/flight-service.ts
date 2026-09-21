@@ -303,7 +303,21 @@ for (const flt of memoryFlights) {
   );
 }
 
-export async function listFlights(criteria?: FlightSearchCriteria): Promise<FlightDTO[]> {
+export interface PagedFlightResult {
+  flights: FlightDTO[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export async function listFlightsPaged(
+  criteria?: FlightSearchCriteria & { page?: number; pageSize?: number }
+): Promise<PagedFlightResult> {
+  const page = Math.max(1, criteria?.page || 1);
+  const pageSize = Math.min(100, Math.max(1, criteria?.pageSize || 20));
+  const skip = (page - 1) * pageSize;
+
   if (shouldUseDatabase()) {
     try {
       const where: Record<string, unknown> = {};
@@ -318,52 +332,68 @@ export async function listFlights(criteria?: FlightSearchCriteria): Promise<Flig
         ];
       }
 
-      const dbFlights = await prisma.flight.findMany({
-        where,
-        orderBy: { departureTime: "asc" },
-        include: { seats: { select: { status: true } } },
-      });
+      const [total, dbFlights] = await Promise.all([
+        prisma.flight.count({ where }),
+        prisma.flight.findMany({
+          where,
+          orderBy: { departureTime: "asc" },
+          skip,
+          take: pageSize,
+          include: {
+            seats: {
+              where: { status: "AVAILABLE" },
+              select: { id: true },
+            },
+          },
+        }),
+      ]);
 
-      if (dbFlights.length > 0) {
-        return dbFlights.map((f) => ({
-          id: f.id,
-          callsign: f.callsign,
-          flightNumber: f.flightNumber ?? f.callsign,
-          flightName: f.flightName ?? `${f.airline} ${f.flightNumber ?? f.callsign}`,
-          airline: f.airline,
-          aircraftType: f.aircraftType,
-          status: f.status as FlightStatus,
-          phase: f.phase,
-          origin: f.origin,
-          destination: f.destination,
-          gate: f.gate ?? undefined,
-          stand: f.stand ?? undefined,
-          runway: f.runway ?? undefined,
-          squawk: f.squawk,
-          latitude: f.latitude,
-          longitude: f.longitude,
-          altitudeFt: f.altitudeFt,
-          speedKt: f.speedKt,
-          headingDeg: f.headingDeg,
-          verticalSpeedFpm: f.verticalSpeedFpm,
-          fuelKg: f.fuelKg,
-          riskScore: f.riskScore,
-          eta: f.eta.toISOString(),
-          departureTime: f.departureTime?.toISOString(),
-          arrivalTime: f.arrivalTime?.toISOString(),
-          boardingTime: f.boardingTime?.toISOString(),
-          checkInCloseTime: f.checkInCloseTime?.toISOString(),
-          terminal: f.terminal ?? undefined,
-          economyCapacity: f.economyCapacity,
-          businessCapacity: f.businessCapacity,
-          firstCapacity: f.firstCapacity,
-          economyFare: f.economyFare,
-          businessFare: f.businessFare,
-          firstFare: f.firstFare,
-          availableSeats: f.seats.filter((s) => s.status === "AVAILABLE").length || (f.economyCapacity + f.businessCapacity - 5),
-          updatedAt: f.updatedAt.toISOString(),
-        }));
-      }
+      const flights = dbFlights.map((f) => ({
+        id: f.id,
+        callsign: f.callsign,
+        flightNumber: f.flightNumber ?? f.callsign,
+        flightName: f.flightName ?? `${f.airline} ${f.flightNumber ?? f.callsign}`,
+        airline: f.airline,
+        aircraftType: f.aircraftType,
+        status: f.status as FlightStatus,
+        phase: f.phase,
+        origin: f.origin,
+        destination: f.destination,
+        gate: f.gate ?? undefined,
+        stand: f.stand ?? undefined,
+        runway: f.runway ?? undefined,
+        squawk: f.squawk,
+        latitude: f.latitude,
+        longitude: f.longitude,
+        altitudeFt: f.altitudeFt,
+        speedKt: f.speedKt,
+        headingDeg: f.headingDeg,
+        verticalSpeedFpm: f.verticalSpeedFpm,
+        fuelKg: f.fuelKg,
+        riskScore: f.riskScore,
+        eta: f.eta.toISOString(),
+        departureTime: f.departureTime?.toISOString(),
+        arrivalTime: f.arrivalTime?.toISOString(),
+        boardingTime: f.boardingTime?.toISOString(),
+        checkInCloseTime: f.checkInCloseTime?.toISOString(),
+        terminal: f.terminal ?? undefined,
+        economyCapacity: f.economyCapacity,
+        businessCapacity: f.businessCapacity,
+        firstCapacity: f.firstCapacity,
+        economyFare: f.economyFare,
+        businessFare: f.businessFare,
+        firstFare: f.firstFare,
+        availableSeats: f.seats.length || (f.economyCapacity + f.businessCapacity - 5),
+        updatedAt: f.updatedAt.toISOString(),
+      }));
+
+      return {
+        flights,
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize) || 1,
+      };
     } catch (error) {
       console.warn("Database flight query failed; falling back to memory.", error);
     }
@@ -388,7 +418,21 @@ export async function listFlights(criteria?: FlightSearchCriteria): Promise<Flig
         (f.flightNumber && f.flightNumber.toLowerCase().includes(q)),
     );
   }
-  return result;
+
+  const total = result.length;
+  const paged = result.slice(skip, skip + pageSize);
+  return {
+    flights: paged,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize) || 1,
+  };
+}
+
+export async function listFlights(criteria?: FlightSearchCriteria): Promise<FlightDTO[]> {
+  const paged = await listFlightsPaged({ ...criteria, page: 1, pageSize: 100 });
+  return paged.flights;
 }
 
 export async function getFlightById(id: string): Promise<{ flight: FlightDTO; seats: SeatDTO[] } | null> {

@@ -1,6 +1,6 @@
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { assertPermission } from "@/lib/auth/permissions";
-import { createBooking, listBookings } from "@/lib/services/booking-service";
+import { createBooking, listBookingsPaged } from "@/lib/services/booking-service";
 import { createBookingSchema } from "@/lib/validations/authority";
 
 export const dynamic = "force-dynamic";
@@ -9,9 +9,17 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q") || undefined;
   const flightId = searchParams.get("flightId") || undefined;
+  const page = Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10));
+  const pageSize = Math.min(100, Math.max(1, Number.parseInt(searchParams.get("pageSize") || "25", 10)));
 
-  const bookings = await listBookings({ query, flightId });
-  return Response.json({ bookings });
+  const paged = await listBookingsPaged({ query, flightId, page, pageSize });
+  return Response.json({
+    bookings: paged.bookings,
+    total: paged.total,
+    page: paged.page,
+    pageSize: paged.pageSize,
+    totalPages: paged.totalPages,
+  });
 }
 
 export async function POST(request: Request) {

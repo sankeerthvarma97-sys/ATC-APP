@@ -416,7 +416,24 @@ export async function getBookingByPNR(pnr: string): Promise<BookingDTO | null> {
   return memoryBookings.find((b) => b.pnr.toUpperCase() === normPNR) ?? null;
 }
 
-export async function listBookings(filters?: { query?: string; flightId?: string }): Promise<BookingDTO[]> {
+export interface PagedBookingResult {
+  bookings: BookingDTO[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export async function listBookingsPaged(filters?: {
+  query?: string;
+  flightId?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<PagedBookingResult> {
+  const page = Math.max(1, filters?.page || 1);
+  const pageSize = Math.min(100, Math.max(1, filters?.pageSize || 25));
+  const skip = (page - 1) * pageSize;
+
   if (shouldUseDatabase()) {
     try {
       const where: Record<string, unknown> = {};
@@ -429,44 +446,55 @@ export async function listBookings(filters?: { query?: string; flightId?: string
         ];
       }
 
-      const list = await prisma.booking.findMany({
-        where,
-        orderBy: { createdAt: "desc" },
-        include: { flight: true, passenger: true, ticket: true },
-      });
+      const [total, list] = await Promise.all([
+        prisma.booking.count({ where }),
+        prisma.booking.findMany({
+          where,
+          orderBy: { createdAt: "desc" },
+          skip,
+          take: pageSize,
+          include: { flight: true, passenger: true, ticket: true },
+        }),
+      ]);
 
-      if (list.length > 0) {
-        return list.map((b) => ({
-          id: b.id,
-          pnr: b.pnr,
-          flightId: b.flightId,
-          flightNumber: b.flight.flightNumber ?? b.flight.callsign,
-          flightCallsign: b.flight.callsign,
-          origin: b.flight.origin,
-          destination: b.flight.destination,
-          departureTime: b.flight.departureTime?.toISOString(),
-          airline: b.flight.airline,
-          aircraft: b.flight.aircraftType,
-          passengerId: b.passengerId,
-          passengerName: b.passenger.fullName,
-          passengerEmail: b.passenger.email,
-          passengerPhone: b.passenger.phone,
-          seatNumber: b.seatNumber,
-          travelClass: b.travelClass,
-          fare: b.fare,
-          paymentStatus: b.paymentStatus,
-          bookingStatus: b.bookingStatus,
-          checkInStatus: b.checkInStatus,
-          boardingStatus: b.boardingStatus,
-          verificationStatus: b.verificationStatus,
-          gate: b.flight.gate ?? undefined,
-          terminal: b.flight.terminal ?? undefined,
-          ticketNumber: b.ticket?.ticketNumber,
-          qrCode: b.ticket?.qrCode,
-          createdAt: b.createdAt.toISOString(),
-          updatedAt: b.updatedAt.toISOString(),
-        }));
-      }
+      const bookings: BookingDTO[] = list.map((b) => ({
+        id: b.id,
+        pnr: b.pnr,
+        flightId: b.flightId,
+        flightNumber: b.flight.flightNumber ?? b.flight.callsign,
+        flightCallsign: b.flight.callsign,
+        origin: b.flight.origin,
+        destination: b.flight.destination,
+        departureTime: b.flight.departureTime?.toISOString(),
+        airline: b.flight.airline,
+        aircraft: b.flight.aircraftType,
+        passengerId: b.passengerId,
+        passengerName: b.passenger.fullName,
+        passengerEmail: b.passenger.email,
+        passengerPhone: b.passenger.phone,
+        seatNumber: b.seatNumber,
+        travelClass: b.travelClass,
+        fare: b.fare,
+        paymentStatus: b.paymentStatus,
+        bookingStatus: b.bookingStatus,
+        checkInStatus: b.checkInStatus,
+        boardingStatus: b.boardingStatus,
+        verificationStatus: b.verificationStatus,
+        gate: b.flight.gate ?? undefined,
+        terminal: b.flight.terminal ?? undefined,
+        ticketNumber: b.ticket?.ticketNumber,
+        qrCode: b.ticket?.qrCode,
+        createdAt: b.createdAt.toISOString(),
+        updatedAt: b.updatedAt.toISOString(),
+      }));
+
+      return {
+        bookings,
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize) || 1,
+      };
     } catch (error) {
       console.warn("Database listBookings failed; using memory.", error);
     }
@@ -485,7 +513,21 @@ export async function listBookings(filters?: { query?: string; flightId?: string
         (b.passengerEmail && b.passengerEmail.toLowerCase().includes(q)),
     );
   }
-  return result;
+
+  const total = result.length;
+  const paged = result.slice(skip, skip + pageSize);
+  return {
+    bookings: paged,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize) || 1,
+  };
+}
+
+export async function listBookings(filters?: { query?: string; flightId?: string }): Promise<BookingDTO[]> {
+  const paged = await listBookingsPaged({ ...filters, page: 1, pageSize: 100 });
+  return paged.bookings;
 }
 
 export async function cancelBooking(pnr: string, actor?: { id?: string; name?: string }): Promise<BookingDTO | null> {

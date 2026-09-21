@@ -89,6 +89,13 @@ export function AoccPortalShell({
         return;
       }
 
+      // Escape closes open drawers/modals
+      if (e.key === "Escape") {
+        setCommandPaletteOpen(false);
+        setNotificationsOpen(false);
+        return;
+      }
+
       // Ignore sequences if typing in an input
       if (
         document.activeElement?.tagName === "INPUT" ||
@@ -111,10 +118,10 @@ export function AoccPortalShell({
         const nextKey = e.key.toLowerCase();
         keySequence = "";
         if (nextKey === "d") router.push(isAdmin ? "/admin" : "/staff");
-        else if (nextKey === "f") router.push("/staff/pilot");
+        else if (nextKey === "f") router.push("/staff/atc");
         else if (nextKey === "t") router.push("/staff/atc");
-        else if (nextKey === "b") router.push("/staff/baggage");
-        else if (nextKey === "s") router.push("/staff/ground");
+        else if (nextKey === "b") router.push("/staff/ticketing");
+        else if (nextKey === "s") router.push(isAdmin ? "/admin" : "/staff");
       }
     };
 

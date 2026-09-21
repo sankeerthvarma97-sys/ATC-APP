@@ -697,7 +697,11 @@ export function TicketingSection({
                   disabled={isSubmitting || !selectedSeat}
                   className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs h-10 flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40"
                 >
-                  <CreditCard className="h-4 w-4" />
+                  {isSubmitting ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  ) : (
+                    <CreditCard className="h-4 w-4" />
+                  )}
                   {isSubmitting
                     ? "Processing Simulated Transaction..."
                     : `Confirm Booking & Issue PNR (₹${(fareAmount + 450).toLocaleString()})`}

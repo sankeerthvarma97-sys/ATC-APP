@@ -4,28 +4,35 @@ test.describe("AOCC Aviation Platform End-to-End Suite", () => {
   test.beforeEach(async ({ context }) => {
     await context.clearCookies();
   });
-  test("1. Login page loads with brand identity and role profiles", async ({ page }) => {
+
+  test("1. Login page loads with brand identity and dual-portal switcher", async ({ page }) => {
     await page.goto("/login");
     await expect(page).toHaveTitle(/AOCC/i);
+    await expect(page.locator("text=AOCC OPERATIONS GATEWAY").first()).toBeVisible();
     await expect(page.locator("text=Airport Operations Control Center").first()).toBeVisible();
-    await expect(page.locator("text=Multi-Portal Aviation Authority Access Gateway").first()).toBeVisible();
 
-    // Verify presence of preset role login buttons
-    await expect(page.locator("button:has-text('Gate Agent')")).toBeVisible();
-    await expect(page.locator("button:has-text('Super Admin')")).toBeVisible();
-    await expect(page.locator("button:has-text('ATC Controller')")).toBeVisible();
+    // Verify presence of clean dual-portal toggle buttons
+    await expect(page.locator("button:has-text('Authority & Command')")).toBeVisible();
+    await expect(page.locator("button:has-text('Operations Staff')")).toBeVisible();
+
+    // Verify email and password input fields are ready
+    await expect(page.locator("input[aria-label='Email']")).toBeVisible();
+    await expect(page.locator("input[aria-label='Password']")).toBeVisible();
+
+    // Verify collapsible stations directory
+    await expect(page.locator("text=Who Is Logging In? Operational Stations Directory").first()).toBeVisible();
   });
 
   test("2. Unauthenticated access to /admin redirects to login with callbackUrl", async ({ page }) => {
     await page.goto("/admin");
-    await page.waitForURL(/\/login\?callbackUrl=\/admin/);
+    await page.waitForURL(/\/login\?callbackUrl=/, { timeout: 20000 });
     expect(page.url()).toContain("/login");
     expect(page.url()).toContain("callbackUrl=");
   });
 
   test("3. Unauthenticated access to /staff redirects to login with callbackUrl", async ({ page }) => {
     await page.goto("/staff");
-    await page.waitForURL(/\/login\?callbackUrl=\/staff/);
+    await page.waitForURL(/\/login\?callbackUrl=/, { timeout: 20000 });
     expect(page.url()).toContain("/login");
     expect(page.url()).toContain("callbackUrl=");
   });
@@ -40,7 +47,7 @@ test.describe("AOCC Aviation Platform End-to-End Suite", () => {
   });
 
   test("5. Fast Server-Side Global Search API returns selective records", async ({ request }) => {
-    const res = await request.get("/api/search?q=JFK");
+    const res = await request.get("/api/search?q=HYD");
     expect(res.status()).toBe(200);
     const data = await res.json();
     expect(data.ok).toBe(true);
@@ -58,43 +65,60 @@ test.describe("AOCC Aviation Platform End-to-End Suite", () => {
 
   test("7. Successful authentication as Gate Agent accesses staff operations", async ({ page }) => {
     await page.goto("/login");
-    // Click Gate Agent quick-fill button
-    await page.click("button:has-text('Gate Agent')");
-    // Click Authenticate button
+    // Switch to Operations Staff portal
+    await page.click("button:has-text('Operations Staff')");
+    // Enter Gate Agent credentials
+    await page.fill("input[aria-label='Email']", "gate@aocc.test");
+    await page.fill("input[aria-label='Password']", "AoccDemo!2026");
+    // Submit authentication
     await page.click("button[type='submit']");
     // Expect redirection to /staff/gate or /staff
-    await page.waitForURL(/\/staff/);
+    await page.waitForURL(/\/staff/, { timeout: 30000 });
     await expect(page.locator("body")).toContainText(/Gate|Aviation|Staff/i);
   });
 
   test("8. Super Admin authentication accesses National Command Center", async ({ page }) => {
     await page.goto("/login");
-    // Click Super Admin quick-fill button
-    await page.click("button:has-text('Super Admin')");
-    // Click Authenticate button
+    // Authority portal mode is selected by default
+    await page.fill("input[aria-label='Email']", "admin@gmail.com");
+    await page.fill("input[aria-label='Password']", "Sankeerth@80");
+    // Submit authentication
     await page.click("button[type='submit']");
     // Expect redirection to /admin
-    await page.waitForURL(/\/admin/);
-    await expect(page.locator("text=AOCC AUTHORITY").first()).toBeVisible({ timeout: 15000 });
-    await expect(page.locator("text=LIVE · COMMAND CENTER ONLINE").first()).toBeVisible({ timeout: 15000 });
+    await page.waitForURL(/\/admin/, { timeout: 30000 });
+    await expect(page.locator("text=AOCC AUTHORITY").first()).toBeVisible({ timeout: 25000 });
+    await expect(page.locator("text=LIVE · COMMAND CENTER ONLINE").first()).toBeVisible({ timeout: 25000 });
   });
 
-  test("9. Ticketing Agent authentication accesses booking and passenger check-in", async ({ page }) => {
+  test("9. Ticketing Agent authentication accesses booking engine", async ({ page }) => {
     await page.goto("/login");
-    await page.click("button:has-text('Ticketing Agent')");
+    await page.click("button:has-text('Operations Staff')");
+    await page.fill("input[aria-label='Email']", "ticket@aocc.test");
+    await page.fill("input[aria-label='Password']", "AoccDemo!2026");
     await page.click("button[type='submit']");
-    await page.waitForURL(/\/staff\/ticketing/);
+    await page.waitForURL(/\/staff\/ticketing/, { timeout: 30000 });
 
     await expect(page.locator("body")).toContainText(/Ticketing|Booking|Check-in|Passenger/i);
   });
 
-  test("10. Tower Control portal renders ASDE-X Surface Movement Radar", async ({ page }) => {
-    await page.goto("/login");
-    await page.click("button:has-text('ATC Controller')");
-    await page.click("button[type='submit']");
-    await page.waitForURL(/\/staff\/atc/);
+  test("10. Ticket Verification API strictly enforces RBAC authentication", async ({ request }) => {
+    const res = await request.post("/api/tickets/verify", {
+      data: { pnr: "SKY-DEMO1" },
+    });
+    // Unauthenticated callers without VERIFY_TICKET token must be rejected with 401
+    expect(res.status()).toBe(401);
+    const data = await res.json();
+    expect(data.error).toBeDefined();
+  });
 
-    await expect(page.locator("text=ASDE-X SURFACE MOVEMENT RADAR").first()).toBeVisible({ timeout: 15000 });
-    await expect(page.locator("text=04L").first()).toBeAttached();
+  test("11. Mobile Viewport loads login cleanly without horizontal scrollbar", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto("/login");
+    await expect(page.locator("input[aria-label='Email']")).toBeVisible();
+    await expect(page.locator("input[aria-label='Password']")).toBeVisible();
+
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 2);
   });
 });

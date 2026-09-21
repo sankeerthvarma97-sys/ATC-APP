@@ -42,24 +42,39 @@ export function FlightsSection({
   onRefresh?: () => void;
 }) {
   const [fetchedFlights, setFetchedFlights] = useState<FlightDTO[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(15);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query);
+      setPage(1);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   useEffect(() => {
     let active = true;
-    if (!initialFlights || initialFlights.length === 0) {
-      fetch("/api/flights")
-        .then((r) => r.json())
-        .then((d) => {
-          if (active && d.flights) setFetchedFlights(d.flights);
-        })
-        .catch(() => {});
-    }
+    fetch(`/api/flights?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(debouncedQuery)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (active && d.flights) {
+          setFetchedFlights(d.flights);
+          if (d.total !== undefined) setTotal(d.total);
+          if (d.totalPages !== undefined) setTotalPages(d.totalPages);
+        }
+      })
+      .catch(() => {});
     return () => {
       active = false;
     };
-  }, [initialFlights]);
+  }, [page, pageSize, debouncedQuery]);
 
-  const flights = (initialFlights && initialFlights.length > 0) ? initialFlights : fetchedFlights;
-  const [query, setQuery] = useState("");
+  const flights = fetchedFlights.length > 0 || debouncedQuery ? fetchedFlights : (initialFlights || []);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -250,6 +265,45 @@ export function FlightsSection({
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Table Pagination Bar */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800 bg-slate-900/60 px-4 py-3 font-mono text-xs text-slate-400">
+          <div className="flex items-center gap-2">
+            <span>Showing</span>
+            <span className="font-bold text-slate-200">
+              {filtered.length > 0 ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, total || filtered.length)}
+            </span>
+            <span>of</span>
+            <span className="font-bold text-slate-200">{total || filtered.length}</span>
+            <span>flights</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="h-7 px-2.5 text-xs font-mono border-slate-700 bg-slate-950 text-slate-300 disabled:opacity-40"
+            >
+              Previous
+            </Button>
+
+            <span className="px-2 font-bold text-sky-400">
+              {page} / {totalPages || 1}
+            </span>
+
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+              className="h-7 px-2.5 text-xs font-mono border-slate-700 bg-slate-950 text-slate-300 disabled:opacity-40"
+            >
+              Next
+            </Button>
+          </div>
         </div>
       </div>
 

@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 interface SearchResultItem {
   id: string;
-  category: "PAGES" | "FLIGHTS" | "PASSENGERS" | "GATES" | "RUNWAYS";
+  category: "PAGES" | "FLIGHTS" | "PASSENGERS" | "GATES" | "RUNWAYS" | "BOOKINGS" | "TICKETS" | "EMPLOYEES" | "AIRCRAFT";
   title: string;
   subtitle: string;
   badge?: string;
@@ -51,7 +51,7 @@ export async function GET(req: Request) {
 
   try {
     if (shouldUseDatabase()) {
-      const [flights, passengers, resources] = await Promise.all([
+      const [flights, passengers, resources, bookings, employees, aircraft] = await Promise.all([
         prisma.flight.findMany({
           where: {
             OR: [
@@ -70,7 +70,7 @@ export async function GET(req: Request) {
             status: true,
             altitudeFt: true,
           },
-          take: 6,
+          take: 4,
         }),
         prisma.passenger.findMany({
           where: {
@@ -88,7 +88,7 @@ export async function GET(req: Request) {
               take: 1,
             },
           },
-          take: 4,
+          take: 3,
         }),
         prisma.airportResource.findMany({
           where: {
@@ -101,7 +101,51 @@ export async function GET(req: Request) {
             label: true,
             status: true,
           },
-          take: 4,
+          take: 3,
+        }),
+        prisma.booking.findMany({
+          where: {
+            pnr: { contains: q, mode: "insensitive" },
+          },
+          select: {
+            id: true,
+            pnr: true,
+            seatNumber: true,
+            bookingStatus: true,
+            flight: { select: { callsign: true } },
+          },
+          take: 3,
+        }),
+        prisma.employee.findMany({
+          where: {
+            OR: [
+              { fullName: { contains: q, mode: "insensitive" } },
+              { employeeId: { contains: q, mode: "insensitive" } },
+            ],
+          },
+          select: {
+            id: true,
+            employeeId: true,
+            fullName: true,
+            department: true,
+            role: true,
+          },
+          take: 3,
+        }),
+        prisma.aircraft.findMany({
+          where: {
+            OR: [
+              { registration: { contains: q, mode: "insensitive" } },
+              { model: { contains: q, mode: "insensitive" } },
+            ],
+          },
+          select: {
+            id: true,
+            registration: true,
+            model: true,
+            status: true,
+          },
+          take: 3,
         }),
       ]);
 
@@ -110,7 +154,7 @@ export async function GET(req: Request) {
           id: f.id,
           category: "FLIGHTS",
           title: `${f.callsign} (${f.origin} → ${f.destination})`,
-          subtitle: `FL${Math.round(f.altitudeFt / 100)} &bull; ${f.status}`,
+          subtitle: `FL${Math.round(f.altitudeFt / 100)} · ${f.status}`,
           badge: f.status,
           href: `/staff/atc?flight=${f.callsign}`,
         });
@@ -122,8 +166,41 @@ export async function GET(req: Request) {
           id: p.id,
           category: "PASSENGERS",
           title: p.fullName,
-          subtitle: b ? `PNR: ${b.pnr} &bull; ${b.flight?.callsign || "Flight"}` : p.email,
+          subtitle: b ? `PNR: ${b.pnr} · ${b.flight?.callsign || "Flight"}` : p.email,
           href: `/staff/ticketing?pnr=${b?.pnr || ""}`,
+        });
+      }
+
+      for (const b of bookings) {
+        results.push({
+          id: b.id,
+          category: "BOOKINGS" as const,
+          title: `PNR: ${b.pnr}`,
+          subtitle: `${b.flight.callsign} · Seat ${b.seatNumber}`,
+          badge: b.bookingStatus,
+          href: `/staff/ticketing?pnr=${b.pnr}`,
+        });
+      }
+
+      for (const emp of employees) {
+        results.push({
+          id: emp.id,
+          category: "EMPLOYEES" as const,
+          title: `${emp.fullName} (${emp.employeeId})`,
+          subtitle: `${emp.department} · ${emp.role}`,
+          badge: emp.role,
+          href: `/admin`,
+        });
+      }
+
+      for (const ac of aircraft) {
+        results.push({
+          id: ac.id,
+          category: "AIRCRAFT" as const,
+          title: `${ac.registration} · ${ac.model}`,
+          subtitle: `Status: ${ac.status}`,
+          badge: ac.status,
+          href: `/staff/ground`,
         });
       }
 
@@ -132,7 +209,7 @@ export async function GET(req: Request) {
           id: r.id,
           category: r.resourceType === "RUNWAY" ? "RUNWAYS" : "GATES",
           title: `${r.resourceType} ${r.code}`,
-          subtitle: `${r.label} &bull; ${r.status}`,
+          subtitle: `${r.label} · ${r.status}`,
           badge: r.status,
           href: `/staff/ground`,
         });
