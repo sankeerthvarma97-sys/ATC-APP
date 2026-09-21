@@ -10,6 +10,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/aocc_placeholder?schema=public"
+ENV NEXTAUTH_SECRET="aocc-production-build-secret-2026"
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
