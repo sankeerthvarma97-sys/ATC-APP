@@ -26,12 +26,15 @@ import {
   Warehouse,
   Wrench,
   Command,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { UserDTO } from "@/lib/domain";
 import { AoccLogo } from "@/components/brand/aocc-logo";
 import { AerospaceAmbientGrid } from "@/components/brand/aerospace-ambient-grid";
+import { atcVoice } from "@/lib/services/voice-service";
 import { CommandPaletteModal } from "./command-palette-modal";
 import { NotificationCenterDrawer } from "./notification-center-drawer";
 
@@ -59,8 +62,14 @@ export function AoccPortalShell({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [zuluTime, setZuluTime] = useState("");
   const [unreadCount, setUnreadCount] = useState(2);
+  const [audioEnabled, setAudioEnabled] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
+
+  useEffect(() => {
+    setAudioEnabled(atcVoice.isAudioActive());
+    return atcVoice.subscribe((enabled) => setAudioEnabled(enabled));
+  }, []);
 
   const isSuperAdmin = user.role === "SUPER_ADMIN";
   const isAdmin = user.role === "ADMIN" || user.role === "AIRPORT_ADMIN" || isSuperAdmin;
@@ -361,7 +370,20 @@ export function AoccPortalShell({
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-slate-500">API: 200 OK</span>
+            <button
+              onClick={() => atcVoice.toggleAudio()}
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded transition ${
+                audioEnabled
+                  ? "text-cyan-300 hover:text-cyan-200 bg-cyan-950/60 border border-cyan-700/60 shadow-[0_0_8px_rgba(6,182,212,0.2)]"
+                  : "text-slate-500 hover:text-slate-400 bg-slate-900 border border-slate-800"
+              }`}
+              title={audioEnabled ? "Mute ATC VHF Radio audio clearances" : "Unmute ATC VHF Radio audio clearances"}
+            >
+              {audioEnabled ? <Volume2 className="h-3 w-3 text-cyan-400" /> : <VolumeX className="h-3 w-3 text-slate-500" />}
+              <span>ATC AUDIO: {audioEnabled ? "ON" : "MUTED"}</span>
+            </button>
+            <span className="text-slate-700 hidden sm:inline">|</span>
+            <span className="text-slate-500 hidden sm:inline">API: 200 OK</span>
             <span className="text-slate-700">|</span>
             <span className="text-emerald-400">DB: HEALTHY</span>
             <span className="text-slate-700">|</span>

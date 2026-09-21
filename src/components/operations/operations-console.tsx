@@ -44,6 +44,8 @@ import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { cn, formatEta, formatZulu, titleCase } from "@/lib/utils";
+import { atcVoice } from "@/lib/services/voice-service";
+import { MetarWidget } from "@/components/aviation/metar-widget";
 
 const FlightMap = dynamic(() => import("@/components/maps/flight-map").then((mod) => mod.FlightMap), {
   ssr: false,
@@ -361,6 +363,11 @@ export function OperationsConsole({ initialSnapshot }: { initialSnapshot: Operat
       setSnapshot(body.snapshot);
       socketRef.current?.emit(socketEvents.command, payload);
       setCommandNote("");
+
+      // Radio clearance speech announcement
+      const phoneticCallsign = atcVoice.toPhonetic(selectedFlight.callsign);
+      const commandVerb = commandType.toLowerCase().replace(/_/g, " ");
+      atcVoice.speakClearance(`${phoneticCallsign}, ${commandVerb} ${commandValue || ""}`.trim());
     });
   }
 
@@ -372,14 +379,16 @@ export function OperationsConsole({ initialSnapshot }: { initialSnapshot: Operat
       flightId: selectedFlight.id,
       note: "Emergency declared from AOCC console.",
     });
+    atcVoice.speakClearance(`Mayday, mayday, mayday! Emergency declared for ${selectedFlight.callsign}`, { isEmergency: true });
   }
 
   function submitRadioMessage() {
     if (!selectedFlight || radioText.trim().length < 4) return;
     setError(null);
+    const spokenText = radioText.trim();
     const payload = {
       flightId: selectedFlight.id,
-      text: radioText.trim(),
+      text: spokenText,
       direction: "ATC_TO_PILOT" as const,
       priority: selectedFlight.status === "EMERGENCY" ? ("CRITICAL" as const) : ("INFO" as const),
       channel: selectedFlight.status === "AIRBORNE" ? "Departure" : "Tower",
@@ -402,6 +411,7 @@ export function OperationsConsole({ initialSnapshot }: { initialSnapshot: Operat
       setSnapshot(body.snapshot);
       socketRef.current?.emit(socketEvents.radioMessage, payload);
       setRadioText("");
+      atcVoice.speakClearance(spokenText);
     });
   }
 
@@ -657,7 +667,9 @@ export function OperationsConsole({ initialSnapshot }: { initialSnapshot: Operat
               )}
 
               {activeTab === "overview" && (
-                <div className="grid gap-4 xl:grid-cols-2">
+                <>
+                  <MetarWidget station="HYD" />
+                  <div className="grid gap-4 xl:grid-cols-2">
                   <Card>
                     <CardHeader>
                       <CardTitle>Risk By Flight</CardTitle>
@@ -694,7 +706,8 @@ export function OperationsConsole({ initialSnapshot }: { initialSnapshot: Operat
                     </CardContent>
                   </Card>
                 </div>
-              )}
+              </>
+            )}
 
               {activeTab === "ai" && (
                 <Card>
