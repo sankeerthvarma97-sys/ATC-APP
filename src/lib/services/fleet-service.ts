@@ -1,0 +1,259 @@
+import type { AircraftDTO, AirlineDTO, AirportDTO, GateDTO, RunwayDTO } from "@/lib/domain";
+import { prisma, shouldUseDatabase } from "@/lib/prisma";
+import { logAuditEvent } from "./audit-service";
+
+export const initialAirports: AirportDTO[] = [
+  { id: "apt-hyd", iata: "HYD", icao: "VOHS", name: "Rajiv Gandhi International Simulation Field", city: "Hyderabad", country: "India", latitude: 17.2403, longitude: 78.4294, elevationFt: 2024, status: "ACTIVE" },
+  { id: "apt-bom", iata: "BOM", icao: "VABB", name: "Chhatrapati Shivaji Maharaj Simulation Airport", city: "Mumbai", country: "India", latitude: 19.0896, longitude: 72.8656, elevationFt: 39, status: "ACTIVE" },
+  { id: "apt-del", iata: "DEL", icao: "VIDP", name: "Indira Gandhi International Simulation Airport", city: "Delhi", country: "India", latitude: 28.5562, longitude: 77.1000, elevationFt: 777, status: "ACTIVE" },
+  { id: "apt-blr", iata: "BLR", icao: "VOBL", name: "Kempegowda International Simulation Airport", city: "Bengaluru", country: "India", latitude: 13.1986, longitude: 77.7066, elevationFt: 3000, status: "ACTIVE" },
+  { id: "apt-maa", iata: "MAA", icao: "VOMM", name: "Chennai International Simulation Field", city: "Chennai", country: "India", latitude: 12.9941, longitude: 80.1709, elevationFt: 52, status: "ACTIVE" },
+  { id: "apt-ccu", iata: "CCU", icao: "VECC", name: "Netaji Subhash Chandra Bose Simulation Field", city: "Kolkata", country: "India", latitude: 22.6547, longitude: 88.4467, elevationFt: 16, status: "ACTIVE" },
+  { id: "apt-cok", iata: "COK", icao: "VOCI", name: "Cochin International Simulation Field", city: "Kochi", country: "India", latitude: 10.1520, longitude: 76.4019, elevationFt: 30, status: "ACTIVE" },
+  { id: "apt-goi", iata: "GOI", icao: "VOGO", name: "Goa Dabolim Simulation Airport", city: "Goa", country: "India", latitude: 15.3808, longitude: 73.8314, elevationFt: 184, status: "ACTIVE" },
+  { id: "apt-pnq", iata: "PNQ", icao: "VAPO", name: "Pune Airport Simulation Field", city: "Pune", country: "India", latitude: 18.5822, longitude: 73.9197, elevationFt: 1942, status: "ACTIVE" },
+  { id: "apt-amd", iata: "AMD", icao: "VAAH", name: "Sardar Vallabhbhai Patel Simulation Airport", city: "Ahmedabad", country: "India", latitude: 23.0772, longitude: 72.6347, elevationFt: 189, status: "ACTIVE" },
+  { id: "apt-jai", iata: "JAI", icao: "VIJP", name: "Jaipur International Simulation Airport", city: "Jaipur", country: "India", latitude: 26.8242, longitude: 75.8122, elevationFt: 1263, status: "ACTIVE" },
+  { id: "apt-dxb", iata: "DXB", icao: "OMDB", name: "Dubai International Simulation Field", city: "Dubai", country: "UAE", latitude: 25.2532, longitude: 55.3657, elevationFt: 62, status: "ACTIVE" },
+  { id: "apt-sin", iata: "SIN", icao: "WSSS", name: "Singapore Changi Simulation Field", city: "Singapore", country: "Singapore", latitude: 1.3644, longitude: 103.9915, elevationFt: 22, status: "ACTIVE" },
+  { id: "apt-jfk", iata: "JFK", icao: "KJFK", name: "Kennedy International Simulation Field", city: "New York", country: "USA", latitude: 40.6413, longitude: -73.7781, elevationFt: 13, status: "ACTIVE" },
+];
+
+export const initialAirlines: AirlineDTO[] = [
+  { id: "air-sc", name: "SkyConnect Airlines", iata: "SC", icao: "SKY", logo: "✈️", country: "India", contactEmail: "ops@skyconnect.sim", contactPhone: "+91 800 100 2001", status: "ACTIVE" },
+  { id: "air-av", name: "AeroVista", iata: "AV", icao: "AVS", logo: "🌐", country: "India", contactEmail: "ops@aerovista.sim", contactPhone: "+91 800 100 2002", status: "ACTIVE" },
+  { id: "air-bh", name: "Blue Horizon Air", iata: "BH", icao: "BHA", logo: "🔷", country: "India", contactEmail: "ops@bluehorizon.sim", contactPhone: "+91 800 100 2003", status: "ACTIVE" },
+  { id: "air-nv", name: "Nova Airways", iata: "NV", icao: "NVA", logo: "⭐", country: "India", contactEmail: "ops@novaair.sim", contactPhone: "+91 800 100 2004", status: "ACTIVE" },
+  { id: "air-is", name: "IndianSky Simulation Airlines", iata: "IS", icao: "ISK", logo: "🇮🇳", country: "India", contactEmail: "ops@indiansky.sim", contactPhone: "+91 800 100 2005", status: "ACTIVE" },
+];
+
+export const initialAircraft: AircraftDTO[] = [
+  { id: "ac-1", registration: "VT-SC1", model: "Airbus A320neo", manufacturer: "Airbus", airlineId: "air-sc", airlineName: "SkyConnect Airlines", economyCapacity: 150, businessCapacity: 20, firstClassCapacity: 0, totalCapacity: 170, status: "IN_SERVICE", currentAirport: "HYD", currentGate: "B12" },
+  { id: "ac-2", registration: "VT-SC2", model: "Airbus A321neo", manufacturer: "Airbus", airlineId: "air-sc", airlineName: "SkyConnect Airlines", economyCapacity: 180, businessCapacity: 24, firstClassCapacity: 0, totalCapacity: 204, status: "IN_SERVICE", currentAirport: "BOM", currentGate: "A4" },
+  { id: "ac-3", registration: "VT-AV1", model: "Boeing 737-800", manufacturer: "Boeing", airlineId: "air-av", airlineName: "AeroVista", economyCapacity: 162, businessCapacity: 16, firstClassCapacity: 0, totalCapacity: 178, status: "IN_SERVICE", currentAirport: "DEL", currentGate: "C2" },
+  { id: "ac-4", registration: "VT-AV2", model: "Boeing 787-9", manufacturer: "Boeing", airlineId: "air-av", airlineName: "AeroVista", economyCapacity: 220, businessCapacity: 35, firstClassCapacity: 8, totalCapacity: 263, status: "IN_SERVICE", currentAirport: "BLR", currentGate: "D1" },
+  { id: "ac-5", registration: "VT-BH1", model: "Airbus A320", manufacturer: "Airbus", airlineId: "air-bh", airlineName: "Blue Horizon Air", economyCapacity: 150, businessCapacity: 20, firstClassCapacity: 0, totalCapacity: 170, status: "IN_SERVICE", currentAirport: "MAA", currentGate: "B6" },
+  { id: "ac-6", registration: "VT-BH2", model: "Boeing 737 MAX 8", manufacturer: "Boeing", airlineId: "air-bh", airlineName: "Blue Horizon Air", economyCapacity: 160, businessCapacity: 18, firstClassCapacity: 0, totalCapacity: 178, status: "IN_SERVICE", currentAirport: "CCU", currentGate: "A1" },
+  { id: "ac-7", registration: "VT-NV1", model: "Airbus A321", manufacturer: "Airbus", airlineId: "air-nv", airlineName: "Nova Airways", economyCapacity: 180, businessCapacity: 24, firstClassCapacity: 0, totalCapacity: 204, status: "IN_SERVICE", currentAirport: "COK", currentGate: "B2" },
+  { id: "ac-8", registration: "VT-IS1", model: "Boeing 777-200ER", manufacturer: "Boeing", airlineId: "air-is", airlineName: "IndianSky Simulation Airlines", economyCapacity: 260, businessCapacity: 40, firstClassCapacity: 12, totalCapacity: 312, status: "IN_SERVICE", currentAirport: "HYD", currentGate: "A10" },
+];
+
+export const initialRunways: RunwayDTO[] = [
+  { id: "rwy-09-hyd", airportId: "apt-hyd", code: "09L/27R", headingDeg: 90, lengthMeters: 4260, status: "AVAILABLE", wind: "090/10kt", approachType: "CAT III ILS" },
+  { id: "rwy-09r-hyd", airportId: "apt-hyd", code: "09R/27L", headingDeg: 90, lengthMeters: 3800, status: "OCCUPIED", wind: "090/10kt", approachType: "CAT II ILS" },
+  { id: "rwy-04l-jfk", airportId: "apt-jfk", code: "04L/22R", headingDeg: 40, lengthMeters: 3680, status: "OCCUPIED", wind: "050/11kt", approachType: "ILS" },
+  { id: "rwy-04r-jfk", airportId: "apt-jfk", code: "04R/22L", headingDeg: 40, lengthMeters: 2560, status: "RESERVED", wind: "050/11kt", approachType: "ILS" },
+];
+
+export const initialGates: GateDTO[] = [
+  { id: "gate-b12", terminalId: "t1", code: "B12", status: "OCCUPIED", turnMinutes: 40 },
+  { id: "gate-a4", terminalId: "t1", code: "A4", status: "AVAILABLE", turnMinutes: 45 },
+  { id: "gate-a10", terminalId: "t1", code: "A10", status: "AVAILABLE", turnMinutes: 50 },
+  { id: "gate-c2", terminalId: "t2", code: "C2", status: "OCCUPIED", turnMinutes: 35 },
+  { id: "gate-b24", terminalId: "t1", code: "B24", status: "RESERVED", turnMinutes: 45 },
+  { id: "gate-a12", terminalId: "t1", code: "A12", status: "OCCUPIED", turnMinutes: 41 },
+];
+
+const memoryAirports = [...initialAirports];
+const memoryAirlines = [...initialAirlines];
+const memoryAircraft = [...initialAircraft];
+const memoryRunways = [...initialRunways];
+let memoryGates = [...initialGates];
+
+export async function listAirports(): Promise<AirportDTO[]> {
+  if (shouldUseDatabase()) {
+    try {
+      const dbAirports = await prisma.airport.findMany({ orderBy: { iata: "asc" } });
+      if (dbAirports.length > 0) {
+        return dbAirports.map((a) => ({
+          id: a.id,
+          iata: a.iata,
+          icao: a.icao,
+          name: a.name,
+          city: a.city,
+          country: a.country,
+          latitude: a.latitude,
+          longitude: a.longitude,
+          elevationFt: a.elevationFt,
+          status: a.status,
+        }));
+      }
+    } catch (error) {
+      console.warn("Database airport query failed; using memory.", error);
+    }
+  }
+  return memoryAirports;
+}
+
+export async function createAirport(input: Omit<AirportDTO, "id">, actor?: { id?: string; name?: string }): Promise<AirportDTO> {
+  const airport: AirportDTO = {
+    id: `apt-${input.iata.toLowerCase()}`,
+    ...input,
+  };
+  memoryAirports.push(airport);
+
+  if (shouldUseDatabase()) {
+    try {
+      await prisma.airport.upsert({
+        where: { iata: airport.iata },
+        update: { ...input },
+        create: { id: airport.id, ...input },
+      });
+    } catch (error) {
+      console.warn("Database airport upsert failed; stored in memory.", error);
+    }
+  }
+
+  await logAuditEvent({
+    actorId: actor?.id,
+    actorName: actor?.name,
+    action: "ADMIN_CREATED_AIRPORT",
+    entity: "AIRPORT",
+    entityId: airport.iata,
+    after: { iata: airport.iata, name: airport.name },
+  });
+
+  return airport;
+}
+
+export async function listAirlines(): Promise<AirlineDTO[]> {
+  if (shouldUseDatabase()) {
+    try {
+      const dbAirlines = await prisma.airline.findMany({ orderBy: { name: "asc" } });
+      if (dbAirlines.length > 0) {
+        return dbAirlines.map((a) => ({
+          id: a.id,
+          name: a.name,
+          iata: a.iata,
+          icao: a.icao,
+          logo: a.logo ?? "✈️",
+          country: a.country,
+          contactEmail: a.contactEmail ?? undefined,
+          contactPhone: a.contactPhone ?? undefined,
+          status: a.status,
+        }));
+      }
+    } catch (error) {
+      console.warn("Database airline query failed; using memory.", error);
+    }
+  }
+  return memoryAirlines;
+}
+
+export async function createAirline(input: Omit<AirlineDTO, "id">, actor?: { id?: string; name?: string }): Promise<AirlineDTO> {
+  const airline: AirlineDTO = {
+    id: `air-${input.iata.toLowerCase()}`,
+    ...input,
+  };
+  memoryAirlines.push(airline);
+
+  if (shouldUseDatabase()) {
+    try {
+      await prisma.airline.upsert({
+        where: { iata: airline.iata },
+        update: { ...input },
+        create: { id: airline.id, ...input },
+      });
+    } catch (error) {
+      console.warn("Database airline upsert failed; stored in memory.", error);
+    }
+  }
+
+  await logAuditEvent({
+    actorId: actor?.id,
+    actorName: actor?.name,
+    action: "AIRLINE_CREATED",
+    entity: "AIRLINE",
+    entityId: airline.iata,
+    after: { iata: airline.iata, name: airline.name },
+  });
+
+  return airline;
+}
+
+export async function listAircraft(): Promise<AircraftDTO[]> {
+  if (shouldUseDatabase()) {
+    try {
+      const dbAircraft = await prisma.aircraft.findMany({
+        include: { airline: { select: { name: true } } },
+        orderBy: { registration: "asc" },
+      });
+      if (dbAircraft.length > 0) {
+        return dbAircraft.map((ac) => ({
+          id: ac.id,
+          registration: ac.registration,
+          model: ac.model,
+          manufacturer: ac.manufacturer,
+          airlineId: ac.airlineId,
+          airlineName: ac.airline.name,
+          economyCapacity: ac.economyCapacity,
+          businessCapacity: ac.businessCapacity,
+          firstClassCapacity: ac.firstClassCapacity,
+          totalCapacity: ac.totalCapacity,
+          status: ac.status,
+          currentAirport: ac.currentAirport ?? undefined,
+          currentGate: ac.currentGate ?? undefined,
+          currentFlightId: ac.currentFlightId ?? undefined,
+        }));
+      }
+    } catch (error) {
+      console.warn("Database aircraft query failed; using memory.", error);
+    }
+  }
+  return memoryAircraft;
+}
+
+export async function createAircraft(input: Omit<AircraftDTO, "id">, actor?: { id?: string; name?: string }): Promise<AircraftDTO> {
+  const aircraft: AircraftDTO = {
+    id: `ac-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    ...input,
+  };
+  memoryAircraft.push(aircraft);
+
+  if (shouldUseDatabase()) {
+    try {
+      await prisma.aircraft.create({
+        data: {
+          id: aircraft.id,
+          registration: aircraft.registration,
+          model: aircraft.model,
+          manufacturer: aircraft.manufacturer,
+          airlineId: aircraft.airlineId,
+          economyCapacity: aircraft.economyCapacity,
+          businessCapacity: aircraft.businessCapacity,
+          firstClassCapacity: aircraft.firstClassCapacity,
+          totalCapacity: aircraft.totalCapacity,
+          status: aircraft.status,
+          currentAirport: aircraft.currentAirport,
+          currentGate: aircraft.currentGate,
+        },
+      });
+    } catch (error) {
+      console.warn("Database aircraft create failed; stored in memory.", error);
+    }
+  }
+
+  await logAuditEvent({
+    actorId: actor?.id,
+    actorName: actor?.name,
+    action: "AIRCRAFT_CREATED",
+    entity: "AIRCRAFT",
+    entityId: aircraft.registration,
+    after: { registration: aircraft.registration, model: aircraft.model },
+  });
+
+  return aircraft;
+}
+
+export async function listRunways(): Promise<RunwayDTO[]> {
+  return memoryRunways;
+}
+
+export async function listGates(): Promise<GateDTO[]> {
+  return memoryGates;
+}
+
+export async function updateGateStatus(gateCode: string, status: GateDTO["status"], assignedFlightId?: string) {
+  memoryGates = memoryGates.map((g) => (g.code === gateCode ? { ...g, status, assignedFlightId } : g));
+  return memoryGates.find((g) => g.code === gateCode);
+}

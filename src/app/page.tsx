@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { OperationsConsole } from "@/components/operations/operations-console";
+import { AoccUnifiedView } from "@/components/operations/aocc-unified-view";
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { getOperationsSnapshot } from "@/lib/repositories/operations-repository";
 
@@ -12,5 +12,5 @@ export default async function Home() {
   }
 
   const snapshot = await getOperationsSnapshot(user);
-  return <OperationsConsole initialSnapshot={snapshot} />;
+  return <AoccUnifiedView user={user} initialSnapshot={snapshot} />;
 }

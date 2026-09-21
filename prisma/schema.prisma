@@ -8,25 +8,100 @@ datasource db {
 
 enum Role {
   ADMIN
+  SUPER_ADMIN
+  AIRPORT_ADMIN
+  OPERATIONS_MANAGER
   SUPERVISOR
   ATC
-  PILOT
+  ATC_CONTROLLER
+  SENIOR_ATC_CONTROLLER
   GROUND
+  GROUND_OPERATOR
+  AIRLINE_OPERATOR
+  TICKETING_AGENT
+  GATE_AGENT
+  SECURITY_OFFICER
+  BAGGAGE_STAFF
+  MAINTENANCE_STAFF
+  FLIGHT_DISPATCHER
+  SIMULATOR_OPERATOR
+  PILOT
+  PASSENGER
   ANALYST
   VIEWER
 }
 
+enum Permission {
+  VIEW_DASHBOARD
+  VIEW_TRAFFIC
+  CREATE_FLIGHT
+  EDIT_FLIGHT
+  CANCEL_FLIGHT
+  MANAGE_AIRLINES
+  MANAGE_AIRCRAFT
+  MANAGE_GATES
+  MANAGE_RUNWAYS
+  MANAGE_STAFF
+  VERIFY_STAFF
+  MANAGE_ROLES
+  MANAGE_PERMISSIONS
+  CREATE_BOOKING
+  MODIFY_BOOKING
+  CANCEL_BOOKING
+  VERIFY_TICKET
+  CHECK_IN_PASSENGER
+  BOARD_PASSENGER
+  CONTROL_ATC
+  MANAGE_GROUND_OPERATIONS
+  MANAGE_EMERGENCIES
+  VIEW_ANALYTICS
+  VIEW_AUDIT_LOGS
+  MANAGE_SYSTEM_SETTINGS
+}
+
+enum DepartmentType {
+  AIR_TRAFFIC_CONTROL
+  AIRPORT_OPERATIONS
+  GROUND_OPERATIONS
+  AIRLINE_OPERATIONS
+  TICKETING
+  PASSENGER_SERVICES
+  SECURITY
+  BAGGAGE
+  MAINTENANCE
+  EMERGENCY_RESPONSE
+  ADMINISTRATION
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  OFFLINE
+  ON_DUTY
+  PENDING_VERIFICATION
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
 enum FlightStatus {
   SCHEDULED
+  BOARDING
   PUSHBACK
   TAXI_OUT
+  HOLDING
   DEPARTING
   AIRBORNE
   APPROACH
   LANDED
   TAXI_IN
   AT_GATE
-  HOLDING
+  ARRIVED
+  DELAYED
   DIVERTED
   CANCELLED
   EMERGENCY
@@ -49,6 +124,14 @@ enum EventType {
   EMERGENCY
   NOTIFICATION
   AI_ANALYSIS
+  FLIGHT_CREATED
+  GATE_ASSIGNED
+  RUNWAY_CHANGED
+  BOOKING_CREATED
+  TICKET_VERIFIED
+  PASSENGER_CHECKED_IN
+  PASSENGER_BOARDED
+  EMPLOYEE_CREATED
 }
 
 enum MessageDirection {
@@ -74,25 +157,80 @@ enum ResourceStatus {
   CLOSED
 }
 
-model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  passwordHash  String?
-  role          Role      @default(VIEWER)
-  shift         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+enum SeatClass {
+  ECONOMY
+  BUSINESS
+  FIRST
+}
 
-  accounts      Account[]
-  sessions      Session[]
-  assignedFlights Flight[] @relation("AssignedController")
-  auditLogs      AuditLog[]
-  radioMessages  RadioMessage[]
-  events         OperationalEvent[]
-  aiAnalyses     AiAnalysis[]
+enum SeatStatus {
+  AVAILABLE
+  SELECTED
+  RESERVED
+  OCCUPIED
+  BLOCKED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  MODIFIED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+  REFUNDED
+}
+
+enum CheckInStatus {
+  NOT_CHECKED_IN
+  CHECKED_IN
+}
+
+enum BoardingStatus {
+  NOT_BOARDED
+  BOARDING
+  BOARDED
+}
+
+enum TicketStatus {
+  ACTIVE
+  USED
+  CANCELLED
+  EXPIRED
+}
+
+enum BaggageStatus {
+  CHECKED
+  LOADED
+  TRANSIT
+  CLAIMED
+}
+
+model User {
+  id              String             @id @default(cuid())
+  name            String
+  email           String             @unique
+  emailVerified   DateTime?
+  image           String?
+  passwordHash    String?
+  role            Role               @default(VIEWER)
+  shift           String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  accounts        Account[]
+  sessions        Session[]
+  assignedFlights Flight[]           @relation("AssignedController")
+  auditLogs       AuditLog[]
+  radioMessages   RadioMessage[]
+  events          OperationalEvent[]
+  aiAnalyses      AiAnalysis[]
+  employee        Employee?
+  createdBookings Booking[]          @relation("BookingCreator")
 }
 
 model Account {
@@ -109,7 +247,7 @@ model Account {
   id_token          String? @db.Text
   session_state     String?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -120,7 +258,7 @@ model Session {
   userId       String
   expires      DateTime
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {
@@ -131,12 +269,145 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+model Employee {
+  id                 String             @id @default(cuid())
+  employeeId         String             @unique
+  fullName           String
+  email              String             @unique
+  phone              String
+  department         DepartmentType
+  jobTitle           String
+  role               Role
+  airportCode        String             @default("HYD")
+  terminal           String?
+  gateArea           String?
+  shift              String             @default("MORNING")
+  status             EmployeeStatus     @default(ACTIVE)
+  verificationStatus VerificationStatus @default(VERIFIED)
+  joinDate           DateTime           @default(now())
+  lastLogin          DateTime?
+  permissions        String[]           @default([])
+  userId             String?            @unique
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  user               User?              @relation(fields: [userId], references: [id])
+
+  @@index([department])
+  @@index([role])
+  @@index([status])
+}
+
+model Airport {
+  id          String     @id @default(cuid())
+  iata        String     @unique
+  icao        String     @unique
+  name        String
+  city        String
+  country     String     @default("India")
+  latitude    Float
+  longitude   Float
+  elevationFt Int        @default(0)
+  status      String     @default("ACTIVE")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  terminals   Terminal[]
+  runways     Runway[]
+}
+
+model Terminal {
+  id        String   @id @default(cuid())
+  airportId String
+  code      String
+  name      String
+  createdAt DateTime @default(now())
+
+  airport   Airport  @relation(fields: [airportId], references: [id], onDelete: Cascade)
+  gates     Gate[]
+
+  @@unique([airportId, code])
+}
+
+model Runway {
+  id           String         @id @default(cuid())
+  airportId    String
+  code         String
+  headingDeg   Int            @default(0)
+  lengthMeters Int            @default(3200)
+  status       ResourceStatus @default(AVAILABLE)
+  wind         String?
+  approachType String?        @default("ILS")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  airport      Airport        @relation(fields: [airportId], references: [id], onDelete: Cascade)
+
+  @@unique([airportId, code])
+}
+
+model Gate {
+  id               String         @id @default(cuid())
+  terminalId       String
+  code             String
+  status           ResourceStatus @default(AVAILABLE)
+  assignedFlightId String?
+  turnMinutes      Int            @default(45)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  terminal         Terminal       @relation(fields: [terminalId], references: [id], onDelete: Cascade)
+
+  @@unique([terminalId, code])
+}
+
+model Airline {
+  id           String     @id @default(cuid())
+  name         String
+  iata         String     @unique
+  icao         String     @unique
+  logo         String?
+  country      String     @default("India")
+  contactPhone String?
+  contactEmail String?
+  status       String     @default("ACTIVE")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  aircraft     Aircraft[]
+  flights      Flight[]
+}
+
+model Aircraft {
+  id                 String   @id @default(cuid())
+  registration       String   @unique
+  model              String
+  manufacturer       String
+  airlineId          String
+  economyCapacity    Int      @default(150)
+  businessCapacity   Int      @default(20)
+  firstClassCapacity Int      @default(0)
+  totalCapacity      Int      @default(170)
+  status             String   @default("IN_SERVICE")
+  currentAirport     String?
+  currentGate        String?
+  currentFlightId    String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  airline            Airline  @relation(fields: [airlineId], references: [id])
+  flights            Flight[]
+
+  @@index([airlineId])
+  @@index([status])
+}
+
 model Flight {
-  id                   String       @id @default(cuid())
-  callsign             String       @unique
+  id                   String             @id @default(cuid())
+  callsign             String             @unique
   airline              String
   aircraftType         String
-  status               FlightStatus @default(SCHEDULED)
+  status               FlightStatus       @default(SCHEDULED)
   phase                String
   origin               String
   destination          String
@@ -149,21 +420,181 @@ model Flight {
   altitudeFt           Int
   speedKt              Int
   headingDeg           Int
-  verticalSpeedFpm     Int          @default(0)
+  verticalSpeedFpm     Int                @default(0)
   fuelKg               Int
-  riskScore            Int          @default(12)
+  riskScore            Int                @default(12)
   eta                  DateTime
   assignedControllerId String?
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  flightNumber         String?
+  flightName           String?
+  airlineId            String?
+  aircraftId           String?
+  departureTime        DateTime?
+  arrivalTime          DateTime?
+  boardingTime         DateTime?
+  checkInCloseTime     DateTime?
+  terminal             String?
+  economyCapacity      Int                @default(150)
+  businessCapacity     Int                @default(20)
+  firstCapacity        Int                @default(0)
+  economyFare          Float              @default(4500)
+  businessFare         Float              @default(8500)
+  firstFare            Float              @default(15000)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
-  assignedController User?              @relation("AssignedController", fields: [assignedControllerId], references: [id])
-  events             OperationalEvent[]
-  radioMessages      RadioMessage[]
+  assignedController   User?              @relation("AssignedController", fields: [assignedControllerId], references: [id])
+  airlineRel           Airline?           @relation(fields: [airlineId], references: [id])
+  aircraftRel          Aircraft?          @relation(fields: [aircraftId], references: [id])
+  events               OperationalEvent[]
+  radioMessages        RadioMessage[]
+  seats                Seat[]
+  bookings             Booking[]
 
   @@index([status])
   @@index([riskScore])
   @@index([eta])
+  @@index([origin, destination])
+}
+
+model Passenger {
+  id          String    @id @default(cuid())
+  fullName    String
+  email       String
+  phone       String
+  dateOfBirth String?
+  gender      String?
+  nationality String    @default("IN")
+  idNumber    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  bookings    Booking[]
+
+  @@index([email])
+}
+
+model Seat {
+  id          String     @id @default(cuid())
+  flightId    String
+  seatNumber  String
+  seatClass   SeatClass  @default(ECONOMY)
+  status      SeatStatus @default(AVAILABLE)
+  passengerId String?
+  bookingId   String?
+  version     Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  flight      Flight     @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  booking     Booking?   @relation(fields: [bookingId], references: [id])
+
+  @@unique([flightId, seatNumber])
+  @@index([flightId, status])
+}
+
+model Booking {
+  id                 String             @id @default(cuid())
+  pnr                String             @unique
+  flightId           String
+  passengerId        String
+  seatNumber         String
+  travelClass        SeatClass          @default(ECONOMY)
+  fare               Float
+  paymentStatus      PaymentStatus      @default(SUCCESSFUL)
+  bookingStatus      BookingStatus      @default(CONFIRMED)
+  checkInStatus      CheckInStatus      @default(NOT_CHECKED_IN)
+  boardingStatus     BoardingStatus     @default(NOT_BOARDED)
+  verificationStatus VerificationStatus @default(PENDING)
+  createdById        String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  flight             Flight             @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  passenger          Passenger          @relation(fields: [passengerId], references: [id], onDelete: Cascade)
+  createdByUser      User?              @relation("BookingCreator", fields: [createdById], references: [id])
+  seats              Seat[]
+  ticket             Ticket?
+  boardingPass       BoardingPass?
+  checkIn            CheckIn?
+  baggage            Baggage[]
+  payments           Payment[]
+
+  @@index([pnr])
+  @@index([flightId])
+  @@index([passengerId])
+  @@index([bookingStatus])
+}
+
+model Ticket {
+  id           String       @id @default(cuid())
+  bookingId    String       @unique
+  ticketNumber String       @unique
+  pnr          String
+  qrCode       String       @db.Text
+  issuedAt     DateTime     @default(now())
+  status       TicketStatus @default(ACTIVE)
+
+  booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([pnr])
+}
+
+model BoardingPass {
+  id            String         @id @default(cuid())
+  bookingId     String         @unique
+  passNumber    String         @unique
+  gate          String?
+  terminal      String?
+  seatNumber    String
+  boardingTime  DateTime?
+  boardingGroup String         @default("Group 1")
+  qrCode        String         @db.Text
+  status        BoardingStatus @default(NOT_BOARDED)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  booking       Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+model CheckIn {
+  id              String   @id @default(cuid())
+  bookingId       String   @unique
+  checkedInAt     DateTime @default(now())
+  checkedInBy     String?
+  seatConfirmed   Boolean  @default(true)
+  baggageCount    Int      @default(0)
+  baggageWeightKg Float    @default(0)
+
+  booking         Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+model Baggage {
+  id        String        @id @default(cuid())
+  bookingId String
+  tagNumber String        @unique
+  weightKg  Float
+  status    BaggageStatus @default(CHECKED)
+  createdAt DateTime      @default(now())
+
+  booking   Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  bookingId      String
+  amount         Float
+  currency       String        @default("INR")
+  method         String        @default("SIMULATED_CARD")
+  transactionRef String        @unique
+  status         PaymentStatus @default(SUCCESSFUL)
+  createdAt      DateTime      @default(now())
+
+  booking        Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
 }
 
 model AirportResource {
@@ -190,27 +621,27 @@ model RadioMessage {
   fromUserId String?
   flightId   String?
 
-  fromUser User?   @relation(fields: [fromUserId], references: [id])
-  flight   Flight? @relation(fields: [flightId], references: [id])
+  fromUser   User?            @relation(fields: [fromUserId], references: [id])
+  flight     Flight?          @relation(fields: [flightId], references: [id])
 
   @@index([createdAt])
   @@index([flightId])
 }
 
 model OperationalEvent {
-  id          String    @id @default(cuid())
-  type        EventType
-  severity    Severity  @default(INFO)
-  title       String
-  detail      String    @db.Text
-  payload     Json?
-  resolvedAt  DateTime?
-  createdAt   DateTime  @default(now())
-  flightId    String?
-  userId      String?
+  id         String    @id @default(cuid())
+  type       EventType
+  severity   Severity  @default(INFO)
+  title      String
+  detail     String    @db.Text
+  payload    Json?
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  flightId   String?
+  userId     String?
 
-  flight Flight? @relation(fields: [flightId], references: [id])
-  user   User?   @relation(fields: [userId], references: [id])
+  flight     Flight?   @relation(fields: [flightId], references: [id])
+  user       User?     @relation(fields: [userId], references: [id])
 
   @@index([type, severity])
   @@index([createdAt])
@@ -225,7 +656,7 @@ model AiAnalysis {
   createdAt   DateTime @default(now())
   createdById String?
 
-  createdBy User? @relation(fields: [createdById], references: [id])
+  createdBy   User?    @relation(fields: [createdById], references: [id])
 
   @@index([createdAt])
 }
@@ -241,7 +672,7 @@ model AuditLog {
   ip        String?
   createdAt DateTime @default(now())
 
-  actor User? @relation(fields: [actorId], references: [id])
+  actor     User?    @relation(fields: [actorId], references: [id])
 
   @@index([actorId, createdAt])
   @@index([entity, entityId])

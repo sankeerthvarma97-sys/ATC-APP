@@ -1,26 +1,104 @@
 export const roles = [
   "ADMIN",
+  "SUPER_ADMIN",
+  "AIRPORT_ADMIN",
+  "OPERATIONS_MANAGER",
   "SUPERVISOR",
   "ATC",
-  "PILOT",
+  "ATC_CONTROLLER",
+  "SENIOR_ATC_CONTROLLER",
   "GROUND",
+  "GROUND_OPERATOR",
+  "AIRLINE_OPERATOR",
+  "TICKETING_AGENT",
+  "GATE_AGENT",
+  "SECURITY_OFFICER",
+  "BAGGAGE_STAFF",
+  "MAINTENANCE_STAFF",
+  "FLIGHT_DISPATCHER",
+  "SIMULATOR_OPERATOR",
+  "PILOT",
+  "PASSENGER",
   "ANALYST",
   "VIEWER",
 ] as const;
 
 export type Role = (typeof roles)[number];
 
+export const permissions = [
+  "VIEW_DASHBOARD",
+  "VIEW_TRAFFIC",
+  "CREATE_FLIGHT",
+  "EDIT_FLIGHT",
+  "CANCEL_FLIGHT",
+  "MANAGE_AIRLINES",
+  "MANAGE_AIRCRAFT",
+  "MANAGE_GATES",
+  "MANAGE_RUNWAYS",
+  "MANAGE_STAFF",
+  "VERIFY_STAFF",
+  "MANAGE_ROLES",
+  "MANAGE_PERMISSIONS",
+  "CREATE_BOOKING",
+  "MODIFY_BOOKING",
+  "CANCEL_BOOKING",
+  "VERIFY_TICKET",
+  "CHECK_IN_PASSENGER",
+  "BOARD_PASSENGER",
+  "CONTROL_ATC",
+  "MANAGE_GROUND_OPERATIONS",
+  "MANAGE_EMERGENCIES",
+  "VIEW_ANALYTICS",
+  "VIEW_AUDIT_LOGS",
+  "MANAGE_SYSTEM_SETTINGS",
+] as const;
+
+export type Permission = (typeof permissions)[number];
+
+export const departments = [
+  "AIR_TRAFFIC_CONTROL",
+  "AIRPORT_OPERATIONS",
+  "GROUND_OPERATIONS",
+  "AIRLINE_OPERATIONS",
+  "TICKETING",
+  "PASSENGER_SERVICES",
+  "SECURITY",
+  "BAGGAGE",
+  "MAINTENANCE",
+  "EMERGENCY_RESPONSE",
+  "ADMINISTRATION",
+] as const;
+
+export type DepartmentType = (typeof departments)[number];
+
+export const employeeStatuses = [
+  "ACTIVE",
+  "OFFLINE",
+  "ON_DUTY",
+  "PENDING_VERIFICATION",
+  "SUSPENDED",
+  "DEACTIVATED",
+] as const;
+
+export type EmployeeStatus = (typeof employeeStatuses)[number];
+
+export const verificationStatuses = ["PENDING", "VERIFIED", "REJECTED"] as const;
+export type VerificationStatus = (typeof verificationStatuses)[number];
+
 export const flightStatuses = [
   "SCHEDULED",
+  "BOARDING",
   "PUSHBACK",
   "TAXI_OUT",
+  "HOLDING",
   "DEPARTING",
   "AIRBORNE",
   "APPROACH",
   "LANDED",
   "TAXI_IN",
   "AT_GATE",
-  "HOLDING",
+  "ARRIVED",
+  "DELAYED",
   "DIVERTED",
   "CANCELLED",
   "EMERGENCY",
@@ -41,6 +119,14 @@ export const eventTypes = [
   "EMERGENCY",
   "NOTIFICATION",
   "AI_ANALYSIS",
+  "FLIGHT_CREATED",
+  "GATE_ASSIGNED",
+  "RUNWAY_CHANGED",
+  "BOOKING_CREATED",
+  "TICKET_VERIFIED",
+  "PASSENGER_CHECKED_IN",
+  "PASSENGER_BOARDED",
+  "EMPLOYEE_CREATED",
 ] as const;
 
 export type EventType = (typeof eventTypes)[number];
@@ -48,6 +134,22 @@ export type EventType = (typeof eventTypes)[number];
 export type MessageDirection = "ATC_TO_PILOT" | "PILOT_TO_ATC" | "SYSTEM";
 export type ResourceType = "RUNWAY" | "GATE" | "STAND" | "BAGGAGE_BELT" | "CREW" | "VEHICLE";
 export type ResourceStatus = "AVAILABLE" | "OCCUPIED" | "RESERVED" | "MAINTENANCE" | "CLOSED";
+export type SeatClass = "ECONOMY" | "BUSINESS" | "FIRST";
+export type SeatStatus = "AVAILABLE" | "SELECTED" | "RESERVED" | "OCCUPIED" | "BLOCKED";
+export type BookingStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "MODIFIED";
+export type PaymentStatus = "PENDING" | "SUCCESSFUL" | "FAILED" | "REFUNDED";
+export type CheckInStatus = "NOT_CHECKED_IN" | "CHECKED_IN";
+export type BoardingStatus = "NOT_BOARDED" | "BOARDING" | "BOARDED";
+export type TicketStatus = "ACTIVE" | "USED" | "CANCELLED" | "EXPIRED";
+export type TicketVerificationResult =
+  | "VALID"
+  | "INVALID"
+  | "CANCELLED"
+  | "EXPIRED"
+  | "ALREADY_USED"
+  | "PAYMENT_FAILED"
+  | "FLIGHT_CANCELLED";
+export type BaggageStatus = "CHECKED" | "LOADED" | "TRANSIT" | "CLAIMED";
 
 export interface UserDTO {
   id: string;
@@ -55,6 +157,97 @@ export interface UserDTO {
   email: string;
   role: Role;
   shift?: string;
+  permissions?: Permission[];
+}
+
+export interface EmployeeDTO {
+  id: string;
+  employeeId: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  department: DepartmentType;
+  jobTitle: string;
+  role: Role;
+  airportCode: string;
+  terminal?: string;
+  gateArea?: string;
+  shift: string;
+  status: EmployeeStatus;
+  verificationStatus: VerificationStatus;
+  joinDate: string;
+  lastLogin?: string;
+  permissions: string[];
+  userId?: string;
+}
+
+export interface AirportDTO {
+  id: string;
+  iata: string;
+  icao: string;
+  name: string;
+  city: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+  elevationFt: number;
+  status: string;
+}
+
+export interface TerminalDTO {
+  id: string;
+  airportId: string;
+  code: string;
+  name: string;
+}
+
+export interface RunwayDTO {
+  id: string;
+  airportId: string;
+  code: string;
+  headingDeg: number;
+  lengthMeters: number;
+  status: ResourceStatus;
+  wind?: string;
+  approachType?: string;
+}
+
+export interface GateDTO {
+  id: string;
+  terminalId: string;
+  code: string;
+  status: ResourceStatus;
+  assignedFlightId?: string;
+  turnMinutes: number;
+}
+
+export interface AirlineDTO {
+  id: string;
+  name: string;
+  iata: string;
+  icao: string;
+  logo?: string;
+  country: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  status: string;
+}
+
+export interface AircraftDTO {
+  id: string;
+  registration: string;
+  model: string;
+  manufacturer: string;
+  airlineId: string;
+  airlineName?: string;
+  economyCapacity: number;
+  businessCapacity: number;
+  firstClassCapacity: number;
+  totalCapacity: number;
+  status: string;
+  currentAirport?: string;
+  currentGate?: string;
+  currentFlightId?: string;
 }
 
 export interface FlightDTO {
@@ -80,7 +273,156 @@ export interface FlightDTO {
   riskScore: number;
   eta: string;
   assignedController?: Pick<UserDTO, "id" | "name" | "role">;
+  flightNumber?: string;
+  flightName?: string;
+  airlineId?: string;
+  aircraftId?: string;
+  departureTime?: string;
+  arrivalTime?: string;
+  boardingTime?: string;
+  checkInCloseTime?: string;
+  terminal?: string;
+  economyCapacity?: number;
+  businessCapacity?: number;
+  firstCapacity?: number;
+  economyFare?: number;
+  businessFare?: number;
+  firstFare?: number;
+  availableSeats?: number;
   updatedAt: string;
+}
+
+export interface SeatDTO {
+  id: string;
+  flightId: string;
+  seatNumber: string;
+  seatClass: SeatClass;
+  status: SeatStatus;
+  passengerId?: string;
+  bookingId?: string;
+  price?: number;
+}
+
+export interface PassengerDTO {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  dateOfBirth?: string;
+  gender?: string;
+  nationality: string;
+  idNumber?: string;
+}
+
+export interface BookingDTO {
+  id: string;
+  pnr: string;
+  flightId: string;
+  flightNumber?: string;
+  flightCallsign?: string;
+  origin?: string;
+  destination?: string;
+  departureTime?: string;
+  airline?: string;
+  aircraft?: string;
+  passengerId: string;
+  passengerName?: string;
+  passengerEmail?: string;
+  passengerPhone?: string;
+  seatNumber: string;
+  travelClass: SeatClass;
+  fare: number;
+  paymentStatus: PaymentStatus;
+  bookingStatus: BookingStatus;
+  checkInStatus: CheckInStatus;
+  boardingStatus: BoardingStatus;
+  verificationStatus: VerificationStatus;
+  gate?: string;
+  terminal?: string;
+  ticketNumber?: string;
+  qrCode?: string;
+  createdById?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TicketDTO {
+  id: string;
+  bookingId: string;
+  ticketNumber: string;
+  pnr: string;
+  qrCode: string;
+  issuedAt: string;
+  status: TicketStatus;
+}
+
+export interface BoardingPassDTO {
+  id: string;
+  bookingId: string;
+  passNumber: string;
+  pnr: string;
+  passengerName: string;
+  airline: string;
+  flightNumber: string;
+  origin: string;
+  destination: string;
+  date: string;
+  seatNumber: string;
+  gate?: string;
+  terminal?: string;
+  boardingTime?: string;
+  departureTime?: string;
+  boardingGroup: string;
+  qrCode: string;
+  status: BoardingStatus;
+}
+
+export interface CheckInDTO {
+  id: string;
+  bookingId: string;
+  pnr: string;
+  checkedInAt: string;
+  checkedInBy?: string;
+  seatConfirmed: boolean;
+  baggageCount: number;
+  baggageWeightKg: number;
+  boardingPass?: BoardingPassDTO;
+}
+
+export interface BaggageDTO {
+  id: string;
+  bookingId: string;
+  tagNumber: string;
+  weightKg: number;
+  status: BaggageStatus;
+  createdAt: string;
+}
+
+export interface PaymentDTO {
+  id: string;
+  bookingId: string;
+  amount: number;
+  currency: string;
+  method: string;
+  transactionRef: string;
+  status: PaymentStatus;
+  createdAt: string;
+}
+
+export interface AuditLogDTO {
+  id: string;
+  actorId?: string;
+  actorName?: string;
+  actorRole?: string;
+  action: string;
+  entity: string;
+  entityType?: string;
+  entityId?: string;
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+  details?: Record<string, unknown>;
+  ip?: string;
+  createdAt: string;
 }
 
 export interface AirportResourceDTO {
@@ -129,6 +471,12 @@ export interface AirportMetrics {
   averageRisk: number;
   averageDelayMin: number;
   throughputPerHour: number;
+  totalBookings?: number;
+  todayPassengers?: number;
+  availableGates?: number;
+  occupiedGates?: number;
+  activeControllers?: number;
+  activeGroundStaff?: number;
 }
 
 export interface OperationsSnapshot {
@@ -189,3 +537,4 @@ export interface AiBriefingResponse {
   actions: string[];
   risk: Severity;
 }
+

@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { Prisma, PrismaClient } from "@prisma/client";
+import { FlightStatus, Prisma, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "bcryptjs";
 import {
@@ -9,20 +9,53 @@ import {
   createInitialResources,
   demoUsers,
 } from "../src/lib/data/mock";
+import { initialAirports, initialAirlines, initialAircraft } from "../src/lib/services/fleet-service";
+import { generateSeatsForFlight } from "../src/lib/services/flight-service";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL ?? "" }),
 });
 
+const defaultPassword = "AoccDemo!2026";
+
+const simulationRoutes = [
+  { callsign: "SC101", flightNumber: "SC101", airline: "SkyConnect Airlines", aircraft: "Airbus A320neo", from: "HYD", to: "BOM", dur: 90, dep: 45, gate: "B12", rwy: "09L", fare: 4500, status: "SCHEDULED" },
+  { callsign: "AV202", flightNumber: "AV202", airline: "AeroVista", aircraft: "Boeing 737-800", from: "DEL", to: "BLR", dur: 160, dep: 60, gate: "C2", rwy: "28", fare: 5200, status: "SCHEDULED" },
+  { callsign: "BH305", flightNumber: "BH305", airline: "Blue Horizon Air", aircraft: "Airbus A320", from: "MAA", to: "CCU", dur: 135, dep: 30, gate: "B6", rwy: "07", fare: 4800, status: "BOARDING" },
+  { callsign: "NV412", flightNumber: "NV412", airline: "Nova Airways", aircraft: "Airbus A321", from: "COK", to: "GOI", dur: 70, dep: 15, gate: "B2", rwy: "27", fare: 3600, status: "PUSHBACK" },
+  { callsign: "IS501", flightNumber: "IS501", airline: "IndianSky Simulation Airlines", aircraft: "Boeing 777-200ER", from: "HYD", to: "DXB", dur: 220, dep: -40, gate: "A10", rwy: "09L", fare: 14500, status: "AIRBORNE" },
+  { callsign: "SC104", flightNumber: "SC104", airline: "SkyConnect Airlines", aircraft: "Airbus A320neo", from: "PNQ", to: "DEL", dur: 125, dep: 90, gate: "A1", rwy: "10", fare: 4200, status: "SCHEDULED" },
+  { callsign: "AV210", flightNumber: "AV210", airline: "AeroVista", aircraft: "Boeing 737-800", from: "BLR", to: "AMD", dur: 130, dep: 120, gate: "D1", rwy: "09", fare: 4600, status: "SCHEDULED" },
+  { callsign: "BH315", flightNumber: "BH315", airline: "Blue Horizon Air", aircraft: "Airbus A320", from: "JAI", to: "HYD", dur: 110, dep: 75, gate: "A3", rwy: "15", fare: 4100, status: "SCHEDULED" },
+  { callsign: "NV420", flightNumber: "NV420", airline: "Nova Airways", aircraft: "Airbus A321", from: "BOM", to: "MAA", dur: 115, dep: 140, gate: "A4", rwy: "27", fare: 4400, status: "SCHEDULED" },
+  { callsign: "IS508", flightNumber: "IS508", airline: "IndianSky Simulation Airlines", aircraft: "Boeing 787-9", from: "DEL", to: "SIN", dur: 320, dep: -80, gate: "D4", rwy: "28", fare: 18500, status: "AIRBORNE" },
+  { callsign: "SC112", flightNumber: "SC112", airline: "SkyConnect Airlines", aircraft: "Airbus A320neo", from: "CCU", to: "COK", dur: 165, dep: 180, gate: "B4", rwy: "01R", fare: 5900, status: "SCHEDULED" },
+  { callsign: "AV225", flightNumber: "AV225", airline: "AeroVista", aircraft: "Boeing 737-800", from: "GOI", to: "BLR", dur: 65, dep: 40, gate: "C1", rwy: "08", fare: 3200, status: "BOARDING" },
+  { callsign: "BH322", flightNumber: "BH322", airline: "Blue Horizon Air", aircraft: "Airbus A320", from: "BOM", to: "DOH", dur: 210, dep: 240, gate: "A6", rwy: "27", fare: 16200, status: "SCHEDULED" },
+];
+
 async function main() {
-  for (const user of demoUsers) {
+  console.log("Seeding AOCC Phase 2 database...");
+
+  // 1. Seed Users
+  const passwordHash = await hash(defaultPassword, 12);
+
+  const extraUsers = [
+    { id: "usr-super", name: "Super Administrator", email: "superadmin@aocc.test", role: "SUPER_ADMIN" as const, shift: "EXEC" },
+    { id: "usr-opsmgr", name: "Suresh Menon", email: "ops@aocc.test", role: "OPERATIONS_MANAGER" as const, shift: "OPS-A" },
+    { id: "usr-ticket", name: "Karan Sharma", email: "ticket@aocc.test", role: "TICKETING_AGENT" as const, shift: "MORNING" },
+    { id: "usr-gate", name: "Ananya Desai", email: "gate@aocc.test", role: "GATE_AGENT" as const, shift: "EVENING" },
+    { id: "usr-dispatch", name: "Vikram Sen", email: "dispatch@aocc.test", role: "FLIGHT_DISPATCHER" as const, shift: "NIGHT" },
+  ];
+
+  for (const user of [...demoUsers, ...extraUsers]) {
     await prisma.user.upsert({
       where: { email: user.email },
       update: {
         name: user.name,
         role: user.role,
         shift: user.shift,
-        passwordHash: await hash(user.password, 12),
+        passwordHash,
       },
       create: {
         id: user.id,
@@ -30,18 +63,247 @@ async function main() {
         email: user.email,
         role: user.role,
         shift: user.shift,
-        passwordHash: await hash(user.password, 12),
+        passwordHash,
       },
     });
   }
 
+  // 2. Seed Airports
+  for (const apt of initialAirports) {
+    await prisma.airport.upsert({
+      where: { iata: apt.iata },
+      update: {
+        icao: apt.icao,
+        name: apt.name,
+        city: apt.city,
+        country: apt.country,
+        latitude: apt.latitude,
+        longitude: apt.longitude,
+        elevationFt: apt.elevationFt,
+        status: apt.status,
+      },
+      create: {
+        id: apt.id,
+        iata: apt.iata,
+        icao: apt.icao,
+        name: apt.name,
+        city: apt.city,
+        country: apt.country,
+        latitude: apt.latitude,
+        longitude: apt.longitude,
+        elevationFt: apt.elevationFt,
+        status: apt.status,
+      },
+    });
+  }
+
+  // 3. Seed Airlines
+  for (const air of initialAirlines) {
+    await prisma.airline.upsert({
+      where: { iata: air.iata },
+      update: {
+        name: air.name,
+        icao: air.icao,
+        logo: air.logo,
+        country: air.country,
+        contactEmail: air.contactEmail,
+        contactPhone: air.contactPhone,
+        status: air.status,
+      },
+      create: {
+        id: air.id,
+        name: air.name,
+        iata: air.iata,
+        icao: air.icao,
+        logo: air.logo,
+        country: air.country,
+        contactEmail: air.contactEmail,
+        contactPhone: air.contactPhone,
+        status: air.status,
+      },
+    });
+  }
+
+  // 4. Seed Aircraft
+  for (const ac of initialAircraft) {
+    await prisma.aircraft.upsert({
+      where: { registration: ac.registration },
+      update: {
+        model: ac.model,
+        manufacturer: ac.manufacturer,
+        airlineId: ac.airlineId,
+        economyCapacity: ac.economyCapacity,
+        businessCapacity: ac.businessCapacity,
+        firstClassCapacity: ac.firstClassCapacity,
+        totalCapacity: ac.totalCapacity,
+        status: ac.status,
+        currentAirport: ac.currentAirport,
+        currentGate: ac.currentGate,
+      },
+      create: {
+        id: ac.id,
+        registration: ac.registration,
+        model: ac.model,
+        manufacturer: ac.manufacturer,
+        airlineId: ac.airlineId,
+        economyCapacity: ac.economyCapacity,
+        businessCapacity: ac.businessCapacity,
+        firstClassCapacity: ac.firstClassCapacity,
+        totalCapacity: ac.totalCapacity,
+        status: ac.status,
+        currentAirport: ac.currentAirport,
+        currentGate: ac.currentGate,
+      },
+    });
+  }
+
+  // 5. Seed Employees across departments
+  const demoEmployees = [
+    { empId: "EMP-1001", name: "Maya Rao", email: "admin@aocc.test", dept: "ADMINISTRATION" as const, title: "Operations Director", role: "ADMIN" as const, apt: "HYD", shift: "OPS-A" },
+    { empId: "EMP-1002", name: "Evan Torres", email: "atc@aocc.test", dept: "AIR_TRAFFIC_CONTROL" as const, title: "Senior Tower Controller", role: "ATC" as const, apt: "HYD", shift: "TOWER-E" },
+    { empId: "EMP-1003", name: "Priya Nair", email: "ground@aocc.test", dept: "GROUND_OPERATIONS" as const, title: "Ramp Supervisor", role: "GROUND" as const, apt: "HYD", shift: "RAMP-2" },
+    { empId: "EMP-1004", name: "Karan Sharma", email: "ticket@aocc.test", dept: "TICKETING" as const, title: "Ticketing Supervisor", role: "TICKETING_AGENT" as const, apt: "HYD", shift: "MORNING" },
+    { empId: "EMP-1005", name: "Ananya Desai", email: "gate@aocc.test", dept: "PASSENGER_SERVICES" as const, title: "Gate Agent Lead", role: "GATE_AGENT" as const, apt: "HYD", shift: "EVENING" },
+    { empId: "EMP-1006", name: "Rajesh Kumar", email: "security@aocc.test", dept: "SECURITY" as const, title: "Chief Security Officer", role: "SECURITY_OFFICER" as const, apt: "HYD", shift: "ROTATING" },
+    { empId: "EMP-1007", name: "Amitava Ghosh", email: "baggage@aocc.test", dept: "BAGGAGE" as const, title: "Baggage Handling Lead", role: "BAGGAGE_STAFF" as const, apt: "HYD", shift: "MORNING" },
+    { empId: "EMP-1008", name: "Sunil Joshi", email: "maint@aocc.test", dept: "MAINTENANCE" as const, title: "Airfield Maintenance Tech", role: "MAINTENANCE_STAFF" as const, apt: "HYD", shift: "NIGHT" },
+    { empId: "EMP-1009", name: "Vikram Sen", email: "dispatch@aocc.test", dept: "AIRLINE_OPERATIONS" as const, title: "Flight Dispatcher", role: "FLIGHT_DISPATCHER" as const, apt: "HYD", shift: "NIGHT" },
+  ];
+
+  for (const emp of demoEmployees) {
+    await prisma.employee.upsert({
+      where: { employeeId: emp.empId },
+      update: {
+        fullName: emp.name,
+        email: emp.email,
+        department: emp.dept,
+        jobTitle: emp.title,
+        role: emp.role,
+        airportCode: emp.apt,
+        shift: emp.shift,
+      },
+      create: {
+        id: `emp-${emp.empId.toLowerCase()}`,
+        employeeId: emp.empId,
+        fullName: emp.name,
+        email: emp.email,
+        phone: "+91 98000 11000",
+        department: emp.dept,
+        jobTitle: emp.title,
+        role: emp.role,
+        airportCode: emp.apt,
+        terminal: "T1",
+        gateArea: "Main Concourse",
+        shift: emp.shift,
+        status: "ACTIVE",
+        verificationStatus: "VERIFIED",
+        permissions: ["VIEW_DASHBOARD"],
+      },
+    });
+  }
+
+  // 6. Seed Simulation Flights & Seats
+  for (const r of simulationRoutes) {
+    const flightId = `flt-${r.callsign.toLowerCase()}`;
+    const depTime = new Date(Date.now() + r.dep * 60_000);
+    const arrTime = new Date(depTime.getTime() + r.dur * 60_000);
+
+    const apt = initialAirports.find((a) => a.iata === r.from) ?? initialAirports[0];
+
+    const flight = await prisma.flight.upsert({
+      where: { callsign: r.callsign },
+      update: {
+        flightNumber: r.flightNumber,
+        flightName: `${r.airline} ${r.flightNumber}`,
+        airline: r.airline,
+        aircraftType: r.aircraft,
+        status: r.status as FlightStatus,
+        phase: r.status === "AIRBORNE" ? "Cruising FL340" : r.status === "BOARDING" ? "Passenger Boarding" : "Scheduled",
+        origin: r.from,
+        destination: r.to,
+        gate: r.gate,
+        stand: r.gate,
+        runway: r.rwy,
+        departureTime: depTime,
+        arrivalTime: arrTime,
+        economyCapacity: 150,
+        businessCapacity: 20,
+        firstCapacity: 0,
+        economyFare: r.fare,
+        businessFare: Math.round(r.fare * 1.9),
+        firstFare: Math.round(r.fare * 3.5),
+      },
+      create: {
+        id: flightId,
+        callsign: r.callsign,
+        flightNumber: r.flightNumber,
+        flightName: `${r.airline} ${r.flightNumber}`,
+        airline: r.airline,
+        aircraftType: r.aircraft,
+        status: r.status as FlightStatus,
+        phase: r.status === "AIRBORNE" ? "Cruising FL340" : r.status === "BOARDING" ? "Passenger Boarding" : "Scheduled",
+        origin: r.from,
+        destination: r.to,
+        gate: r.gate,
+        stand: r.gate,
+        runway: r.rwy,
+        squawk: Math.floor(1000 + Math.random() * 6700).toString(),
+        latitude: apt.latitude,
+        longitude: apt.longitude,
+        altitudeFt: r.status === "AIRBORNE" ? 34000 : 0,
+        speedKt: r.status === "AIRBORNE" ? 450 : 0,
+        headingDeg: 90,
+        verticalSpeedFpm: 0,
+        fuelKg: 10000,
+        riskScore: 12,
+        eta: arrTime,
+        departureTime: depTime,
+        arrivalTime: arrTime,
+        boardingTime: new Date(depTime.getTime() - 25 * 60_000),
+        checkInCloseTime: new Date(depTime.getTime() - 15 * 60_000),
+        terminal: "T1",
+        economyCapacity: 150,
+        businessCapacity: 20,
+        firstCapacity: 0,
+        economyFare: r.fare,
+        businessFare: Math.round(r.fare * 1.9),
+        firstFare: Math.round(r.fare * 3.5),
+      },
+    });
+
+    // Generate seats
+    const seats = generateSeatsForFlight(flight.id, 150, 20, 0);
+    for (const seat of seats) {
+      await prisma.seat.upsert({
+        where: {
+          flightId_seatNumber: {
+            flightId: flight.id,
+            seatNumber: seat.seatNumber,
+          },
+        },
+        update: {
+          seatClass: seat.seatClass,
+          status: seat.status,
+        },
+        create: {
+          id: seat.id,
+          flightId: flight.id,
+          seatNumber: seat.seatNumber,
+          seatClass: seat.seatClass,
+          status: seat.status,
+        },
+      });
+    }
+  }
+
+  // 7. Seed Legacy JFK Flights for simulator consistency
   for (const flight of createInitialFlights()) {
     await prisma.flight.upsert({
       where: { callsign: flight.callsign },
       update: {
         airline: flight.airline,
         aircraftType: flight.aircraftType,
-        status: flight.status,
+        status: flight.status as FlightStatus,
         phase: flight.phase,
         origin: flight.origin,
         destination: flight.destination,
@@ -58,14 +320,13 @@ async function main() {
         fuelKg: flight.fuelKg,
         riskScore: flight.riskScore,
         eta: new Date(flight.eta),
-        assignedControllerId: flight.assignedController?.id,
       },
       create: {
         id: flight.id,
         callsign: flight.callsign,
         airline: flight.airline,
         aircraftType: flight.aircraftType,
-        status: flight.status,
+        status: flight.status as FlightStatus,
         phase: flight.phase,
         origin: flight.origin,
         destination: flight.destination,
@@ -82,11 +343,11 @@ async function main() {
         fuelKg: flight.fuelKg,
         riskScore: flight.riskScore,
         eta: new Date(flight.eta),
-        assignedControllerId: flight.assignedController?.id,
       },
     });
   }
 
+  // 8. Seed Airport Resources
   for (const resource of createInitialResources()) {
     await prisma.airportResource.upsert({
       where: {
@@ -111,6 +372,7 @@ async function main() {
     });
   }
 
+  // 9. Seed Operational Events
   for (const event of createInitialEvents()) {
     await prisma.operationalEvent.upsert({
       where: { id: event.id },
@@ -129,6 +391,7 @@ async function main() {
     });
   }
 
+  // 10. Seed Radio Messages
   for (const message of createInitialMessages()) {
     await prisma.radioMessage.upsert({
       where: { id: message.id },
@@ -146,7 +409,74 @@ async function main() {
     });
   }
 
-  console.log("AOCC demo data seeded.");
+  // 11. Seed a sample Passenger & Booking
+  const demoPassenger = await prisma.passenger.upsert({
+    where: { id: "psg-demo-1" },
+    update: {},
+    create: {
+      id: "psg-demo-1",
+      fullName: "Rahul Varma",
+      email: "rahul.varma@sim.test",
+      phone: "+91 98234 56789",
+      dateOfBirth: "1992-05-14",
+      gender: "Male",
+      nationality: "IN",
+      idNumber: "A9812401",
+    },
+  });
+
+  const demoFlight = await prisma.flight.findUnique({ where: { callsign: "SC101" } });
+  if (demoFlight) {
+    const demoBooking = await prisma.booking.upsert({
+      where: { pnr: "SC7K92P" },
+      update: {},
+      create: {
+        id: "bkg-demo-1",
+        pnr: "SC7K92P",
+        flightId: demoFlight.id,
+        passengerId: demoPassenger.id,
+        seatNumber: "14A",
+        travelClass: "ECONOMY",
+        fare: 4500,
+        paymentStatus: "SUCCESSFUL",
+        bookingStatus: "CONFIRMED",
+        checkInStatus: "CHECKED_IN",
+        boardingStatus: "NOT_BOARDED",
+        verificationStatus: "VERIFIED",
+      },
+    });
+
+    await prisma.ticket.upsert({
+      where: { ticketNumber: "ET-2026-90124" },
+      update: {},
+      create: {
+        id: "tkt-demo-1",
+        bookingId: demoBooking.id,
+        ticketNumber: "ET-2026-90124",
+        pnr: "SC7K92P",
+        qrCode: "AOCC|PNR:SC7K92P|FLT:SC101|SEAT:14A|PSG:Rahul Varma",
+        status: "ACTIVE",
+      },
+    });
+
+    await prisma.boardingPass.upsert({
+      where: { bookingId: demoBooking.id },
+      update: {},
+      create: {
+        id: "bp-demo-1",
+        bookingId: demoBooking.id,
+        passNumber: "BP-SC7K92P-14A",
+        seatNumber: "14A",
+        gate: "B12",
+        terminal: "T1",
+        boardingGroup: "Group 2",
+        qrCode: "AOCC-BP|PNR:SC7K92P|SEAT:14A",
+        status: "NOT_BOARDED",
+      },
+    });
+  }
+
+  console.log("AOCC Phase 2 database seeded successfully!");
 }
 
 main()

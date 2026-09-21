@@ -87,7 +87,7 @@ const commandTypes: FlightCommandType[] = [
   "DIVERT",
 ];
 
-const statusVariant = {
+const statusVariant: Record<string, "destructive" | "warning" | "info" | "success" | "secondary" | "outline"> = {
   EMERGENCY: "destructive",
   HOLDING: "warning",
   APPROACH: "info",
@@ -99,9 +99,12 @@ const statusVariant = {
   TAXI_IN: "outline",
   AT_GATE: "outline",
   SCHEDULED: "outline",
+  BOARDING: "info",
+  ARRIVED: "success",
+  DELAYED: "warning",
   DIVERTED: "warning",
   CANCELLED: "destructive",
-} as const;
+};
 
 function metricLabel(value: number, suffix = "") {
   return `${value.toLocaleString()}${suffix}`;
