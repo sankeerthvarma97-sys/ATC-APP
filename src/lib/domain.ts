@@ -565,3 +565,24 @@ export interface AiBriefingResponse {
   risk: Severity;
 }
 
+export interface IcaoFlightPlanDTO {
+  id: string;
+  callsign: string;
+  flightRules: "I" | "V" | "Y" | "Z";
+  flightType: "S" | "N" | "G" | "M" | "X";
+  aircraftType: string;
+  wakeTurbulence: "L" | "M" | "H" | "J";
+  equipment: string;
+  departureAirport: string;
+  eobt: string;
+  cruisingSpeed: string;
+  cruisingLevel: string;
+  route: string;
+  destinationAirport: string;
+  totalEet: string;
+  alternateAirport: string;
+  remarks?: string;
+  status: "FILED" | "ACCEPTED" | "CLEARED" | "CANCELLED";
+  filedAt: string;
+}
+

@@ -191,6 +191,43 @@ async function runVerification() {
     assert(false, `AI & Baggage check failed: ${err.message}`);
   }
 
+  // --- 6. Production Health Check & ICAO Flight Plans API ---
+  console.log("\n6️⃣ Testing Production Health Check & ICAO Flight Plans API...");
+  try {
+    const healthRes = await fetch(`${BASE_URL}/api/health`);
+    assert(healthRes.status === 200, "GET /api/health returns 200 OK");
+    const healthData = await healthRes.json();
+    assert(healthData.status === "HEALTHY", `Health status is HEALTHY (received: ${healthData.status})`);
+    assert(typeof healthData.uptimeSeconds === "number", `Uptime recorded: ${healthData.uptimeSeconds}s`);
+    assert(healthData.telemetry?.simEngine === "ONLINE", "Simulation engine telemetry reports ONLINE");
+
+    const fplGetRes = await fetch(`${BASE_URL}/api/flight-plans`);
+    assert(fplGetRes.status === 200, "GET /api/flight-plans returns 200 OK");
+    const fplGetData = await fplGetRes.json();
+    assert(Array.isArray(fplGetData.flightPlans) && fplGetData.flightPlans.length > 0, `Returned ${fplGetData.flightPlans.length} active ICAO flight plans`);
+
+    const fplPostRes = await fetch(`${BASE_URL}/api/flight-plans`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        callsign: "AAL992",
+        aircraftType: "B772",
+        departureAirport: "KJFK",
+        destinationAirport: "EGLL",
+        cruisingLevel: "F380",
+        cruisingSpeed: "N0490",
+        route: "MERIT PUT BOSTN COLOR",
+        totalEet: "0620",
+        alternateAirport: "EGKK",
+      }),
+    });
+    assert(fplPostRes.status === 201, "POST /api/flight-plans files plan and returns 201 Created");
+    const fplPostData = await fplPostRes.json();
+    assert(fplPostData.ok === true && fplPostData.flightPlan?.callsign === "AAL992", "New ICAO plan validated and inserted into ATC queue");
+  } catch (err) {
+    assert(false, `Health & Flight Plans verification failed: ${err.message}`);
+  }
+
   console.log(`\n==============================================`);
   console.log(`Results: ${passed} PASSED, ${failed} FAILED`);
   console.log(`==============================================\n`);

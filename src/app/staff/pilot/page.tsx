@@ -3,8 +3,10 @@ import { getAuthenticatedUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { LiveTrafficSection } from "@/components/authority/sections/live-traffic-section";
 import { WeatherSection } from "@/components/authority/sections/weather-section";
+import { FlightPlanSection } from "@/components/authority/sections/flight-plan-section";
 import { AiBriefingDrawer } from "@/components/ai/ai-briefing-drawer";
 import { AtcRadioSynthesizer } from "@/components/audio/atc-radio-synthesizer";
+import { FlightDeckCockpit } from "@/components/cockpit/flight-deck-cockpit";
 
 export const dynamic = "force-dynamic";
 
@@ -41,10 +43,15 @@ export default async function StaffPilotPage() {
 
       <AiBriefingDrawer portalName="Flight Deck & Dispatch" defaultFocus="emergencies" />
 
+      <FlightDeckCockpit />
+
       <AtcRadioSynthesizer activeCallsign="SC101" />
 
       <div className="space-y-6">
-        <LiveTrafficSection />
+        <FlightPlanSection />
+        <div className="pt-6 border-t border-slate-800">
+          <LiveTrafficSection />
+        </div>
         <div className="pt-6 border-t border-slate-800">
           <WeatherSection />
         </div>

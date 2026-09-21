@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { AtcOperationsSection } from "@/components/authority/sections/atc-operations-section";
+import { GroundRadarSection } from "@/components/authority/sections/ground-radar-section";
 import { LiveTrafficSection } from "@/components/authority/sections/live-traffic-section";
 import { AiBriefingDrawer } from "@/components/ai/ai-briefing-drawer";
 import { AtcRadioSynthesizer } from "@/components/audio/atc-radio-synthesizer";
@@ -45,6 +46,7 @@ export default async function StaffAtcPage() {
       <AtcRadioSynthesizer activeCallsign="SC101" />
 
       <div className="space-y-6">
+        <GroundRadarSection />
         <AtcOperationsSection />
         <div className="pt-6 border-t border-slate-800">
           <LiveTrafficSection />
