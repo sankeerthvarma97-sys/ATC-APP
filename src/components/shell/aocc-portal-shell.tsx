@@ -30,6 +30,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { UserDTO } from "@/lib/domain";
+import { AoccLogo } from "@/components/brand/aocc-logo";
+import { AerospaceAmbientGrid } from "@/components/brand/aerospace-ambient-grid";
 import { CommandPaletteModal } from "./command-palette-modal";
 import { NotificationCenterDrawer } from "./notification-center-drawer";
 
@@ -160,7 +162,10 @@ export function AoccPortalShell({
   });
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#070b13] text-slate-100 font-sans select-none antialiased">
+    <div className="relative flex h-screen w-screen overflow-hidden bg-[#070b13] text-slate-100 font-sans select-none antialiased">
+      {/* 24/7 Subtle Ambient Aerospace Grid Animation */}
+      <AerospaceAmbientGrid />
+
       {/* Left Sidebar */}
       <aside
         className={`flex flex-col border-r border-slate-800 bg-[#070b13] transition-all duration-200 z-30 shrink-0 ${
@@ -170,24 +175,22 @@ export function AoccPortalShell({
         {/* Brand Header */}
         <div className="h-14 border-b border-slate-800 flex items-center justify-between px-3.5 bg-slate-950/60">
           {!collapsed ? (
-            <Link href={isAdmin ? "/admin" : "/staff"} className="flex items-center gap-2.5">
-              <div className="grid h-8 w-8 place-items-center rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
-                <Plane className="h-4 w-4" />
-              </div>
+            <Link href={isAdmin ? "/admin" : "/staff"} className="flex items-center gap-2.5 group">
+              <AoccLogo size={32} />
               <div>
-                <span className="font-bold text-sm text-white tracking-wider block font-mono">
+                <span className="font-bold text-sm text-white tracking-wider block font-mono group-hover:text-cyan-400 transition-colors">
                   AOCC
                 </span>
-                <span className="text-[9px] text-slate-400 tracking-tight block">
-                  AVIATION OPERATIONS
+                <span className="text-[9px] text-slate-400 tracking-tight block font-mono">
+                  OPERATIONS CONTROL
                 </span>
               </div>
             </Link>
           ) : (
             <div className="mx-auto">
-              <div className="grid h-8 w-8 place-items-center rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
-                <Plane className="h-4 w-4" />
-              </div>
+              <Link href={isAdmin ? "/admin" : "/staff"} title="AOCC Operations">
+                <AoccLogo size={28} />
+              </Link>
             </div>
           )}
 

@@ -16,6 +16,7 @@ import {
 import type { AirportDTO, UserDTO } from "@/lib/domain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AoccLogo } from "@/components/brand/aocc-logo";
 
 export function AuthorityHeader({
   currentUser,
@@ -51,9 +52,7 @@ export function AuthorityHeader({
       {/* Left: Brand & Airport Context */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2.5">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-sky-500/20 text-sky-400 border border-sky-500/30">
-            <Plane className="h-4 w-4" />
-          </div>
+          <AoccLogo size={32} />
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold tracking-wide text-slate-100 uppercase">

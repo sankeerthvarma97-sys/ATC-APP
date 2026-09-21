@@ -16,6 +16,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "AOCC · Airport Operations Control Center",
   description: "Educational full-stack real-time airport operations simulation.",
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/aocc-logo.jpg",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

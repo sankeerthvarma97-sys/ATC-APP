@@ -27,6 +27,31 @@ export async function validateCredentials(input: unknown): Promise<UserDTO | nul
     try {
       const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
       if (user?.passwordHash && (await compare(password, user.passwordHash))) {
+        // Record successful login audit log in PostgreSQL database
+        try {
+          await prisma.auditLog.create({
+            data: {
+              actorId: user.id,
+              action: "AUTH_LOGIN_SUCCESS",
+              entity: "User",
+              entityId: user.id,
+              after: {
+                email: user.email,
+                role: user.role,
+                shift: user.shift,
+                timestamp: new Date().toISOString(),
+              },
+            },
+          });
+          // Update employee lastLogin timestamp
+          await prisma.employee.updateMany({
+            where: { email: user.email },
+            data: { lastLogin: new Date() },
+          });
+        } catch (auditErr) {
+          console.warn("Audit log creation on login encountered non-fatal error:", auditErr);
+        }
+
         return {
           id: user.id,
           name: user.name,
@@ -35,11 +60,34 @@ export async function validateCredentials(input: unknown): Promise<UserDTO | nul
           shift: user.shift ?? undefined,
         };
       }
+
+      // Log failed authentication attempt in database
+      try {
+        await prisma.auditLog.create({
+          data: {
+            actorId: user?.id ?? undefined,
+            action: "AUTH_LOGIN_FAILED",
+            entity: "User",
+            entityId: user?.id ?? undefined,
+            after: {
+              attemptedEmail: normalizedEmail,
+              reason: user ? "INVALID_PASSWORD" : "USER_NOT_FOUND",
+              timestamp: new Date().toISOString(),
+            },
+          },
+        });
+      } catch {
+        // Non-blocking
+      }
+
+      // If database is active and user checked, do not fall back to demo accounts
+      return null;
     } catch (error) {
-      console.warn("Database credential check failed; using demo users.", error);
+      console.warn("Database credential check failed; checking fallback store.", error);
     }
   }
 
+  // Graceful fallback store when database is offline or unconfigured
   const demoUser = demoUsers.find(
     (user) => user.email.toLowerCase() === normalizedEmail && user.password === password,
   );
