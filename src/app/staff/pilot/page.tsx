@@ -4,6 +4,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { LiveTrafficSection } from "@/components/authority/sections/live-traffic-section";
 import { WeatherSection } from "@/components/authority/sections/weather-section";
 import { AiBriefingDrawer } from "@/components/ai/ai-briefing-drawer";
+import { AtcRadioSynthesizer } from "@/components/audio/atc-radio-synthesizer";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,8 @@ export default async function StaffPilotPage() {
       </div>
 
       <AiBriefingDrawer portalName="Flight Deck & Dispatch" defaultFocus="emergencies" />
+
+      <AtcRadioSynthesizer activeCallsign="SC101" />
 
       <div className="space-y-6">
         <LiveTrafficSection />

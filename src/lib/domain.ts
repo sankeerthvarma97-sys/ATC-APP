@@ -397,6 +397,7 @@ export interface BoardingPassDTO {
   boardingTime?: string;
   departureTime?: string;
   boardingGroup: string;
+  seatClass?: string;
   qrCode: string;
   status: BoardingStatus;
 }

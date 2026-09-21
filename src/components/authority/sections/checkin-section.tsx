@@ -15,11 +15,14 @@ import type { BoardingPassDTO, BookingDTO } from "@/lib/domain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DigitalBoardingPass } from "@/components/passengers/digital-boarding-pass";
 
 export function CheckinSection({
   initialPnr = "",
+  onNavigateTo,
 }: {
   initialPnr?: string;
+  onNavigateTo?: (section: string) => void;
 }) {
   const [pnr, setPnr] = useState(initialPnr || "SC7K92P");
   const [booking, setBooking] = useState<BookingDTO | null>(null);
@@ -228,75 +231,12 @@ export function CheckinSection({
           {/* Digital Boarding Pass Display */}
           <div>
             {boardingPass ? (
-              <div className="rounded-2xl border-2 border-sky-500/40 bg-gradient-to-b from-slate-900 to-[#070b13] p-6 shadow-2xl text-slate-100 font-mono">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                  <div className="flex items-center gap-2">
-                    <Plane className="h-5 w-5 text-sky-400" />
-                    <span className="text-sm font-bold uppercase tracking-wider text-white">
-                      {boardingPass.airline}
-                    </span>
-                  </div>
-                  <Badge variant="outline" className="text-xs border-sky-400/60 text-sky-300">
-                    BOARDING PASS
-                  </Badge>
-                </div>
-
-                <div className="py-5 space-y-4">
-                  <div>
-                    <div className="text-[10px] text-slate-400 uppercase">PASSENGER NAME</div>
-                    <div className="text-xl font-bold text-white">{boardingPass.passengerName}</div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 border-y border-slate-800 py-3 text-center">
-                    <div>
-                      <div className="text-[10px] text-slate-400">FLIGHT</div>
-                      <div className="text-base font-bold text-sky-300">{boardingPass.flightNumber}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-slate-400">GATE</div>
-                      <div className="text-base font-bold text-emerald-300">{boardingPass.gate || "B12"}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-slate-400">SEAT</div>
-                      <div className="text-base font-bold text-white">{boardingPass.seatNumber}</div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between text-xs">
-                    <div>
-                      <span className="text-slate-400 text-[10px] block">BOARDING GROUP</span>
-                      <span className="font-bold text-amber-300">{boardingPass.boardingGroup}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 text-[10px] block">BOARDING TIME</span>
-                      <span className="font-bold text-white">
-                        {boardingPass.boardingTime?.slice(11, 16) || "20 Mins Prior"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 text-[10px] block">PNR</span>
-                      <span className="font-bold text-sky-400">{boardingPass.pnr}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t-2 border-dashed border-slate-800 pt-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="grid h-12 w-12 place-items-center rounded bg-white text-black">
-                      <QrCode className="h-8 w-8" />
-                    </div>
-                    <div className="text-[10px] text-slate-400">
-                      <div>SECURITY CLEARED</div>
-                      <div className="text-slate-400">{boardingPass.passNumber}</div>
-                    </div>
-                  </div>
-                  <Badge variant="success" className="text-xs">
-                    VALID PASS
-                  </Badge>
-                </div>
-              </div>
+              <DigitalBoardingPass
+                pass={boardingPass}
+                onSimulateGateScan={() => onNavigateTo?.("boarding")}
+              />
             ) : (
-              <div className="grid min-h-[300px] place-items-center rounded-xl border border-dashed border-slate-800 p-8 text-center text-xs text-slate-500 font-mono">
+              <div className="grid min-h-[300px] place-items-center rounded-2xl border border-dashed border-slate-800 p-8 text-center text-xs text-slate-500 font-mono">
                 Digital Boarding Pass will render here after completing passenger check-in.
               </div>
             )}

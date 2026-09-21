@@ -195,6 +195,7 @@ export async function checkInPassenger(input: {
     boardingTime,
     departureTime: booking.departureTime,
     boardingGroup: booking.travelClass === "BUSINESS" ? "Group 1" : "Group 2",
+    seatClass: booking.travelClass || "ECONOMY",
     qrCode: `AOCC-BOARDING|PNR:${booking.pnr}|PASS:${passNumber}|SEAT:${booking.seatNumber}|GATE:${booking.gate}`,
     status: "NOT_BOARDED",
   };
