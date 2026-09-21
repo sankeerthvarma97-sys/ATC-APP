@@ -43,8 +43,70 @@ export function advanceFlights(flights: FlightDTO[], tickMs: number): FlightDTO[
   return flights.map((flight, index) => advanceFlight(flight, tickMs, index));
 }
 
+export function syncResourcesWithFlights(
+  resources: AirportResourceDTO[],
+  flights: FlightDTO[]
+): AirportResourceDTO[] {
+  const activeRollouts = new Set(
+    flights
+      .filter((f) => f.status === "DEPARTING" || f.status === "LANDED" || (f.status === "APPROACH" && f.altitudeFt < 400))
+      .map((f) => f.runway)
+      .filter(Boolean)
+  );
+
+  const occupiedGates = new Set(
+    flights
+      .filter((f) => f.status === "AT_GATE" || f.status === "BOARDING")
+      .map((f) => f.gate)
+      .filter(Boolean)
+  );
+
+  return resources.map((res) => {
+    if (res.resourceType === "RUNWAY") {
+      if (activeRollouts.has(res.code)) {
+        return { ...res, status: "OCCUPIED" as const, updatedAt: new Date().toISOString() };
+      }
+      if (res.status === "OCCUPIED" && !activeRollouts.has(res.code)) {
+        return { ...res, status: "AVAILABLE" as const, updatedAt: new Date().toISOString() };
+      }
+    }
+    if (res.resourceType === "GATE") {
+      if (occupiedGates.has(res.code)) {
+        return { ...res, status: "OCCUPIED" as const, updatedAt: new Date().toISOString() };
+      }
+      if (res.status === "OCCUPIED" && !occupiedGates.has(res.code)) {
+        return { ...res, status: "AVAILABLE" as const, updatedAt: new Date().toISOString() };
+      }
+    }
+    return res;
+  });
+}
+
 export function advanceFlight(flight: FlightDTO, tickMs: number, index: number): FlightDTO {
-  if (terminalStatuses.has(flight.status) || flight.status === "SCHEDULED") {
+  const now = Date.now();
+  let status = flight.status;
+  let phase = flight.phase;
+  let altitudeFt = flight.altitudeFt;
+  let speedKt = flight.speedKt;
+  let verticalSpeedFpm = flight.verticalSpeedFpm;
+  let riskScore = flight.riskScore;
+
+  // 1. SCHEDULED -> BOARDING transition
+  if (status === "SCHEDULED") {
+    const depTime = flight.departureTime ? new Date(flight.departureTime).getTime() : 0;
+    const boardTime = flight.boardingTime ? new Date(flight.boardingTime).getTime() : 0;
+    const shouldBoard = (boardTime && now >= boardTime) || (depTime && depTime - now <= 35 * 60_000);
+
+    if (shouldBoard) {
+      status = "BOARDING";
+      phase = `Boarding in progress at Gate ${flight.gate ?? "assigned"}`;
+    } else {
+      return { ...flight, updatedAt: new Date().toISOString() };
+    }
+  }
+
+  // Terminal static states
+  if (status === "CANCELLED" || status === "DIVERTED" || status === "AT_GATE") {
     return { ...flight, updatedAt: new Date().toISOString() };
   }
 
@@ -53,56 +115,97 @@ export function advanceFlight(flight: FlightDTO, tickMs: number, index: number):
   const nauticalMiles = (Math.max(flight.speedKt, 1) * seconds) / 3600;
   const latDelta = (Math.cos(headingRad) * nauticalMiles) / 60;
   const lonDelta = (Math.sin(headingRad) * nauticalMiles) / (60 * Math.cos((flight.latitude * Math.PI) / 180));
-  const orbit = flight.status === "HOLDING" ? Math.sin(Date.now() / 7000 + index) * 8 : 0;
+  const orbit = status === "HOLDING" ? Math.sin(now / 7000 + index) * 8 : 0;
   const headingDeg = Math.round((flight.headingDeg + orbit + 360) % 360);
 
-  let status = flight.status;
-  let phase = flight.phase;
-  let altitudeFt = flight.altitudeFt;
-  let speedKt = flight.speedKt;
-  let verticalSpeedFpm = flight.verticalSpeedFpm;
-  let riskScore = flight.riskScore;
-
-  if (flight.status === "PUSHBACK" && flight.speedKt > 5) {
-    status = "TAXI_OUT";
-    phase = "Taxi clearance in progress";
-  }
-
-  if (flight.status === "TAXI_OUT" && flight.speedKt > 35) {
-    status = "DEPARTING";
-    phase = `Rolling runway ${flight.runway ?? "assigned"}`;
-    verticalSpeedFpm = 1300;
-  }
-
-  if (flight.status === "DEPARTING") {
-    altitudeFt = clamp(altitudeFt + Math.round((seconds / 60) * Math.max(verticalSpeedFpm, 900)), 0, 12000);
-    speedKt = clamp(speedKt + 2, 80, 260);
-    if (altitudeFt > 2200) {
-      status = "AIRBORNE";
-      phase = "Departure climb";
+  // 2. BOARDING -> PUSHBACK (Auto or manual)
+  if (status === "BOARDING") {
+    const depTime = flight.departureTime ? new Date(flight.departureTime).getTime() : 0;
+    if (depTime && depTime - now <= 8 * 60_000) {
+      status = "PUSHBACK";
+      phase = "Pushback tug connected, doors armed";
+      speedKt = 3;
     }
   }
 
-  if (flight.status === "APPROACH" || flight.status === "EMERGENCY") {
-    altitudeFt = clamp(altitudeFt + Math.round((seconds / 60) * verticalSpeedFpm), 0, 45000);
-    speedKt = clamp(speedKt - (altitudeFt < 1800 ? 2 : 0), 136, 260);
-    if (altitudeFt <= 120 && flight.status !== "EMERGENCY") {
+  // 3. PUSHBACK -> TAXI_OUT
+  if (status === "PUSHBACK") {
+    speedKt = clamp(speedKt + 1, 2, 14);
+    if (speedKt >= 8) {
+      status = "TAXI_OUT";
+      phase = `Taxiing via Taxiway Echo to RWY ${flight.runway ?? "09L"}`;
+      speedKt = 16;
+    }
+  }
+
+  // 4. TAXI_OUT -> DEPARTING
+  if (status === "TAXI_OUT") {
+    speedKt = clamp(speedKt + 2, 12, 42);
+    if (speedKt >= 36) {
+      status = "DEPARTING";
+      phase = `Takeoff roll active on RWY ${flight.runway ?? "assigned"}`;
+      verticalSpeedFpm = 1400;
+      speedKt = 95;
+    }
+  }
+
+  // 5. DEPARTING -> AIRBORNE
+  if (status === "DEPARTING") {
+    altitudeFt = clamp(altitudeFt + Math.round((seconds / 60) * Math.max(verticalSpeedFpm, 1000)), 0, 14000);
+    speedKt = clamp(speedKt + 5, 95, 275);
+    if (altitudeFt >= 1800) {
+      status = "AIRBORNE";
+      phase = "Climbing through 5,000 ft, contact Radar";
+      verticalSpeedFpm = 1800;
+    }
+  }
+
+  // 6. AIRBORNE en-route progression
+  if (status === "AIRBORNE") {
+    if (altitudeFt < 32000 && !phase.includes("Descent")) {
+      altitudeFt = clamp(altitudeFt + Math.round((seconds / 60) * 1100), 1800, 36000);
+      speedKt = clamp(speedKt + 4, 250, 460);
+    }
+  }
+
+  // 7. APPROACH / EMERGENCY -> LANDED
+  if (status === "APPROACH" || status === "EMERGENCY") {
+    const vSpeed = verticalSpeedFpm !== 0 ? verticalSpeedFpm : -750;
+    altitudeFt = clamp(altitudeFt + Math.round((seconds / 60) * vSpeed), 0, 45000);
+    speedKt = clamp(speedKt - (altitudeFt < 2000 ? 3 : 0), 135, 260);
+
+    if (altitudeFt <= 50 && status !== "EMERGENCY") {
+      altitudeFt = 0;
       status = "LANDED";
-      phase = "Runway rollout";
-      speedKt = 82;
+      phase = `Touchdown RWY ${flight.runway ?? "assigned"}. Decelerating, reverse thrust.`;
+      speedKt = 78;
       verticalSpeedFpm = 0;
     }
   }
 
-  if (flight.status === "LANDED" && flight.speedKt < 45) {
-    status = "TAXI_IN";
-    phase = `Taxiing to ${flight.gate ?? flight.stand ?? "assigned gate"}`;
+  // 8. LANDED -> TAXI_IN
+  if (status === "LANDED") {
+    speedKt = clamp(speedKt - 4, 15, 80);
+    if (speedKt <= 30) {
+      status = "TAXI_IN";
+      phase = `Vacated runway, taxiing to Gate ${flight.gate ?? flight.stand ?? "A1"}`;
+    }
   }
 
-  if (flight.status === "HOLDING") {
+  // 9. TAXI_IN -> AT_GATE
+  if (status === "TAXI_IN") {
+    speedKt = clamp(speedKt - 3, 0, 24);
+    if (speedKt <= 3) {
+      status = "AT_GATE";
+      phase = `Chocks in at Gate ${flight.gate ?? flight.stand ?? "A1"}. Ground turnaround active.`;
+      speedKt = 0;
+    }
+  }
+
+  if (status === "HOLDING") {
     riskScore = clamp(riskScore + 1, 0, 100);
-  } else if (flight.status !== "EMERGENCY") {
-    riskScore = clamp(riskScore + (Math.random() > 0.72 ? 1 : -1), 8, 85);
+  } else if (status !== "EMERGENCY") {
+    riskScore = clamp(riskScore + (Math.random() > 0.75 ? 1 : -1), 8, 85);
   }
 
   return {
@@ -131,6 +234,22 @@ export function applyFlightCommand(flights: FlightDTO[], input: FlightCommandInp
         return { ...flight, runway: input.value, phase: `Assigned runway ${input.value}`, updatedAt: new Date().toISOString() };
       case "ASSIGN_GATE":
         return { ...flight, gate: input.value, phase: `Gate ${input.value} assigned`, updatedAt: new Date().toISOString() };
+      case "PUSHBACK_APPROVE":
+        return {
+          ...flight,
+          status: "PUSHBACK",
+          phase: input.note || "Pushback and engine start approved",
+          speedKt: 4,
+          updatedAt: new Date().toISOString(),
+        };
+      case "TAXI_CLEARANCE":
+        return {
+          ...flight,
+          status: "TAXI_OUT",
+          phase: input.note || `Cleared to taxi to holding point RWY ${flight.runway ?? "assigned"}`,
+          speedKt: 18,
+          updatedAt: new Date().toISOString(),
+        };
       case "HOLD":
         return { ...flight, status: "HOLDING", phase: input.note || "ATC hold instruction active", speedKt: Math.max(flight.speedKt, 190), riskScore: clamp(flight.riskScore + 12, 0, 100), updatedAt: new Date().toISOString() };
       case "RELEASE_HOLD":

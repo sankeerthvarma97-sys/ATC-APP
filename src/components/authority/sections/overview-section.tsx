@@ -15,7 +15,7 @@ import {
   Warehouse,
   Wind,
 } from "lucide-react";
-import type { AirportMetrics, FlightDTO, OperationalEventDTO } from "@/lib/domain";
+import type { AirportDTO, AirportMetrics, FlightDTO, OperationalEventDTO } from "@/lib/domain";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, formatZulu, titleCase } from "@/lib/utils";
@@ -42,11 +42,13 @@ export function OverviewSection({
   flights,
   events,
   metrics,
+  activeAirport,
   onNavigate,
 }: {
   flights: FlightDTO[];
   events: OperationalEventDTO[];
   metrics: AirportMetrics;
+  activeAirport?: AirportDTO;
   onNavigate: (sectionId: string) => void;
 }) {
   const airborne = flights.filter((f) => f.altitudeFt > 0).length;
@@ -171,40 +173,88 @@ export function OverviewSection({
 
           {/* Airport Operational Status Matrix */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
-              <div className="text-[10px] uppercase tracking-wider text-slate-400 font-mono">Runways</div>
-              <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                <span>09L/27R Active</span>
+            <div
+              onClick={() => onNavigate("runways")}
+              className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 hover:border-cyan-500/40 cursor-pointer transition"
+            >
+              <div className="text-[10px] uppercase tracking-wider text-slate-400 font-mono flex items-center justify-between">
+                <span>Runways</span>
+                <span className="text-cyan-400 font-bold">{activeAirport?.iata || "HYD"}</span>
               </div>
-              <div className="text-[10px] text-slate-400 font-mono mt-0.5">CAT III ILS · Wind 090/10kt</div>
+              <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>
+                  {activeAirport?.iata === "JFK"
+                    ? "04L/22R & 13L"
+                    : activeAirport?.iata === "BOM"
+                    ? "09/27 Active"
+                    : activeAirport?.iata === "DEL"
+                    ? "10/28 & 11/29"
+                    : activeAirport?.iata === "BLR"
+                    ? "09L/27R Active"
+                    : "09L/27R Active"}
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                {activeAirport?.iata === "JFK"
+                  ? "CAT IIIb ILS · Wind 040/12kt"
+                  : activeAirport?.iata === "BOM"
+                  ? "CAT II ILS · Wind 260/14kt"
+                  : activeAirport?.iata === "DEL"
+                  ? "CAT IIIb ILS · Wind 290/06kt"
+                  : "CAT IIIb ILS · Wind 090/08kt"}
+              </div>
             </div>
 
-            <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
-              <div className="text-[10px] uppercase tracking-wider text-slate-400 font-mono">ATC Tower</div>
+            <div
+              onClick={() => onNavigate("atc")}
+              className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 hover:border-cyan-500/40 cursor-pointer transition"
+            >
+              <div className="text-[10px] uppercase tracking-wider text-slate-400 font-mono flex items-center justify-between">
+                <span>ATC Tower</span>
+                <span className="text-sky-400 font-bold">RADAR</span>
+              </div>
               <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-sky-400">
                 <Radio className="h-3.5 w-3.5" />
-                <span>Operational</span>
+                <span>Station Operational</span>
               </div>
-              <div className="text-[10px] text-slate-400 font-mono mt-0.5">Tower-East · Shift Active</div>
+              <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                {metrics.activeControllers ?? 4} Controllers Active · Airspace Clear
+              </div>
             </div>
 
-            <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
-              <div className="text-[10px] uppercase tracking-wider text-slate-400 font-mono">Ground Control</div>
+            <div
+              onClick={() => onNavigate("ground")}
+              className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 hover:border-cyan-500/40 cursor-pointer transition"
+            >
+              <div className="text-[10px] uppercase tracking-wider text-slate-400 font-mono flex items-center justify-between">
+                <span>Ground Control</span>
+                <span className="text-emerald-400 font-bold">RAMP</span>
+              </div>
               <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-slate-200">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Ramp Clear</span>
+                <span>Apron Clear</span>
               </div>
-              <div className="text-[10px] text-slate-400 font-mono mt-0.5">8 Servicing · 4 Marshalling</div>
+              <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                {metrics.availableGates ?? 18} Gates Free · {metrics.occupiedGates ?? 6} Occupied
+              </div>
             </div>
 
-            <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
-              <div className="text-[10px] uppercase tracking-wider text-slate-400 font-mono">Weather</div>
+            <div
+              onClick={() => onNavigate("weather")}
+              className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 hover:border-cyan-500/40 cursor-pointer transition"
+            >
+              <div className="text-[10px] uppercase tracking-wider text-slate-400 font-mono flex items-center justify-between">
+                <span>Weather</span>
+                <span className="text-amber-400 font-bold">METAR</span>
+              </div>
               <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-slate-200">
                 <Wind className="h-3.5 w-3.5 text-sky-400" />
-                <span>CAVOK · 28°C</span>
+                <span>CAVOK · {activeAirport?.city || "Station"}</span>
               </div>
-              <div className="text-[10px] text-slate-400 font-mono mt-0.5">QNH 1013 · Vis 10km+</div>
+              <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                QNH 1013 · Elev {activeAirport?.elevationFt ?? 2024}ft · Vis 10km+
+              </div>
             </div>
           </div>
         </div>

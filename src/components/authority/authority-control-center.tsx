@@ -143,6 +143,7 @@ export function AuthorityControlCenter({
             flights={flights}
             events={events}
             metrics={metrics}
+            activeAirport={activeAirport}
             onNavigate={(sec) => handleNavigateTo(sec)}
           />
         );
@@ -228,6 +229,7 @@ export function AuthorityControlCenter({
             flights={flights}
             events={events}
             metrics={metrics}
+            activeAirport={activeAirport}
             onNavigate={(sec) => handleNavigateTo(sec)}
           />
         );

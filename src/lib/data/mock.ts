@@ -23,6 +23,14 @@ export const airport = {
 
 export const demoUsers: Array<UserDTO & { password: string }> = [
   {
+    id: "usr-super-admin",
+    name: "Permanent Super Admin",
+    email: process.env.ADMIN_BOOTSTRAP_EMAIL || "admin@gmail.com",
+    password: process.env.ADMIN_BOOTSTRAP_PASSWORD || "Sankeerth@80",
+    role: "SUPER_ADMIN",
+    shift: "ALL",
+  },
+  {
     id: "usr-admin",
     name: "Maya Rao",
     email: "admin@aocc.test",

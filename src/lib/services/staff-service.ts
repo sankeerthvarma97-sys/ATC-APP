@@ -7,6 +7,7 @@ import type {
 } from "@/lib/domain";
 import { prisma, shouldUseDatabase } from "@/lib/prisma";
 import { logAuditEvent } from "./audit-service";
+import { assertSuperAdminNotTargeted, isProtectedSuperAdmin } from "@/lib/auth/protection";
 
 export interface CreateEmployeeInput {
   fullName: string;
@@ -19,6 +20,8 @@ export interface CreateEmployeeInput {
   terminal?: string;
   gateArea?: string;
   shift: string;
+  status?: EmployeeStatus;
+  verificationStatus?: VerificationStatus;
   permissions?: string[];
   actorId?: string;
   actorName?: string;
@@ -43,6 +46,26 @@ export interface UpdateEmployeeInput {
 
 // In-memory demo staff storage
 const memoryEmployees: EmployeeDTO[] = [
+  {
+    id: "emp-0001",
+    employeeId: "EMP-0001",
+    fullName: "Permanent Super Admin",
+    email: process.env.ADMIN_BOOTSTRAP_EMAIL || "admin@gmail.com",
+    phone: "+91 80000 00001",
+    department: "ADMINISTRATION",
+    jobTitle: "Airport Authority System Owner",
+    role: "SUPER_ADMIN",
+    airportCode: "HYD",
+    terminal: "ALL",
+    gateArea: "ALL",
+    shift: "ALL",
+    status: "ACTIVE",
+    verificationStatus: "VERIFIED",
+    joinDate: new Date("2024-01-01").toISOString(),
+    lastLogin: new Date().toISOString(),
+    permissions: ["SUPER_ADMIN_ALL_ACCESS"],
+    userId: "usr-super-admin",
+  },
   {
     id: "emp-1001",
     employeeId: "EMP-1001",
@@ -272,8 +295,8 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
     terminal: input.terminal,
     gateArea: input.gateArea,
     shift: input.shift || "MORNING",
-    status: "ACTIVE",
-    verificationStatus: "VERIFIED",
+    status: input.status || "PENDING",
+    verificationStatus: input.verificationStatus || "PENDING",
     joinDate: new Date().toISOString(),
     permissions: input.permissions ?? [],
   };
@@ -329,6 +352,17 @@ export async function updateEmployee(
 ): Promise<EmployeeDTO | null> {
   const existing = await getEmployeeById(id);
   if (!existing) return null;
+
+  // Server-level protection for Permanent Super Admin
+  const protection = assertSuperAdminNotTargeted(existing, "MODIFY", {
+    role: input.role,
+    status: input.status,
+    verificationStatus: input.verificationStatus,
+    permissions: input.permissions,
+  });
+  if (!protection.ok) {
+    throw new Error(protection.error);
+  }
 
   const updated: EmployeeDTO = {
     ...existing,
@@ -386,6 +420,17 @@ export async function updateEmployee(
     });
   }
 
+  if (input.status === "SUSPENDED" && existing.status !== "SUSPENDED") {
+    await logAuditEvent({
+      actorId: input.actorId,
+      actorName: input.actorName,
+      action: "EMPLOYEE_SUSPENDED",
+      entity: "EMPLOYEE",
+      entityId: existing.employeeId,
+      after: { status: "SUSPENDED" },
+    });
+  }
+
   if (input.role && input.role !== existing.role) {
     await logAuditEvent({
       actorId: input.actorId,
@@ -410,4 +455,80 @@ export async function updateEmployee(
   }
 
   return updated;
+}
+
+export async function deleteEmployee(
+  id: string,
+  actor?: { id?: string; name?: string },
+): Promise<{ ok: boolean; error?: string }> {
+  const existing = await getEmployeeById(id);
+  if (!existing) {
+    return { ok: false, error: "Employee not found" };
+  }
+
+  const protection = assertSuperAdminNotTargeted(existing, "DELETE");
+  if (!protection.ok) {
+    return { ok: false, error: protection.error };
+  }
+
+  const memIndex = memoryEmployees.findIndex((e) => e.id === existing.id);
+  if (memIndex !== -1) {
+    memoryEmployees.splice(memIndex, 1);
+  }
+
+  if (shouldUseDatabase()) {
+    try {
+      await prisma.employee.delete({
+        where: { id: existing.id },
+      });
+    } catch (err) {
+      console.warn("Database deleteEmployee failed:", err);
+    }
+  }
+
+  await logAuditEvent({
+    actorId: actor?.id,
+    actorName: actor?.name,
+    action: "ADMIN_DELETED_EMPLOYEE",
+    entity: "EMPLOYEE",
+    entityId: existing.employeeId,
+    before: existing as unknown as Record<string, unknown>,
+  });
+
+  return { ok: true };
+}
+
+export async function resetEmployeeAccess(
+  id: string,
+  actor?: { id?: string; name?: string },
+): Promise<{ ok: boolean; error?: string; message?: string }> {
+  const existing = await getEmployeeById(id);
+  if (!existing) {
+    return { ok: false, error: "Employee not found" };
+  }
+
+  if (isProtectedSuperAdmin(existing)) {
+    return { ok: false, error: "Protected system owner account cannot be modified or removed." };
+  }
+
+  if (shouldUseDatabase() && existing.userId) {
+    try {
+      await prisma.session.deleteMany({
+        where: { userId: existing.userId },
+      });
+    } catch (err) {
+      console.warn("Database session revocation failed:", err);
+    }
+  }
+
+  await logAuditEvent({
+    actorId: actor?.id,
+    actorName: actor?.name,
+    action: "EMPLOYEE_ACCESS_RESET",
+    entity: "EMPLOYEE",
+    entityId: existing.employeeId,
+    after: { sessionsRevoked: true, forcedReauth: true },
+  });
+
+  return { ok: true, message: `Access reset successfully for ${existing.fullName}. All active sessions revoked.` };
 }

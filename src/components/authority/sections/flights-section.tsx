@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Calendar,
   Clock,
@@ -35,12 +35,30 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function FlightsSection({
-  flights,
+  flights: initialFlights,
   onRefresh,
 }: {
-  flights: FlightDTO[];
-  onRefresh: () => void;
+  flights?: FlightDTO[];
+  onRefresh?: () => void;
 }) {
+  const [fetchedFlights, setFetchedFlights] = useState<FlightDTO[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    if (!initialFlights || initialFlights.length === 0) {
+      fetch("/api/flights")
+        .then((r) => r.json())
+        .then((d) => {
+          if (active && d.flights) setFetchedFlights(d.flights);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, [initialFlights]);
+
+  const flights = (initialFlights && initialFlights.length > 0) ? initialFlights : fetchedFlights;
   const [query, setQuery] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -112,7 +130,7 @@ export function FlightsSection({
       }
 
       setIsCreateOpen(false);
-      onRefresh();
+      onRefresh?.();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Error creating flight");
     } finally {
@@ -126,7 +144,7 @@ export function FlightsSection({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
-    onRefresh();
+    onRefresh?.();
   }
 
   return (

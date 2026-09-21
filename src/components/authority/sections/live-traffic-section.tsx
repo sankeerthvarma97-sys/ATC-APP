@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -39,12 +39,30 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function LiveTrafficSection({
-  flights,
+  flights: initialFlights,
   onSendCommand,
 }: {
-  flights: FlightDTO[];
-  onSendCommand: (command: FlightCommandInput) => void;
+  flights?: FlightDTO[];
+  onSendCommand?: (command: FlightCommandInput) => void;
 }) {
+  const [fetchedFlights, setFetchedFlights] = useState<FlightDTO[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    if (!initialFlights || initialFlights.length === 0) {
+      fetch("/api/flights")
+        .then((r) => r.json())
+        .then((d) => {
+          if (active && d.flights) setFetchedFlights(d.flights);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, [initialFlights]);
+
+  const flights = (initialFlights && initialFlights.length > 0) ? initialFlights : fetchedFlights;
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [selectedFlightId, setSelectedFlightId] = useState<string | null>(flights[0]?.id ?? null);
@@ -70,7 +88,7 @@ export function LiveTrafficSection({
 
   function triggerCommand(type: FlightCommandType, value?: string) {
     if (!selectedFlight) return;
-    onSendCommand({
+    onSendCommand?.({
       flightId: selectedFlight.id,
       type,
       value,

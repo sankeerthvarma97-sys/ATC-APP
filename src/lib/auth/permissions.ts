@@ -2,123 +2,187 @@ import type { Permission, Role, UserDTO } from "@/lib/domain";
 
 export const rolePermissionMap: Record<Role, Permission[]> = {
   SUPER_ADMIN: [
+    "SUPER_ADMIN_ALL_ACCESS",
     "VIEW_DASHBOARD",
-    "VIEW_TRAFFIC",
+    "VIEW_FLIGHTS",
     "CREATE_FLIGHT",
     "EDIT_FLIGHT",
     "CANCEL_FLIGHT",
+    "VIEW_FLIGHT_STATUS",
+    "VIEW_TRAFFIC",
+    "CONTROL_ATC",
+    "SEND_ATC_COMMAND",
+    "VIEW_AIRCRAFT_POSITION",
     "MANAGE_AIRLINES",
     "MANAGE_AIRCRAFT",
     "MANAGE_GATES",
     "MANAGE_RUNWAYS",
-    "MANAGE_STAFF",
-    "VERIFY_STAFF",
-    "MANAGE_ROLES",
-    "MANAGE_PERMISSIONS",
+    "MANAGE_TERMINALS",
+    "VIEW_BOOKINGS",
     "CREATE_BOOKING",
     "MODIFY_BOOKING",
     "CANCEL_BOOKING",
-    "VERIFY_TICKET",
+    "VIEW_PASSENGERS",
     "CHECK_IN_PASSENGER",
     "BOARD_PASSENGER",
-    "CONTROL_ATC",
+    "VERIFY_TICKET",
+    "VIEW_TICKET",
+    "CREATE_TICKET",
+    "MANAGE_BAGGAGE",
     "MANAGE_GROUND_OPERATIONS",
-    "MANAGE_EMERGENCIES",
+    "MANAGE_STAFF",
+    "CREATE_STAFF",
+    "EDIT_STAFF",
+    "VERIFY_STAFF",
+    "SUSPEND_STAFF",
+    "MANAGE_ROLES",
+    "MANAGE_PERMISSIONS",
+    "ASSIGN_ROLES",
+    "ASSIGN_PERMISSIONS",
     "VIEW_ANALYTICS",
     "VIEW_AUDIT_LOGS",
+    "MANAGE_EMERGENCIES",
     "MANAGE_SYSTEM_SETTINGS",
+    "MANAGE_SIMULATOR",
   ],
   ADMIN: [
     "VIEW_DASHBOARD",
-    "VIEW_TRAFFIC",
+    "VIEW_FLIGHTS",
     "CREATE_FLIGHT",
     "EDIT_FLIGHT",
     "CANCEL_FLIGHT",
+    "VIEW_FLIGHT_STATUS",
+    "VIEW_TRAFFIC",
+    "CONTROL_ATC",
+    "SEND_ATC_COMMAND",
+    "VIEW_AIRCRAFT_POSITION",
     "MANAGE_AIRLINES",
     "MANAGE_AIRCRAFT",
     "MANAGE_GATES",
     "MANAGE_RUNWAYS",
-    "MANAGE_STAFF",
-    "VERIFY_STAFF",
-    "MANAGE_ROLES",
-    "MANAGE_PERMISSIONS",
+    "MANAGE_TERMINALS",
+    "VIEW_BOOKINGS",
     "CREATE_BOOKING",
     "MODIFY_BOOKING",
     "CANCEL_BOOKING",
-    "VERIFY_TICKET",
+    "VIEW_PASSENGERS",
     "CHECK_IN_PASSENGER",
     "BOARD_PASSENGER",
-    "CONTROL_ATC",
+    "VERIFY_TICKET",
+    "VIEW_TICKET",
+    "CREATE_TICKET",
+    "MANAGE_BAGGAGE",
     "MANAGE_GROUND_OPERATIONS",
-    "MANAGE_EMERGENCIES",
+    "MANAGE_STAFF",
+    "CREATE_STAFF",
+    "EDIT_STAFF",
+    "VERIFY_STAFF",
+    "SUSPEND_STAFF",
+    "MANAGE_ROLES",
+    "MANAGE_PERMISSIONS",
+    "ASSIGN_ROLES",
+    "ASSIGN_PERMISSIONS",
     "VIEW_ANALYTICS",
     "VIEW_AUDIT_LOGS",
+    "MANAGE_EMERGENCIES",
     "MANAGE_SYSTEM_SETTINGS",
+    "MANAGE_SIMULATOR",
   ],
   AIRPORT_ADMIN: [
     "VIEW_DASHBOARD",
-    "VIEW_TRAFFIC",
+    "VIEW_FLIGHTS",
     "CREATE_FLIGHT",
     "EDIT_FLIGHT",
     "CANCEL_FLIGHT",
+    "VIEW_FLIGHT_STATUS",
+    "VIEW_TRAFFIC",
+    "CONTROL_ATC",
+    "SEND_ATC_COMMAND",
+    "VIEW_AIRCRAFT_POSITION",
     "MANAGE_AIRLINES",
     "MANAGE_AIRCRAFT",
     "MANAGE_GATES",
     "MANAGE_RUNWAYS",
-    "MANAGE_STAFF",
-    "VERIFY_STAFF",
-    "MANAGE_ROLES",
-    "MANAGE_PERMISSIONS",
+    "MANAGE_TERMINALS",
+    "VIEW_BOOKINGS",
     "CREATE_BOOKING",
     "MODIFY_BOOKING",
     "CANCEL_BOOKING",
-    "VERIFY_TICKET",
+    "VIEW_PASSENGERS",
     "CHECK_IN_PASSENGER",
     "BOARD_PASSENGER",
-    "CONTROL_ATC",
+    "VERIFY_TICKET",
+    "VIEW_TICKET",
+    "CREATE_TICKET",
+    "MANAGE_BAGGAGE",
     "MANAGE_GROUND_OPERATIONS",
-    "MANAGE_EMERGENCIES",
+    "MANAGE_STAFF",
+    "CREATE_STAFF",
+    "EDIT_STAFF",
+    "VERIFY_STAFF",
+    "SUSPEND_STAFF",
+    "MANAGE_ROLES",
+    "MANAGE_PERMISSIONS",
+    "ASSIGN_ROLES",
+    "ASSIGN_PERMISSIONS",
     "VIEW_ANALYTICS",
     "VIEW_AUDIT_LOGS",
+    "MANAGE_EMERGENCIES",
     "MANAGE_SYSTEM_SETTINGS",
+    "MANAGE_SIMULATOR",
   ],
   OPERATIONS_MANAGER: [
     "VIEW_DASHBOARD",
-    "VIEW_TRAFFIC",
+    "VIEW_FLIGHTS",
     "CREATE_FLIGHT",
     "EDIT_FLIGHT",
     "CANCEL_FLIGHT",
+    "VIEW_FLIGHT_STATUS",
+    "VIEW_TRAFFIC",
+    "CONTROL_ATC",
+    "SEND_ATC_COMMAND",
+    "VIEW_AIRCRAFT_POSITION",
     "MANAGE_AIRLINES",
     "MANAGE_AIRCRAFT",
     "MANAGE_GATES",
     "MANAGE_RUNWAYS",
-    "MANAGE_STAFF",
-    "VERIFY_STAFF",
+    "MANAGE_TERMINALS",
+    "VIEW_BOOKINGS",
     "CREATE_BOOKING",
     "MODIFY_BOOKING",
     "CANCEL_BOOKING",
-    "VERIFY_TICKET",
+    "VIEW_PASSENGERS",
     "CHECK_IN_PASSENGER",
     "BOARD_PASSENGER",
-    "CONTROL_ATC",
+    "VERIFY_TICKET",
+    "VIEW_TICKET",
+    "CREATE_TICKET",
+    "MANAGE_BAGGAGE",
     "MANAGE_GROUND_OPERATIONS",
-    "MANAGE_EMERGENCIES",
+    "MANAGE_STAFF",
+    "VERIFY_STAFF",
     "VIEW_ANALYTICS",
     "VIEW_AUDIT_LOGS",
+    "MANAGE_EMERGENCIES",
   ],
   SUPERVISOR: [
     "VIEW_DASHBOARD",
-    "VIEW_TRAFFIC",
+    "VIEW_FLIGHTS",
     "CREATE_FLIGHT",
     "EDIT_FLIGHT",
     "CANCEL_FLIGHT",
+    "VIEW_FLIGHT_STATUS",
+    "VIEW_TRAFFIC",
+    "CONTROL_ATC",
+    "SEND_ATC_COMMAND",
+    "VIEW_AIRCRAFT_POSITION",
     "MANAGE_GATES",
     "MANAGE_RUNWAYS",
     "VERIFY_STAFF",
+    "VIEW_BOOKINGS",
     "VERIFY_TICKET",
     "CHECK_IN_PASSENGER",
     "BOARD_PASSENGER",
-    "CONTROL_ATC",
     "MANAGE_GROUND_OPERATIONS",
     "MANAGE_EMERGENCIES",
     "VIEW_ANALYTICS",
@@ -126,97 +190,139 @@ export const rolePermissionMap: Record<Role, Permission[]> = {
   ],
   ATC: [
     "VIEW_DASHBOARD",
+    "VIEW_FLIGHTS",
+    "VIEW_FLIGHT_STATUS",
     "VIEW_TRAFFIC",
     "CONTROL_ATC",
+    "SEND_ATC_COMMAND",
+    "VIEW_AIRCRAFT_POSITION",
     "MANAGE_RUNWAYS",
     "MANAGE_GATES",
     "MANAGE_EMERGENCIES",
+    "MANAGE_SIMULATOR",
     "VIEW_AUDIT_LOGS",
   ],
   ATC_CONTROLLER: [
     "VIEW_DASHBOARD",
+    "VIEW_FLIGHTS",
+    "VIEW_FLIGHT_STATUS",
     "VIEW_TRAFFIC",
     "CONTROL_ATC",
+    "SEND_ATC_COMMAND",
+    "VIEW_AIRCRAFT_POSITION",
     "MANAGE_RUNWAYS",
     "MANAGE_GATES",
     "MANAGE_EMERGENCIES",
+    "MANAGE_SIMULATOR",
     "VIEW_AUDIT_LOGS",
   ],
   SENIOR_ATC_CONTROLLER: [
     "VIEW_DASHBOARD",
+    "VIEW_FLIGHTS",
+    "VIEW_FLIGHT_STATUS",
     "VIEW_TRAFFIC",
     "CONTROL_ATC",
+    "SEND_ATC_COMMAND",
+    "VIEW_AIRCRAFT_POSITION",
     "MANAGE_RUNWAYS",
     "MANAGE_GATES",
     "MANAGE_EMERGENCIES",
+    "MANAGE_SIMULATOR",
     "VIEW_ANALYTICS",
     "VIEW_AUDIT_LOGS",
   ],
   GROUND: [
     "VIEW_DASHBOARD",
+    "VIEW_FLIGHTS",
+    "VIEW_FLIGHT_STATUS",
     "VIEW_TRAFFIC",
     "MANAGE_GROUND_OPERATIONS",
     "MANAGE_GATES",
     "MANAGE_RUNWAYS",
+    "MANAGE_BAGGAGE",
     "MANAGE_EMERGENCIES",
   ],
   GROUND_OPERATOR: [
     "VIEW_DASHBOARD",
+    "VIEW_FLIGHTS",
+    "VIEW_FLIGHT_STATUS",
     "VIEW_TRAFFIC",
     "MANAGE_GROUND_OPERATIONS",
     "MANAGE_GATES",
     "MANAGE_RUNWAYS",
+    "MANAGE_BAGGAGE",
     "MANAGE_EMERGENCIES",
   ],
   AIRLINE_OPERATOR: [
     "VIEW_DASHBOARD",
+    "VIEW_FLIGHTS",
+    "VIEW_FLIGHT_STATUS",
     "VIEW_TRAFFIC",
     "CREATE_FLIGHT",
     "EDIT_FLIGHT",
+    "CANCEL_FLIGHT",
+    "MANAGE_AIRLINES",
     "MANAGE_AIRCRAFT",
+    "VIEW_BOOKINGS",
     "CREATE_BOOKING",
     "MODIFY_BOOKING",
     "CANCEL_BOOKING",
+    "VIEW_PASSENGERS",
     "VIEW_ANALYTICS",
   ],
   TICKETING_AGENT: [
     "VIEW_DASHBOARD",
-    "VIEW_TRAFFIC",
+    "VIEW_FLIGHTS",
+    "VIEW_FLIGHT_STATUS",
+    "VIEW_BOOKINGS",
     "CREATE_BOOKING",
     "MODIFY_BOOKING",
     "CANCEL_BOOKING",
-    "VERIFY_TICKET",
+    "VIEW_PASSENGERS",
     "CHECK_IN_PASSENGER",
     "BOARD_PASSENGER",
+    "VERIFY_TICKET",
+    "VIEW_TICKET",
+    "CREATE_TICKET",
+    "MANAGE_BAGGAGE",
   ],
   GATE_AGENT: [
     "VIEW_DASHBOARD",
-    "VIEW_TRAFFIC",
-    "VERIFY_TICKET",
+    "VIEW_FLIGHTS",
+    "VIEW_FLIGHT_STATUS",
+    "VIEW_PASSENGERS",
     "CHECK_IN_PASSENGER",
     "BOARD_PASSENGER",
+    "VERIFY_TICKET",
+    "VIEW_TICKET",
     "MANAGE_GATES",
   ],
   SECURITY_OFFICER: [
     "VIEW_DASHBOARD",
     "VIEW_TRAFFIC",
     "VERIFY_TICKET",
+    "VIEW_TICKET",
     "MANAGE_EMERGENCIES",
     "VIEW_AUDIT_LOGS",
   ],
   BAGGAGE_STAFF: [
     "VIEW_DASHBOARD",
+    "VIEW_FLIGHTS",
+    "MANAGE_BAGGAGE",
     "MANAGE_GROUND_OPERATIONS",
-    "CHECK_IN_PASSENGER",
   ],
   MAINTENANCE_STAFF: [
     "VIEW_DASHBOARD",
     "MANAGE_AIRCRAFT",
     "MANAGE_GATES",
     "MANAGE_RUNWAYS",
+    "MANAGE_GROUND_OPERATIONS",
+    "MANAGE_EMERGENCIES",
   ],
   FLIGHT_DISPATCHER: [
     "VIEW_DASHBOARD",
+    "VIEW_FLIGHTS",
+    "VIEW_FLIGHT_STATUS",
     "VIEW_TRAFFIC",
     "CREATE_FLIGHT",
     "EDIT_FLIGHT",
@@ -225,29 +331,40 @@ export const rolePermissionMap: Record<Role, Permission[]> = {
   ],
   SIMULATOR_OPERATOR: [
     "VIEW_DASHBOARD",
+    "VIEW_FLIGHTS",
     "VIEW_TRAFFIC",
     "CREATE_FLIGHT",
     "CONTROL_ATC",
+    "SEND_ATC_COMMAND",
     "MANAGE_EMERGENCIES",
+    "MANAGE_SIMULATOR",
     "MANAGE_SYSTEM_SETTINGS",
   ],
   PILOT: [
     "VIEW_DASHBOARD",
+    "VIEW_FLIGHTS",
+    "VIEW_FLIGHT_STATUS",
     "VIEW_TRAFFIC",
+    "VIEW_AIRCRAFT_POSITION",
   ],
   PASSENGER: [
     "VIEW_DASHBOARD",
+    "VIEW_FLIGHTS",
+    "VIEW_BOOKINGS",
     "CREATE_BOOKING",
     "CANCEL_BOOKING",
+    "VIEW_TICKET",
   ],
   ANALYST: [
     "VIEW_DASHBOARD",
+    "VIEW_FLIGHTS",
     "VIEW_TRAFFIC",
     "VIEW_ANALYTICS",
     "VIEW_AUDIT_LOGS",
   ],
   VIEWER: [
     "VIEW_DASHBOARD",
+    "VIEW_FLIGHTS",
     "VIEW_TRAFFIC",
   ],
 };
@@ -257,27 +374,75 @@ export function getRolePermissions(role: Role): Permission[] {
 }
 
 export function hasPermission(
-  user: Pick<UserDTO, "role"> & { permissions?: Permission[] } | undefined | null,
+  user:
+    | (Pick<UserDTO, "role"> & {
+        permissions?: Permission[];
+        status?: string;
+        verificationStatus?: string;
+      })
+    | undefined
+    | null,
   permission: Permission,
 ): boolean {
   if (!user) return false;
-  if (user.role === "SUPER_ADMIN" || user.role === "ADMIN" || user.role === "AIRPORT_ADMIN") {
+
+  // Super Admin account or role has unconditional access to every module and permission
+  if (user.role === "SUPER_ADMIN" || user.permissions?.includes("SUPER_ADMIN_ALL_ACCESS")) {
     return true;
   }
+
+  // Direct permissions granted to the user/employee
   if (user.permissions && user.permissions.includes(permission)) {
     return true;
   }
+
+  // Role-based permissions
   const rolePerms = getRolePermissions(user.role);
   return rolePerms.includes(permission);
 }
 
 export function assertPermission(
-  user: (Pick<UserDTO, "role"> & { permissions?: Permission[] }) | undefined | null,
+  user:
+    | (Pick<UserDTO, "role"> & {
+        permissions?: Permission[];
+        status?: string;
+        verificationStatus?: string;
+      })
+    | undefined
+    | null,
   permission: Permission,
 ) {
   if (!user) {
     return { ok: false as const, status: 401 as const, message: "Authentication required." };
   }
+
+  // Super Admin always bypasses all restrictions
+  if (user.role === "SUPER_ADMIN" || user.permissions?.includes("SUPER_ADMIN_ALL_ACCESS")) {
+    return { ok: true as const };
+  }
+
+  // Inactive or suspended accounts cannot perform operational actions
+  if (user.status === "SUSPENDED" || user.status === "DEACTIVATED") {
+    return {
+      ok: false as const,
+      status: 403 as const,
+      message: "Forbidden: Account has been suspended or deactivated.",
+    };
+  }
+
+  if (
+    user.status === "PENDING" ||
+    user.status === "PENDING_VERIFICATION" ||
+    user.verificationStatus === "PENDING" ||
+    user.verificationStatus === "REJECTED"
+  ) {
+    return {
+      ok: false as const,
+      status: 403 as const,
+      message: "Forbidden: Staff account pending verification or inactive.",
+    };
+  }
+
   if (!hasPermission(user, permission)) {
     return {
       ok: false as const,
@@ -285,5 +450,6 @@ export function assertPermission(
       message: `Forbidden: Missing required permission ${permission}.`,
     };
   }
+
   return { ok: true as const };
 }

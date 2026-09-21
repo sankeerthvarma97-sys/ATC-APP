@@ -27,4 +27,69 @@ describe("AOCC simulation logic", () => {
     expect(changed?.riskScore).toBeGreaterThan(target.riskScore);
     expect(untouched?.status).toBe(flights[1].status);
   });
+
+  it("applies pushback and taxi clearance commands cleanly", () => {
+    const flights = createInitialFlights();
+    const target = flights[1]; // flt-dal88
+    const pushbackResult = applyFlightCommand(flights, {
+      flightId: target.id,
+      type: "PUSHBACK_APPROVE",
+      note: "Cleared push and start Facing West",
+    });
+
+    const pushed = pushbackResult.find((f) => f.id === target.id);
+    expect(pushed?.status).toBe("PUSHBACK");
+    expect(pushed?.speedKt).toBe(4);
+
+    const taxiResult = applyFlightCommand(pushbackResult, {
+      flightId: target.id,
+      type: "TAXI_CLEARANCE",
+      note: "Taxi to holding point RWY 04L via Kilo",
+    });
+
+    const taxied = taxiResult.find((f) => f.id === target.id);
+    expect(taxied?.status).toBe("TAXI_OUT");
+    expect(taxied?.speedKt).toBe(18);
+  });
+
+  it("advances airborne and approach flights along glideslope to touchdown", async () => {
+    const { advanceFlight } = await import("@/lib/simulation/logic");
+    const approachingFlight = {
+      ...createInitialFlights()[0],
+      status: "APPROACH" as const,
+      altitudeFt: 180,
+      speedKt: 140,
+      verticalSpeedFpm: -700,
+    };
+
+    // Advance 12 seconds
+    const advanced = advanceFlight(approachingFlight, 12000, 0);
+    expect(advanced.status).toBe("LANDED");
+    expect(advanced.altitudeFt).toBe(0);
+    expect(advanced.speedKt).toBeLessThanOrEqual(82);
+  });
+
+  it("synchronizes runways and gates with active flight rollouts", async () => {
+    const { syncResourcesWithFlights } = await import("@/lib/simulation/logic");
+    const resources = createInitialResources();
+    const flights = [
+      {
+        ...createInitialFlights()[0],
+        status: "DEPARTING" as const,
+        runway: "04L",
+      },
+      {
+        ...createInitialFlights()[1],
+        status: "AT_GATE" as const,
+        gate: "A12",
+      },
+    ];
+
+    const synced = syncResourcesWithFlights(resources, flights);
+    const rwy04L = synced.find((r) => r.code === "04L" && r.resourceType === "RUNWAY");
+    const gateA12 = synced.find((r) => r.code === "A12" && r.resourceType === "GATE");
+
+    expect(rwy04L?.status).toBe("OCCUPIED");
+    expect(gateA12?.status).toBe("OCCUPIED");
+  });
 });

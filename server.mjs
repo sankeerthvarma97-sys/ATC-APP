@@ -304,6 +304,8 @@ function applyCommand(command) {
     if (command.type === "EXPEDITE") next = { ...flight, speedKt: clamp(flight.speedKt + 28, 0, 380), phase: command.note || "Expedite approved in simulation" };
     if (command.type === "CLEAR_TAKEOFF") next = { ...flight, status: "DEPARTING", speedKt: 112, verticalSpeedFpm: 1400, phase: `Cleared for takeoff ${flight.runway ?? ""}`.trim() };
     if (command.type === "CLEAR_LANDING") next = { ...flight, status: "APPROACH", phase: `Cleared to land ${flight.runway ?? ""}`.trim(), riskScore: clamp(flight.riskScore - 7, 0, 100) };
+    if (command.type === "PUSHBACK_APPROVE") next = { ...flight, status: "PUSHBACK", speedKt: 4, phase: command.note || "Pushback and engine start approved" };
+    if (command.type === "TAXI_CLEARANCE") next = { ...flight, status: "TAXI_OUT", speedKt: 18, phase: command.note || `Cleared to taxi to holding point RWY ${flight.runway ?? "04L"}` };
     if (command.type === "DECLARE_EMERGENCY") next = { ...flight, status: "EMERGENCY", squawk: "7700", phase: command.note || "Emergency declared in simulation", riskScore: 95 };
     if (command.type === "RESOLVE_EMERGENCY") next = { ...flight, status: flight.altitudeFt > 0 ? "APPROACH" : "LANDED", squawk: flight.squawk === "7700" ? "4210" : flight.squawk, phase: command.note || "Emergency condition resolved", riskScore: 41 };
     if (command.type === "DIVERT") next = { ...flight, status: "DIVERTED", destination: command.value || "KPHL", phase: `Diverting to ${command.value || "alternate"}` };

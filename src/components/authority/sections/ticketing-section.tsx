@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
@@ -24,12 +24,30 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 export function TicketingSection({
-  flights,
+  flights: initialFlights,
   onBookingSuccess,
 }: {
-  flights: FlightDTO[];
+  flights?: FlightDTO[];
   onBookingSuccess?: (booking: BookingDTO) => void;
 }) {
+  const [fetchedFlights, setFetchedFlights] = useState<FlightDTO[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    if (!initialFlights || initialFlights.length === 0) {
+      fetch("/api/flights")
+        .then((r) => r.json())
+        .then((d) => {
+          if (active && d.flights) setFetchedFlights(d.flights);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, [initialFlights]);
+
+  const flights = (initialFlights && initialFlights.length > 0) ? initialFlights : fetchedFlights;
   // Search state
   const [fromAirport, setFromAirport] = useState("HYD");
   const [toAirport, setToAirport] = useState("BOM");

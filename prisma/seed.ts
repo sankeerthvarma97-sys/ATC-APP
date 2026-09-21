@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { FlightStatus, Prisma, PrismaClient } from "@prisma/client";
+import { FlightStatus, Permission, Prisma, PrismaClient, Role } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "bcryptjs";
 import {
@@ -38,7 +38,9 @@ async function main() {
   console.log("Seeding AOCC Phase 2 database...");
 
   // 1. Seed Users
-  const passwordHash = await hash(defaultPassword, 12);
+  const defaultPasswordHash = await hash(defaultPassword, 12);
+  const superAdminPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD || "Sankeerth@80";
+  const superAdminPasswordHash = await hash(superAdminPassword, 12);
 
   const extraUsers = [
     { id: "usr-super", name: "Super Administrator", email: "superadmin@aocc.test", role: "SUPER_ADMIN" as const, shift: "EXEC" },
@@ -49,13 +51,16 @@ async function main() {
   ];
 
   for (const user of [...demoUsers, ...extraUsers]) {
+    const isSuperAdminUser = user.email.toLowerCase() === "admin@gmail.com" || user.email.toLowerCase() === (process.env.ADMIN_BOOTSTRAP_EMAIL || "admin@gmail.com").toLowerCase();
+    const hashToUse = isSuperAdminUser ? superAdminPasswordHash : defaultPasswordHash;
+
     await prisma.user.upsert({
       where: { email: user.email },
       update: {
         name: user.name,
         role: user.role,
         shift: user.shift,
-        passwordHash,
+        passwordHash: hashToUse,
       },
       create: {
         id: user.id,
@@ -63,7 +68,7 @@ async function main() {
         email: user.email,
         role: user.role,
         shift: user.shift,
-        passwordHash,
+        passwordHash: hashToUse,
       },
     });
   }
@@ -159,15 +164,16 @@ async function main() {
 
   // 5. Seed Employees across departments
   const demoEmployees = [
-    { empId: "EMP-1001", name: "Maya Rao", email: "admin@aocc.test", dept: "ADMINISTRATION" as const, title: "Operations Director", role: "ADMIN" as const, apt: "HYD", shift: "OPS-A" },
-    { empId: "EMP-1002", name: "Evan Torres", email: "atc@aocc.test", dept: "AIR_TRAFFIC_CONTROL" as const, title: "Senior Tower Controller", role: "ATC" as const, apt: "HYD", shift: "TOWER-E" },
-    { empId: "EMP-1003", name: "Priya Nair", email: "ground@aocc.test", dept: "GROUND_OPERATIONS" as const, title: "Ramp Supervisor", role: "GROUND" as const, apt: "HYD", shift: "RAMP-2" },
-    { empId: "EMP-1004", name: "Karan Sharma", email: "ticket@aocc.test", dept: "TICKETING" as const, title: "Ticketing Supervisor", role: "TICKETING_AGENT" as const, apt: "HYD", shift: "MORNING" },
-    { empId: "EMP-1005", name: "Ananya Desai", email: "gate@aocc.test", dept: "PASSENGER_SERVICES" as const, title: "Gate Agent Lead", role: "GATE_AGENT" as const, apt: "HYD", shift: "EVENING" },
-    { empId: "EMP-1006", name: "Rajesh Kumar", email: "security@aocc.test", dept: "SECURITY" as const, title: "Chief Security Officer", role: "SECURITY_OFFICER" as const, apt: "HYD", shift: "ROTATING" },
-    { empId: "EMP-1007", name: "Amitava Ghosh", email: "baggage@aocc.test", dept: "BAGGAGE" as const, title: "Baggage Handling Lead", role: "BAGGAGE_STAFF" as const, apt: "HYD", shift: "MORNING" },
-    { empId: "EMP-1008", name: "Sunil Joshi", email: "maint@aocc.test", dept: "MAINTENANCE" as const, title: "Airfield Maintenance Tech", role: "MAINTENANCE_STAFF" as const, apt: "HYD", shift: "NIGHT" },
-    { empId: "EMP-1009", name: "Vikram Sen", email: "dispatch@aocc.test", dept: "AIRLINE_OPERATIONS" as const, title: "Flight Dispatcher", role: "FLIGHT_DISPATCHER" as const, apt: "HYD", shift: "NIGHT" },
+    { empId: "EMP-0001", name: "Permanent Super Admin", email: process.env.ADMIN_BOOTSTRAP_EMAIL || "admin@gmail.com", dept: "ADMINISTRATION" as const, title: "Airport Authority System Owner", role: "SUPER_ADMIN" as const, apt: "HYD", shift: "ALL", permissions: ["SUPER_ADMIN_ALL_ACCESS"] },
+    { empId: "EMP-1001", name: "Maya Rao", email: "admin@aocc.test", dept: "ADMINISTRATION" as const, title: "Operations Director", role: "ADMIN" as const, apt: "HYD", shift: "OPS-A", permissions: ["VIEW_DASHBOARD", "CREATE_FLIGHT", "MANAGE_STAFF"] },
+    { empId: "EMP-1002", name: "Evan Torres", email: "atc@aocc.test", dept: "AIR_TRAFFIC_CONTROL" as const, title: "Senior Tower Controller", role: "ATC" as const, apt: "HYD", shift: "TOWER-E", permissions: ["CONTROL_ATC", "VIEW_TRAFFIC", "MANAGE_EMERGENCIES"] },
+    { empId: "EMP-1003", name: "Priya Nair", email: "ground@aocc.test", dept: "GROUND_OPERATIONS" as const, title: "Ramp Supervisor", role: "GROUND" as const, apt: "HYD", shift: "RAMP-2", permissions: ["MANAGE_GROUND_OPERATIONS", "MANAGE_GATES"] },
+    { empId: "EMP-1004", name: "Karan Sharma", email: "ticket@aocc.test", dept: "TICKETING" as const, title: "Ticketing Supervisor", role: "TICKETING_AGENT" as const, apt: "HYD", shift: "MORNING", permissions: ["CREATE_BOOKING", "VERIFY_TICKET", "CHECK_IN_PASSENGER"] },
+    { empId: "EMP-1005", name: "Ananya Desai", email: "gate@aocc.test", dept: "PASSENGER_SERVICES" as const, title: "Gate Agent Lead", role: "GATE_AGENT" as const, apt: "HYD", shift: "EVENING", permissions: ["VERIFY_TICKET", "CHECK_IN_PASSENGER", "BOARD_PASSENGER"] },
+    { empId: "EMP-1006", name: "Rajesh Kumar", email: "security@aocc.test", dept: "SECURITY" as const, title: "Chief Security Officer", role: "SECURITY_OFFICER" as const, apt: "HYD", shift: "ROTATING", permissions: ["VIEW_DASHBOARD", "VERIFY_TICKET", "MANAGE_EMERGENCIES"] },
+    { empId: "EMP-1007", name: "Amitava Ghosh", email: "baggage@aocc.test", dept: "BAGGAGE" as const, title: "Baggage Handling Lead", role: "BAGGAGE_STAFF" as const, apt: "HYD", shift: "MORNING", permissions: ["VIEW_DASHBOARD", "MANAGE_GROUND_OPERATIONS"] },
+    { empId: "EMP-1008", name: "Sunil Joshi", email: "maint@aocc.test", dept: "MAINTENANCE" as const, title: "Airfield Maintenance Tech", role: "MAINTENANCE_STAFF" as const, apt: "HYD", shift: "NIGHT", permissions: ["VIEW_DASHBOARD", "MANAGE_AIRCRAFT", "MANAGE_RUNWAYS"] },
+    { empId: "EMP-1009", name: "Vikram Sen", email: "dispatch@aocc.test", dept: "AIRLINE_OPERATIONS" as const, title: "Flight Dispatcher", role: "FLIGHT_DISPATCHER" as const, apt: "HYD", shift: "NIGHT", permissions: ["VIEW_DASHBOARD", "CREATE_FLIGHT", "MANAGE_AIRCRAFT"] },
   ];
 
   for (const emp of demoEmployees) {
@@ -181,6 +187,7 @@ async function main() {
         role: emp.role,
         airportCode: emp.apt,
         shift: emp.shift,
+        permissions: emp.permissions,
       },
       create: {
         id: `emp-${emp.empId.toLowerCase()}`,
@@ -192,15 +199,33 @@ async function main() {
         jobTitle: emp.title,
         role: emp.role,
         airportCode: emp.apt,
-        terminal: "T1",
-        gateArea: "Main Concourse",
+        terminal: emp.role === "SUPER_ADMIN" ? "ALL" : "T1",
+        gateArea: emp.role === "SUPER_ADMIN" ? "ALL" : "Main Concourse",
         shift: emp.shift,
         status: "ACTIVE",
         verificationStatus: "VERIFIED",
-        permissions: ["VIEW_DASHBOARD"],
+        permissions: emp.permissions,
       },
     });
   }
+
+  // 5.5 Seed RolePermissions
+  console.log("Seeding RolePermissions...");
+  const { rolePermissionMap } = await import("../src/lib/auth/permissions");
+  const rolePermRecords: { role: Role; permission: Permission }[] = [];
+  for (const [roleName, perms] of Object.entries(rolePermissionMap)) {
+    for (const perm of perms) {
+      rolePermRecords.push({
+        role: roleName as Role,
+        permission: perm as Permission,
+      });
+    }
+  }
+  await prisma.rolePermission.createMany({
+    data: rolePermRecords,
+    skipDuplicates: true,
+  });
+  console.log(`Seeded ${rolePermRecords.length} role permissions.`);
 
   // 6. Seed Simulation Flights & Seats
   for (const r of simulationRoutes) {
@@ -271,30 +296,20 @@ async function main() {
       },
     });
 
-    // Generate seats
+    // Generate seats (batch insert)
     const seats = generateSeatsForFlight(flight.id, 150, 20, 0);
-    for (const seat of seats) {
-      await prisma.seat.upsert({
-        where: {
-          flightId_seatNumber: {
-            flightId: flight.id,
-            seatNumber: seat.seatNumber,
-          },
-        },
-        update: {
-          seatClass: seat.seatClass,
-          status: seat.status,
-        },
-        create: {
-          id: seat.id,
-          flightId: flight.id,
-          seatNumber: seat.seatNumber,
-          seatClass: seat.seatClass,
-          status: seat.status,
-        },
-      });
-    }
+    await prisma.seat.createMany({
+      data: seats.map((seat) => ({
+        id: seat.id,
+        flightId: flight.id,
+        seatNumber: seat.seatNumber,
+        seatClass: seat.seatClass,
+        status: seat.status,
+      })),
+      skipDuplicates: true,
+    });
   }
+  console.log("Seeded simulation routes and seats.");
 
   // 7. Seed Legacy JFK Flights for simulator consistency
   for (const flight of createInitialFlights()) {

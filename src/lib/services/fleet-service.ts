@@ -39,10 +39,18 @@ export const initialAircraft: AircraftDTO[] = [
 ];
 
 export const initialRunways: RunwayDTO[] = [
-  { id: "rwy-09-hyd", airportId: "apt-hyd", code: "09L/27R", headingDeg: 90, lengthMeters: 4260, status: "AVAILABLE", wind: "090/10kt", approachType: "CAT III ILS" },
-  { id: "rwy-09r-hyd", airportId: "apt-hyd", code: "09R/27L", headingDeg: 90, lengthMeters: 3800, status: "OCCUPIED", wind: "090/10kt", approachType: "CAT II ILS" },
-  { id: "rwy-04l-jfk", airportId: "apt-jfk", code: "04L/22R", headingDeg: 40, lengthMeters: 3680, status: "OCCUPIED", wind: "050/11kt", approachType: "ILS" },
-  { id: "rwy-04r-jfk", airportId: "apt-jfk", code: "04R/22L", headingDeg: 40, lengthMeters: 2560, status: "RESERVED", wind: "050/11kt", approachType: "ILS" },
+  { id: "rwy-09l-hyd", airportId: "HYD", code: "09L/27R", headingDeg: 92, lengthMeters: 4260, status: "AVAILABLE", wind: "090/08kt", approachType: "CAT IIIb ILS", surfaceCondition: "DRY", frictionMu: 0.76, ilsStatus: "OPERATIONAL", lightingStatus: "FULL", activeConfig: "MIXED_MODE" },
+  { id: "rwy-09r-hyd", airportId: "HYD", code: "09R/27L", headingDeg: 92, lengthMeters: 3800, status: "OCCUPIED", wind: "090/08kt", approachType: "CAT II ILS", surfaceCondition: "DRY", frictionMu: 0.74, ilsStatus: "OPERATIONAL", lightingStatus: "FULL", activeConfig: "DEPARTURES_ONLY" },
+  { id: "rwy-04l-jfk", airportId: "JFK", code: "04L/22R", headingDeg: 44, lengthMeters: 3682, status: "OCCUPIED", wind: "040/12kt", approachType: "CAT IIIb ILS", surfaceCondition: "DRY", frictionMu: 0.72, ilsStatus: "OPERATIONAL", lightingStatus: "FULL", activeConfig: "ARRIVALS_ONLY" },
+  { id: "rwy-04r-jfk", airportId: "JFK", code: "04R/22L", headingDeg: 44, lengthMeters: 2560, status: "AVAILABLE", wind: "040/12kt", approachType: "CAT I ILS", surfaceCondition: "DRY", frictionMu: 0.70, ilsStatus: "OPERATIONAL", lightingStatus: "FULL", activeConfig: "DEPARTURES_ONLY" },
+  { id: "rwy-13l-jfk", airportId: "JFK", code: "13L/31R", headingDeg: 134, lengthMeters: 4423, status: "AVAILABLE", wind: "040/12kt", approachType: "CAT II ILS", surfaceCondition: "DRY", frictionMu: 0.75, ilsStatus: "OPERATIONAL", lightingStatus: "FULL", activeConfig: "MIXED_MODE" },
+  { id: "rwy-13r-jfk", airportId: "JFK", code: "13R/31L", headingDeg: 134, lengthMeters: 3048, status: "RESERVED", wind: "040/12kt", approachType: "RNAV (GPS)", surfaceCondition: "DRY", frictionMu: 0.69, ilsStatus: "OPERATIONAL", lightingStatus: "PARTIAL", activeConfig: "CLOSED" },
+  { id: "rwy-27-bom", airportId: "BOM", code: "09/27", headingDeg: 274, lengthMeters: 3489, status: "AVAILABLE", wind: "260/14kt", approachType: "CAT II ILS", surfaceCondition: "WET", frictionMu: 0.61, ilsStatus: "OPERATIONAL", lightingStatus: "FULL", activeConfig: "MIXED_MODE" },
+  { id: "rwy-14-bom", airportId: "BOM", code: "14/32", headingDeg: 142, lengthMeters: 2925, status: "AVAILABLE", wind: "260/14kt", approachType: "VOR/DME", surfaceCondition: "DAMP", frictionMu: 0.65, ilsStatus: "DEGRADED", lightingStatus: "FULL", activeConfig: "DEPARTURES_ONLY" },
+  { id: "rwy-28-del", airportId: "DEL", code: "10/28", headingDeg: 281, lengthMeters: 3810, status: "OCCUPIED", wind: "290/06kt", approachType: "CAT IIIb ILS", surfaceCondition: "DRY", frictionMu: 0.78, ilsStatus: "OPERATIONAL", lightingStatus: "FULL", activeConfig: "ARRIVALS_ONLY" },
+  { id: "rwy-29-del", airportId: "DEL", code: "11/29", headingDeg: 291, lengthMeters: 4430, status: "AVAILABLE", wind: "290/06kt", approachType: "CAT IIIb ILS", surfaceCondition: "DRY", frictionMu: 0.80, ilsStatus: "OPERATIONAL", lightingStatus: "FULL", activeConfig: "DEPARTURES_ONLY" },
+  { id: "rwy-09l-blr", airportId: "BLR", code: "09L/27R", headingDeg: 93, lengthMeters: 4000, status: "AVAILABLE", wind: "090/09kt", approachType: "CAT I ILS", surfaceCondition: "DRY", frictionMu: 0.75, ilsStatus: "OPERATIONAL", lightingStatus: "FULL", activeConfig: "ARRIVALS_ONLY" },
+  { id: "rwy-09r-blr", airportId: "BLR", code: "09R/27L", headingDeg: 93, lengthMeters: 4000, status: "AVAILABLE", wind: "090/09kt", approachType: "CAT IIIb ILS", surfaceCondition: "DRY", frictionMu: 0.77, ilsStatus: "OPERATIONAL", lightingStatus: "FULL", activeConfig: "DEPARTURES_ONLY" },
 ];
 
 export const initialGates: GateDTO[] = [
@@ -249,11 +257,60 @@ export async function listRunways(): Promise<RunwayDTO[]> {
   return memoryRunways;
 }
 
+export async function updateRunwayStatus(
+  runwayIdOrCode: string,
+  updates: Partial<RunwayDTO>,
+  actor?: { id?: string; name?: string }
+): Promise<RunwayDTO | null> {
+  const index = memoryRunways.findIndex(
+    (r) => r.id === runwayIdOrCode || r.code === runwayIdOrCode
+  );
+  if (index === -1) return null;
+
+  const previous = { ...memoryRunways[index] };
+  memoryRunways[index] = {
+    ...memoryRunways[index],
+    ...updates,
+  };
+
+  if (shouldUseDatabase()) {
+    try {
+      if (updates.status) {
+        await prisma.airportResource.updateMany({
+          where: { code: memoryRunways[index].code, resourceType: "RUNWAY" },
+          data: { status: updates.status },
+        });
+      }
+    } catch (err) {
+      console.warn("Database runway status update failed; in-memory updated.", err);
+    }
+  }
+
+  await logAuditEvent({
+    actorId: actor?.id,
+    actorName: actor?.name,
+    action: "RUNWAY_UPDATED",
+    entity: "RUNWAY",
+    entityId: memoryRunways[index].code,
+    before: previous as unknown as Record<string, unknown>,
+    after: memoryRunways[index] as unknown as Record<string, unknown>,
+  });
+
+  return memoryRunways[index];
+}
+
 export async function listGates(): Promise<GateDTO[]> {
   return memoryGates;
 }
 
-export async function updateGateStatus(gateCode: string, status: GateDTO["status"], assignedFlightId?: string) {
-  memoryGates = memoryGates.map((g) => (g.code === gateCode ? { ...g, status, assignedFlightId } : g));
+export async function updateGateStatus(
+  gateCode: string,
+  status: GateDTO["status"],
+  assignedFlightId?: string
+) {
+  memoryGates = memoryGates.map((g) =>
+    g.code === gateCode ? { ...g, status, assignedFlightId } : g
+  );
   return memoryGates.find((g) => g.code === gateCode);
 }
+

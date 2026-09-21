@@ -27,30 +27,47 @@ export type Role = (typeof roles)[number];
 
 export const permissions = [
   "VIEW_DASHBOARD",
-  "VIEW_TRAFFIC",
+  "VIEW_FLIGHTS",
   "CREATE_FLIGHT",
   "EDIT_FLIGHT",
   "CANCEL_FLIGHT",
+  "VIEW_FLIGHT_STATUS",
+  "VIEW_TRAFFIC",
+  "CONTROL_ATC",
+  "SEND_ATC_COMMAND",
+  "VIEW_AIRCRAFT_POSITION",
   "MANAGE_AIRLINES",
   "MANAGE_AIRCRAFT",
   "MANAGE_GATES",
   "MANAGE_RUNWAYS",
-  "MANAGE_STAFF",
-  "VERIFY_STAFF",
-  "MANAGE_ROLES",
-  "MANAGE_PERMISSIONS",
+  "MANAGE_TERMINALS",
+  "VIEW_BOOKINGS",
   "CREATE_BOOKING",
   "MODIFY_BOOKING",
   "CANCEL_BOOKING",
-  "VERIFY_TICKET",
+  "VIEW_PASSENGERS",
   "CHECK_IN_PASSENGER",
   "BOARD_PASSENGER",
-  "CONTROL_ATC",
+  "VERIFY_TICKET",
+  "VIEW_TICKET",
+  "CREATE_TICKET",
+  "MANAGE_BAGGAGE",
   "MANAGE_GROUND_OPERATIONS",
-  "MANAGE_EMERGENCIES",
+  "MANAGE_STAFF",
+  "CREATE_STAFF",
+  "EDIT_STAFF",
+  "VERIFY_STAFF",
+  "SUSPEND_STAFF",
+  "MANAGE_ROLES",
+  "MANAGE_PERMISSIONS",
+  "ASSIGN_ROLES",
+  "ASSIGN_PERMISSIONS",
   "VIEW_ANALYTICS",
   "VIEW_AUDIT_LOGS",
+  "MANAGE_EMERGENCIES",
   "MANAGE_SYSTEM_SETTINGS",
+  "MANAGE_SIMULATOR",
+  "SUPER_ADMIN_ALL_ACCESS",
 ] as const;
 
 export type Permission = (typeof permissions)[number];
@@ -75,6 +92,7 @@ export const employeeStatuses = [
   "ACTIVE",
   "OFFLINE",
   "ON_DUTY",
+  "PENDING",
   "PENDING_VERIFICATION",
   "SUSPENDED",
   "DEACTIVATED",
@@ -157,6 +175,7 @@ export interface UserDTO {
   email: string;
   role: Role;
   shift?: string;
+  airportCode?: string;
   permissions?: Permission[];
 }
 
@@ -210,6 +229,11 @@ export interface RunwayDTO {
   status: ResourceStatus;
   wind?: string;
   approachType?: string;
+  surfaceCondition?: "DRY" | "WET" | "DAMP" | "CONTAMINATED";
+  frictionMu?: number;
+  ilsStatus?: "OPERATIONAL" | "DEGRADED" | "OFFLINE";
+  lightingStatus?: "FULL" | "PARTIAL" | "OFF";
+  activeConfig?: "DEPARTURES_ONLY" | "ARRIVALS_ONLY" | "MIXED_MODE" | "CLOSED";
 }
 
 export interface GateDTO {
@@ -508,7 +532,9 @@ export type FlightCommandType =
   | "CLEAR_LANDING"
   | "DECLARE_EMERGENCY"
   | "RESOLVE_EMERGENCY"
-  | "DIVERT";
+  | "DIVERT"
+  | "PUSHBACK_APPROVE"
+  | "TAXI_CLEARANCE";
 
 export interface FlightCommandInput {
   flightId: string;
