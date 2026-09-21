@@ -47,14 +47,7 @@ export function RunwaysSection({ activeStation = "HYD" }: { activeStation?: stri
   const [selectedRwyForNotam, setSelectedRwyForNotam] = useState<string>("");
   const [notamSuccess, setNotamSuccess] = useState<string | null>(null);
 
-  // Sync station filter when activeStation prop changes
-  useEffect(() => {
-    if (activeStation && activeStation !== "ALL") {
-      setStationFilter(activeStation);
-    }
-  }, [activeStation]);
-
-  const loadRunways = useCallback(async () => {
+  const refetchRunways = async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/resources?type=RUNWAY");
@@ -69,11 +62,22 @@ export function RunwaysSection({ activeStation = "HYD" }: { activeStation?: stri
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    loadRunways();
-  }, [loadRunways]);
+    let active = true;
+    fetch("/api/resources?type=RUNWAY")
+      .then((res) => res.json())
+      .then((data) => {
+        if (active && Array.isArray(data.runways) && data.runways.length > 0) {
+          setRunways(data.runways);
+        }
+      })
+      .catch((err) => console.warn("Failed to load runways from API:", err));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleUpdateRunway = async (
     runwayId: string,
@@ -189,7 +193,7 @@ export function RunwaysSection({ activeStation = "HYD" }: { activeStation?: stri
             size="sm"
             variant="outline"
             className="border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 h-9 rounded-xl font-mono text-xs flex items-center gap-1.5"
-            onClick={loadRunways}
+            onClick={() => void refetchRunways()}
             disabled={loading}
           >
             <RefreshCw className={`h-3.5 w-3.5 text-cyan-400 ${loading ? "animate-spin" : ""}`} />

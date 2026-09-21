@@ -9,7 +9,7 @@ export function MetarWidget({ station = "HYD" }: { station?: string }) {
   const [report, setReport] = useState<MetarReport | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const loadWeather = async () => {
+  const refreshWeather = async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/weather/metar?station=${station}`);
@@ -25,7 +25,16 @@ export function MetarWidget({ station = "HYD" }: { station?: string }) {
   };
 
   useEffect(() => {
-    void loadWeather();
+    let active = true;
+    fetch(`/api/weather/metar?station=${station}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (active && data.ok) setReport(data.metar);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, [station]);
 
   if (!report) {
@@ -60,7 +69,7 @@ export function MetarWidget({ station = "HYD" }: { station?: string }) {
             {report.flightCategory}
           </Badge>
           <button
-            onClick={() => void loadWeather()}
+            onClick={() => void refreshWeather()}
             disabled={loading}
             className="p-1 text-slate-400 hover:text-white transition"
             title="Refresh METAR"

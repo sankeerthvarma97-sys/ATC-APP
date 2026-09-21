@@ -47,7 +47,7 @@ export function FlightPlanSection() {
   const [altAirport, setAltAirport] = useState("EGKK");
   const [remarks, setRemarks] = useState("PBN/A1B1C1D1 DOF/260921 REG/VT-AOC");
 
-  const fetchPlans = async () => {
+  const refetchPlans = async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/flight-plans");
@@ -63,7 +63,16 @@ export function FlightPlanSection() {
   };
 
   useEffect(() => {
-    fetchPlans();
+    let active = true;
+    fetch("/api/flight-plans")
+      .then((res) => res.json())
+      .then((data) => {
+        if (active && data.flightPlans) setFlightPlans(data.flightPlans);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Quick Preset Handlers
@@ -140,7 +149,7 @@ export function FlightPlanSection() {
 
       if (res.ok) {
         setNotification(`ICAO Flight Plan for ${callsign} filed successfully into ATC strip bay!`);
-        fetchPlans();
+        void refetchPlans();
         setTimeout(() => setNotification(null), 4000);
       }
     } catch {
@@ -158,7 +167,7 @@ export function FlightPlanSection() {
         body: JSON.stringify({ id, status: newStatus }),
       });
       if (res.ok) {
-        fetchPlans();
+        void refetchPlans();
       }
     } catch {
       // Fallback

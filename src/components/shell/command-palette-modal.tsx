@@ -12,8 +12,6 @@ import {
   Warehouse,
   X,
   ArrowRight,
-  Sparkles,
-  Command,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -40,39 +38,31 @@ export function CommandPaletteModal({
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Focus input when opened
+  // Search and focus effect when opened or query changes
   useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-      fetchResults("");
-    } else {
-      setQuery("");
-      setSelectedIndex(0);
-    }
-  }, [isOpen]);
+    if (!isOpen) return;
+    let active = true;
+    const focusTimer = setTimeout(() => inputRef.current?.focus(), 50);
 
-  const fetchResults = async (q: string) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-      if (res.ok) {
-        const data = await res.json();
-        setResults(data.results || []);
-      }
-    } catch {
-      // Fallback
-    } finally {
-      setLoading(false);
-    }
-  };
+    const searchTimer = setTimeout(() => {
+      setLoading(true);
+      fetch(`/api/search?q=${encodeURIComponent(query)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (active) setResults(data.results || []);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    }, query ? 180 : 0);
 
-  // Debounced search on typing
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchResults(query);
-    }, 180);
-    return () => clearTimeout(timer);
-  }, [query]);
+    return () => {
+      active = false;
+      clearTimeout(focusTimer);
+      clearTimeout(searchTimer);
+    };
+  }, [isOpen, query]);
 
   // Keyboard navigation inside the palette
   const handleKeyDown = (e: React.KeyboardEvent) => {

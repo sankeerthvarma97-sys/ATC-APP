@@ -62,12 +62,11 @@ export function AoccPortalShell({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [zuluTime, setZuluTime] = useState("");
   const [unreadCount, setUnreadCount] = useState(2);
-  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [audioEnabled, setAudioEnabled] = useState(() => atcVoice.isAudioActive());
   const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
-    setAudioEnabled(atcVoice.isAudioActive());
     return atcVoice.subscribe((enabled) => setAudioEnabled(enabled));
   }, []);
 
@@ -80,7 +79,6 @@ export function AoccPortalShell({
       const now = new Date();
       setZuluTime(`${now.toISOString().slice(11, 19)}Z`);
     };
-    updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);

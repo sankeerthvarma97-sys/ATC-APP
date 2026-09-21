@@ -127,24 +127,34 @@ export function BoardingSection({
     }
   }, [soundEnabled]);
 
-  const fetchFlights = useCallback(async () => {
+  const refetchFlights = useCallback(async () => {
     try {
       const res = await fetch("/api/flights");
       if (!res.ok) return;
       const data = await res.json();
       const list = (data.flights || []) as FlightDTO[];
       setFlights(list);
-      if (list.length > 0 && !selectedFlightId) {
-        setSelectedFlightId(list[0].id);
-      }
+      setSelectedFlightId((current) => current || (list[0]?.id ?? null));
     } catch (err) {
       console.warn("Failed to fetch flights:", err);
     }
-  }, [selectedFlightId]);
+  }, []);
 
   useEffect(() => {
-    fetchFlights();
-  }, [fetchFlights]);
+    let active = true;
+    fetch("/api/flights")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!active) return;
+        const list = (data.flights || []) as FlightDTO[];
+        setFlights(list);
+        setSelectedFlightId((current) => current || (list[0]?.id ?? null));
+      })
+      .catch((err) => console.warn("Failed to fetch flights:", err));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const selectedFlight = flights.find((f) => f.id === selectedFlightId) || flights[0];
 
@@ -231,7 +241,7 @@ export function BoardingSection({
         }/${manifest.length} passengers onboard. Flight strip transferred to ATC Ground.`
       );
       playBeep(true);
-      fetchFlights();
+      void refetchFlights();
     } catch (err) {
       console.error("Gate closure handoff failed:", err);
       setHandoffNotice(`Gate closed. Flight ${selectedFlight.callsign} transferred to ATC Ground.`);
@@ -288,7 +298,7 @@ export function BoardingSection({
             size="sm"
             variant="outline"
             className="border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 h-9 rounded-xl font-mono text-xs flex items-center gap-1.5"
-            onClick={fetchFlights}
+            onClick={() => void refetchFlights()}
           >
             <RefreshCw className="h-3.5 w-3.5 text-cyan-400" />
             Refresh
