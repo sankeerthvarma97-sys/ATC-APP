@@ -1,0 +1,25 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "functions": {
+    "src/app/api/**/*": {
+      "maxDuration": 30
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/resources",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, s-maxage=5, stale-while-revalidate=15" }
+      ]
+    },
+    {
+      "source": "/api/flights",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, s-maxage=1, stale-while-revalidate=3" }
+      ]
+    }
+  ]
+}

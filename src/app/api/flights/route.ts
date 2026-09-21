@@ -19,7 +19,14 @@ export async function GET(request: Request) {
     query,
   });
 
-  return Response.json({ flights });
+  return Response.json(
+    { flights },
+    {
+      headers: {
+        "Cache-Control": "public, s-maxage=1, stale-while-revalidate=3",
+      },
+    },
+  );
 }
 
 export async function POST(request: Request) {

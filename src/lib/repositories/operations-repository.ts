@@ -104,46 +104,80 @@ function toMessageDTO(record: Record<string, unknown>): RadioMessageDTO {
   };
 }
 
+interface CachedSnapshotData {
+  timestamp: number;
+  data: Omit<OperationsSnapshot, "currentUser">;
+}
+
+let snapshotCache: CachedSnapshotData | null = null;
+let inflightSnapshotPromise: Promise<Omit<OperationsSnapshot, "currentUser">> | null = null;
+const SNAPSHOT_CACHE_TTL_MS = 1500;
+
+export function invalidateSnapshotCache() {
+  snapshotCache = null;
+}
+
+async function fetchRawSnapshotData(): Promise<Omit<OperationsSnapshot, "currentUser">> {
+  const [flights, resources, events, messages] = await Promise.all([
+    prisma.flight.findMany({
+      include: { assignedController: { select: { id: true, name: true, role: true } } },
+      orderBy: [{ riskScore: "desc" }, { eta: "asc" }],
+    }),
+    prisma.airportResource.findMany({ orderBy: [{ resourceType: "asc" }, { code: "asc" }] }),
+    prisma.operationalEvent.findMany({ orderBy: { createdAt: "desc" }, take: 32 }),
+    prisma.radioMessage.findMany({
+      include: {
+        fromUser: { select: { id: true, name: true, role: true } },
+        flight: { select: { callsign: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 28,
+    }),
+  ]);
+
+  const flightDtos = flights.map((flight) => toFlightDTO(flight as unknown as Record<string, unknown>));
+  const resourceDtos = resources.map((resource) => toResourceDTO(resource as unknown as Record<string, unknown>));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    airport,
+    flights: flightDtos,
+    resources: resourceDtos,
+    events: events.map((event) => toEventDTO(event as unknown as Record<string, unknown>)),
+    messages: messages.map((message) => toMessageDTO(message as unknown as Record<string, unknown>)),
+    metrics: computeMetrics(flightDtos, resourceDtos),
+    disclaimer: educationalDisclaimer,
+  };
+}
+
 export async function getOperationsSnapshot(currentUser = getDemoUser()): Promise<OperationsSnapshot> {
   if (!shouldUseDatabase()) {
     return buildMemorySnapshot(currentUser);
   }
 
-  try {
-    const [flights, resources, events, messages] = await Promise.all([
-      prisma.flight.findMany({
-        include: { assignedController: { select: { id: true, name: true, role: true } } },
-        orderBy: [{ riskScore: "desc" }, { eta: "asc" }],
-      }),
-      prisma.airportResource.findMany({ orderBy: [{ resourceType: "asc" }, { code: "asc" }] }),
-      prisma.operationalEvent.findMany({ orderBy: { createdAt: "desc" }, take: 32 }),
-      prisma.radioMessage.findMany({
-        include: {
-          fromUser: { select: { id: true, name: true, role: true } },
-          flight: { select: { callsign: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 28,
-      }),
-    ]);
-
-    const flightDtos = flights.map((flight) => toFlightDTO(flight as unknown as Record<string, unknown>));
-    const resourceDtos = resources.map((resource) => toResourceDTO(resource as unknown as Record<string, unknown>));
-
+  const now = Date.now();
+  if (snapshotCache && now - snapshotCache.timestamp < SNAPSHOT_CACHE_TTL_MS) {
     return {
-      generatedAt: new Date().toISOString(),
-      airport,
+      ...snapshotCache.data,
       currentUser,
-      flights: flightDtos,
-      resources: resourceDtos,
-      events: events.map((event) => toEventDTO(event as unknown as Record<string, unknown>)),
-      messages: messages.map((message) => toMessageDTO(message as unknown as Record<string, unknown>)),
-      metrics: computeMetrics(flightDtos, resourceDtos),
-      disclaimer: educationalDisclaimer,
     };
+  }
+
+  if (inflightSnapshotPromise) {
+    const data = await inflightSnapshotPromise;
+    return { ...data, currentUser };
+  }
+
+  try {
+    inflightSnapshotPromise = fetchRawSnapshotData();
+    const data = await inflightSnapshotPromise;
+    snapshotCache = { timestamp: Date.now(), data };
+    return { ...data, currentUser };
   } catch (error) {
     console.warn("Falling back to in-memory AOCC snapshot", error);
     return buildMemorySnapshot(currentUser);
+  } finally {
+    inflightSnapshotPromise = null;
   }
 }
 
@@ -201,6 +235,7 @@ export async function executeFlightCommand(input: FlightCommandInput, actor: Use
       },
     });
 
+    invalidateSnapshotCache();
     return { flight: toFlightDTO(flight as unknown as Record<string, unknown>), snapshot: await getOperationsSnapshot(actor) };
   } catch (error) {
     console.warn("Falling back to in-memory command execution", error);
@@ -245,6 +280,7 @@ export async function recordRadioMessage(input: RadioMessageInput, actor: UserDT
       },
     });
 
+    invalidateSnapshotCache();
     return { message: toMessageDTO(message as unknown as Record<string, unknown>), snapshot: await getOperationsSnapshot(actor) };
   } catch (error) {
     console.warn("Falling back to in-memory radio message", error);

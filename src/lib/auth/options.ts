@@ -5,6 +5,7 @@ import { prisma, shouldUseDatabase } from "@/lib/prisma";
 import { validateCredentials } from "@/lib/auth/users";
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET || "aocc-production-jwt-secret-fallback-key-2026",
   adapter: shouldUseDatabase() ? PrismaAdapter(prisma) : undefined,
   session: {
     strategy: "jwt",

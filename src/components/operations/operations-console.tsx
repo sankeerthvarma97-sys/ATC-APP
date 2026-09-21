@@ -253,16 +253,18 @@ export function OperationsConsole({ initialSnapshot }: { initialSnapshot: Operat
   );
 
   useEffect(() => {
-    const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io({
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || undefined;
+    const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(socketUrl, {
       path: "/socket.io",
       transports: ["websocket", "polling"],
-      timeout: 3000,
+      timeout: 5000,
     });
     socketRef.current = socket;
     let fallbackTimer: ReturnType<typeof setInterval> | null = null;
 
     const pollSnapshot = async () => {
-      const response = await fetch("/api/operations/snapshot", { cache: "no-store" });
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+      const response = await fetch(`${baseUrl}/api/operations/snapshot`, { cache: "no-store" });
       if (response.ok) {
         setSnapshot(await response.json());
       }

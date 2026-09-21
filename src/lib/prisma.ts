@@ -1,20 +1,33 @@
+import { Pool } from "pg";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
+  pgPool?: Pool;
 };
+
+function createPgPool(): Pool {
+  return new Pool({
+    connectionString: process.env.DATABASE_URL ?? "",
+    max: 15, // Cap connection pool to prevent PostgreSQL saturation under high concurrent load
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+  });
+}
+
+const pool = globalForPrisma.pgPool ?? createPgPool();
+globalForPrisma.pgPool = pool;
 
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL ?? "" }),
+    adapter: new PrismaPg(pool),
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
+// Cache in globalThis across all environments (including production serverless hot invocations)
+globalForPrisma.prisma = prisma;
 
 export function shouldUseDatabase() {
   return process.env.AOCC_USE_DATABASE === "true" && Boolean(process.env.DATABASE_URL);

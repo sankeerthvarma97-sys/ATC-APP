@@ -8,18 +8,22 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type");
 
+  const headers = {
+    "Cache-Control": "public, s-maxage=5, stale-while-revalidate=15",
+  };
+
   if (type === "RUNWAY") {
     const runways = await listRunways();
-    return Response.json({ runways });
+    return Response.json({ runways }, { headers });
   }
 
   if (type === "GATE") {
     const gates = await listGates();
-    return Response.json({ gates });
+    return Response.json({ gates }, { headers });
   }
 
   const [runways, gates] = await Promise.all([listRunways(), listGates()]);
-  return Response.json({ runways, gates });
+  return Response.json({ runways, gates }, { headers });
 }
 
 export async function PATCH(request: Request) {

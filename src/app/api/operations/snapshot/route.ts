@@ -10,5 +10,9 @@ export async function GET() {
   }
 
   const snapshot = await getOperationsSnapshot(user);
-  return Response.json(snapshot);
+  return Response.json(snapshot, {
+    headers: {
+      "Cache-Control": "private, no-cache, no-transform",
+    },
+  });
 }
