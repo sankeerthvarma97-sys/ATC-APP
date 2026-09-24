@@ -1,24 +1,25 @@
 "use client";
 
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Activity,
-  ArrowDownRight,
   ArrowUpRight,
   BarChart3,
-  Calendar,
   Clock,
   DollarSign,
-  Luggage,
-  Plane,
   TrendingUp,
-  Users,
+  CreditCard,
+  RefreshCw,
+  PlusCircle,
+  FileText,
+  User,
+  CheckCircle2,
+  X,
 } from "lucide-react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -26,6 +27,7 @@ import {
 } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import type { CreditTransactionDTO } from "@/lib/domain";
 
 const THROUGHPUT_DATA = [
   { hour: "06:00", departures: 14, arrivals: 12, passengers: 3420 },
@@ -47,21 +49,124 @@ const DELAY_BREAKDOWN = [
 ];
 
 export function AnalyticsSection() {
+  const [financial, setFinancial] = useState<{
+    totalSimulatedRevenue: number;
+    totalCreditsUsed: number;
+    totalCreditsAdded: number;
+    totalRefunds: number;
+    activeBookingsCount: number;
+    averageBookingValue: number;
+  } | null>(null);
+
+  const [ledger, setLedger] = useState<CreditTransactionDTO[]>([]);
+  const [ledgerLoading, setLedgerLoading] = useState(true);
+  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
+
+  // Manual adjust form state
+  const [targetUserId, setTargetUserId] = useState("");
+  const [adjustAmount, setAdjustAmount] = useState(1000);
+  const [adjustType, setAdjustType] = useState<"CREDIT" | "ADJUSTMENT" | "BONUS">("CREDIT");
+  const [adjustReason, setAdjustReason] = useState("");
+  const [adjustStatus, setAdjustStatus] = useState<string | null>(null);
+
+  const fetchFinancialData = useCallback(async () => {
+    try {
+      const [resFin, resLedger] = await Promise.all([
+        fetch("/api/credits/analytics"),
+        fetch("/api/credits?all=true&pageSize=15"),
+      ]);
+
+      if (resFin.ok) {
+        const data = await resFin.json();
+        setFinancial(data);
+      }
+
+      if (resLedger.ok) {
+        const data = await resLedger.json();
+        setLedger(data.transactions || []);
+      }
+    } catch (err) {
+      console.warn("Failed to load financial telemetry", err);
+    } finally {
+      setLedgerLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFinancialData();
+  }, [fetchFinancialData]);
+
+  const handleAdjustSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdjustStatus(null);
+    try {
+      const res = await fetch("/api/credits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: targetUserId.trim(),
+          amount: Number(adjustAmount),
+          type: adjustType,
+          reason: adjustReason.trim() || "Administrative bonus/adjustment",
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setAdjustStatus("Credit adjustment successful!");
+        setTimeout(() => {
+          setAdjustModalOpen(false);
+          setAdjustStatus(null);
+          fetchFinancialData();
+        }, 1200);
+      } else {
+        setAdjustStatus(data.error || "Adjustment failed.");
+      }
+    } catch {
+      setAdjustStatus("Network error occurred.");
+    }
+  };
+
+  const getTransactionTypeBadge = (type: string) => {
+    switch (type) {
+      case "CREDIT":
+      case "BONUS":
+        return <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">+{type}</Badge>;
+      case "BOOKING_DEBIT":
+        return <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30">DEBIT</Badge>;
+      case "REFUND":
+        return <Badge className="bg-sky-500/20 text-sky-300 border-sky-500/30">REFUND</Badge>;
+      default:
+        return <Badge variant="outline">{type}</Badge>;
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <TrendingUp className="h-6 w-6 text-primary" />
-            Airport Operational Intelligence & Telemetry
+            Airport Operational Intelligence & Financial Telemetry
           </h2>
           <p className="text-sm text-muted-foreground">
-            Real-time analytics on runway throughput, passenger load factor, slot compliance, and revenue performance.
+            Real-time analytics on runway throughput, passenger load factor, slot compliance, and user credit ledger.
           </p>
         </div>
-        <Badge variant="outline" className="text-xs bg-primary/10 border-primary/40 text-primary">
-          Live Telemetry Active
-        </Badge>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => fetchFinancialData()}
+            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs flex items-center gap-1.5 transition"
+            title="Refresh analytics"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            <span>Refresh</span>
+          </button>
+          <Badge variant="outline" className="text-xs bg-primary/10 border-primary/40 text-primary">
+            Live Telemetry Active
+          </Badge>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -69,49 +174,65 @@ export function AnalyticsSection() {
         <Card className="border-border/60 bg-card/60">
           <CardContent className="p-4 space-y-1">
             <span className="text-xs text-muted-foreground uppercase flex items-center justify-between">
-              On-Time Performance (OTP)
-              <ArrowUpRight className="h-4 w-4 text-emerald-400" />
-            </span>
-            <div className="text-2xl font-bold font-mono text-emerald-400">89.4%</div>
-            <div className="text-[11px] text-muted-foreground">+2.1% vs previous 24h</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/60 bg-card/60">
-          <CardContent className="p-4 space-y-1">
-            <span className="text-xs text-muted-foreground uppercase flex items-center justify-between">
-              Avg Passenger Load Factor
-              <ArrowUpRight className="h-4 w-4 text-primary" />
-            </span>
-            <div className="text-2xl font-bold font-mono text-foreground">84.8%</div>
-            <div className="text-[11px] text-muted-foreground">8,450 seats filled today</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/60 bg-card/60">
-          <CardContent className="p-4 space-y-1">
-            <span className="text-xs text-muted-foreground uppercase flex items-center justify-between">
-              Airfield Movements / Hr
-              <ArrowUpRight className="h-4 w-4 text-primary" />
-            </span>
-            <div className="text-2xl font-bold font-mono text-foreground">68 MVTS</div>
-            <div className="text-[11px] text-muted-foreground">Near peak CAT III capacity</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/60 bg-card/60">
-          <CardContent className="p-4 space-y-1">
-            <span className="text-xs text-muted-foreground uppercase flex items-center justify-between">
-              Ticketing Revenue (Sim)
+              Simulated Revenue
               <DollarSign className="h-4 w-4 text-emerald-400" />
             </span>
-            <div className="text-2xl font-bold font-mono text-emerald-400">$1,420,800</div>
-            <div className="text-[11px] text-muted-foreground">3,840 simulated bookings</div>
+            <div className="text-2xl font-bold font-mono text-emerald-400">
+              ₹{(financial?.totalSimulatedRevenue ?? 1420800).toLocaleString()}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              {financial?.activeBookingsCount ?? 384} confirmed bookings
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 bg-card/60">
+          <CardContent className="p-4 space-y-1">
+            <span className="text-xs text-muted-foreground uppercase flex items-center justify-between">
+              Credits Debited
+              <CreditCard className="h-4 w-4 text-amber-400" />
+            </span>
+            <div className="text-2xl font-bold font-mono text-amber-300">
+              ₹{(financial?.totalCreditsUsed ?? 45000).toLocaleString()}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              User credit bookings
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 bg-card/60">
+          <CardContent className="p-4 space-y-1">
+            <span className="text-xs text-muted-foreground uppercase flex items-center justify-between">
+              Avg Booking Value
+              <ArrowUpRight className="h-4 w-4 text-primary" />
+            </span>
+            <div className="text-2xl font-bold font-mono text-foreground">
+              ₹{Math.round(financial?.averageBookingValue ?? 4650).toLocaleString()}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Economy & Business blend
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 bg-card/60">
+          <CardContent className="p-4 space-y-1">
+            <span className="text-xs text-muted-foreground uppercase flex items-center justify-between">
+              Total Refunds Issued
+              <ArrowUpRight className="h-4 w-4 text-sky-400" />
+            </span>
+            <div className="text-2xl font-bold font-mono text-sky-400">
+              ₹{(financial?.totalRefunds ?? 0).toLocaleString()}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Reversed on cancellations
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Hourly Flight Throughput Chart */}
+      {/* Hourly Flight Throughput Chart & Delay Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <Card className="border-border/60 bg-card/80">
@@ -155,7 +276,7 @@ export function AnalyticsSection() {
                 Root Cause Delay Breakdown
               </CardTitle>
               <CardDescription className="text-xs">
-                Analysis of 28 cumulative operational delay minutes today.
+                Analysis of cumulative operational delay minutes today.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 pt-2">
@@ -185,6 +306,195 @@ export function AnalyticsSection() {
           </Card>
         </div>
       </div>
+
+      {/* Credit Transactions Ledger Table */}
+      <Card className="border-border/60 bg-card/80">
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <div>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-emerald-400" />
+              Live User Money & Credit Ledger (Double-Spend Protected)
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Complete transactional audit ledger recording user credits, booking debits, refunds, and adjustments.
+            </CardDescription>
+          </div>
+          <button
+            onClick={() => setAdjustModalOpen(true)}
+            className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
+          >
+            <PlusCircle className="h-3.5 w-3.5" />
+            <span>Admin Credit Adjustment</span>
+          </button>
+        </CardHeader>
+
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-950/70 border-y border-slate-800 text-slate-400 font-mono uppercase">
+                <tr>
+                  <th className="py-2.5 px-4">TX ID</th>
+                  <th className="py-2.5 px-4">User</th>
+                  <th className="py-2.5 px-4">Type</th>
+                  <th className="py-2.5 px-4 text-right">Amount</th>
+                  <th className="py-2.5 px-4 text-right">Balance Before</th>
+                  <th className="py-2.5 px-4 text-right">Balance After</th>
+                  <th className="py-2.5 px-4">Description / Reference</th>
+                  <th className="py-2.5 px-4">Timestamp</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/50 font-sans">
+                {ledgerLoading ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-slate-400">
+                      Loading credit ledger...
+                    </td>
+                  </tr>
+                ) : ledger.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-slate-400">
+                      No credit transactions recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  ledger.map((tx) => (
+                    <tr key={tx.id} className="hover:bg-slate-800/30 transition">
+                      <td className="py-2.5 px-4 font-mono text-[11px] text-slate-400">
+                        {tx.id.slice(0, 10)}...
+                      </td>
+                      <td className="py-2.5 px-4">
+                        <div className="font-semibold text-slate-200">
+                          {tx.userName || "User"}
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          {tx.userEmail || tx.userId}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-4">
+                        {getTransactionTypeBadge(tx.type)}
+                      </td>
+                      <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-200">
+                        ₹{tx.amount.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-4 text-right font-mono text-slate-400">
+                        ₹{tx.balanceBefore.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-4 text-right font-mono font-bold text-emerald-400">
+                        ₹{tx.balanceAfter.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-4 text-slate-300 max-w-xs truncate">
+                        {tx.description || tx.referenceId || "—"}
+                      </td>
+                      <td className="py-2.5 px-4 text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                        {new Date(tx.createdAt).toLocaleTimeString()}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Admin Manual Adjustment Modal */}
+      {adjustModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 space-y-4 shadow-2xl relative">
+            <button
+              onClick={() => setAdjustModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <PlusCircle className="h-5 w-5 text-emerald-400" />
+              Admin Credit Adjustment
+            </h3>
+
+            {adjustStatus && (
+              <div
+                className={`p-3 rounded-lg text-xs ${
+                  adjustStatus.includes("successful")
+                    ? "bg-emerald-950/60 border border-emerald-800 text-emerald-300"
+                    : "bg-rose-950/60 border border-rose-800 text-rose-300"
+                }`}
+              >
+                {adjustStatus}
+              </div>
+            )}
+
+            <form onSubmit={handleAdjustSubmit} className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <label className="text-slate-300 font-medium">Target User ID:</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Enter User ID (e.g. usr-super or CUID)"
+                  value={targetUserId}
+                  onChange={(e) => setTargetUserId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white font-mono focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-medium">Amount (₹):</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={adjustAmount}
+                    onChange={(e) => setAdjustAmount(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-medium">Type:</label>
+                  <select
+                    value={adjustType}
+                    onChange={(e) => setAdjustType(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="CREDIT">Deposit (Credit)</option>
+                    <option value="BONUS">Promotional Bonus</option>
+                    <option value="ADJUSTMENT">Adjustment</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-medium">Reason / Audit Note:</label>
+                <input
+                  type="text"
+                  placeholder="Reason for manual credit adjustment"
+                  value={adjustReason}
+                  onChange={(e) => setAdjustReason(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAdjustModalOpen(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg"
+                >
+                  Execute Adjustment
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

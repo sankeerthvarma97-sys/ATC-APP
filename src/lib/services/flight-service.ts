@@ -513,100 +513,178 @@ export async function getFlightById(id: string): Promise<{ flight: FlightDTO; se
 }
 
 export async function createFlight(input: CreateFlightInput): Promise<FlightDTO> {
-  const originAirport = initialAirports.find((a) => a.iata === input.origin);
-  const lat = originAirport ? originAirport.latitude : 17.2403;
-  const lon = originAirport ? originAirport.longitude : 78.4294;
+  const origin = input.origin.trim().toUpperCase();
+  const destination = input.destination.trim().toUpperCase();
 
-  const id = `flt-${input.flightNumber.toLowerCase().replace(/[^a-z0-9]/g, "")}-${Date.now().toString(36)}`;
-  const squawk = Math.floor(1000 + Math.random() * 6777).toString();
+  if (origin === destination) {
+    throw new Error(`Invalid route: Origin (${origin}) and destination (${destination}) cannot be identical.`);
+  }
 
-  const flightDTO: FlightDTO = {
-    id,
-    callsign: input.flightNumber,
-    flightNumber: input.flightNumber,
-    flightName: input.flightName || `${input.airline} ${input.flightNumber}`,
-    airline: input.airline,
-    aircraftType: input.aircraftType,
-    status: input.status || "SCHEDULED",
-    phase: "Flight scheduled in system",
-    origin: input.origin.toUpperCase(),
-    destination: input.destination.toUpperCase(),
-    gate: input.gate || "B12",
-    stand: input.gate || "B12",
-    runway: input.runway || "09L",
-    squawk,
-    latitude: lat,
-    longitude: lon,
-    altitudeFt: 0,
-    speedKt: 0,
-    headingDeg: 90,
-    verticalSpeedFpm: 0,
-    fuelKg: 10000,
-    riskScore: 10,
-    eta: input.arrivalTime,
-    departureTime: input.departureTime,
-    arrivalTime: input.arrivalTime,
-    boardingTime: input.boardingTime,
-    checkInCloseTime: input.checkInCloseTime,
-    terminal: input.terminal || "T1",
-    economyCapacity: input.economyCapacity ?? 150,
-    businessCapacity: input.businessCapacity ?? 20,
-    firstCapacity: input.firstCapacity ?? 0,
-    economyFare: input.economyFare ?? 4500,
-    businessFare: input.businessFare ?? 8500,
-    firstFare: input.firstFare ?? 15000,
-    availableSeats: (input.economyCapacity ?? 150) + (input.businessCapacity ?? 20) + (input.firstCapacity ?? 0),
-    updatedAt: new Date().toISOString(),
-  };
+  const depDate = new Date(input.departureTime);
+  const arrDate = new Date(input.arrivalTime);
 
-  // Generate seats
-  const seats = generateSeatsForFlight(
-    id,
-    flightDTO.economyCapacity ?? 150,
-    flightDTO.businessCapacity ?? 20,
-    flightDTO.firstCapacity ?? 0,
-  );
-  memorySeatMap.set(id, seats);
-  memoryFlights.unshift(flightDTO);
+  if (isNaN(depDate.getTime()) || isNaN(arrDate.getTime())) {
+    throw new Error("Invalid schedule timestamps: departureTime and arrivalTime must be valid ISO dates.");
+  }
+
+  if (arrDate.getTime() <= depDate.getTime()) {
+    throw new Error("Invalid flight schedule: arrivalTime must be later than departureTime.");
+  }
+
+  const durationMin = (arrDate.getTime() - depDate.getTime()) / 60000;
+  if (durationMin < 20) {
+    throw new Error(`Flight duration is unrealistically short (${Math.round(durationMin)} min). Minimum flight duration is 20 minutes.`);
+  }
+
+  const originAirport = initialAirports.find((a) => a.iata === origin);
+  const destAirport = initialAirports.find((a) => a.iata === destination);
+  if (!originAirport) {
+    throw new Error(`Origin airport ${origin} is not a registered simulation aerodrome.`);
+  }
+  if (!destAirport) {
+    throw new Error(`Destination airport ${destination} is not a registered simulation aerodrome.`);
+  }
+
+  const gate = input.gate || "B12";
+  const runway = input.runway || "09L";
+  const terminal = input.terminal || "T1";
+  const flightNumber = input.flightNumber.trim().toUpperCase();
+  const callsign = flightNumber;
+
+  // Window for gate conflict check (aircraft turns around 45 min before departure to 15 min after)
+  const gateWindowStart = new Date(depDate.getTime() - 45 * 60000);
+  const gateWindowEnd = new Date(depDate.getTime() + 15 * 60000);
+
+  // Window for runway departure slot (3 min buffer)
+  const runwayWindowStart = new Date(depDate.getTime() - 3 * 60000);
+  const runwayWindowEnd = new Date(depDate.getTime() + 3 * 60000);
 
   if (shouldUseDatabase()) {
-    try {
-      await prisma.flight.create({
+    return await prisma.$transaction(async (tx) => {
+      // Check 1: Duplicate flight number on same departure date/time
+      const existingDuplicate = await tx.flight.findFirst({
+        where: {
+          flightNumber,
+          departureTime: {
+            gte: new Date(depDate.getTime() - 120 * 60000),
+            lte: new Date(depDate.getTime() + 120 * 60000),
+          },
+          status: { notIn: ["CANCELLED"] },
+        },
+      });
+
+      if (existingDuplicate) {
+        throw new Error(
+          `Conflict: Flight ${flightNumber} is already scheduled departing at ${existingDuplicate.departureTime?.toISOString().slice(11, 16)}Z on this date.`
+        );
+      }
+
+      // Check 2: Gate conflict at origin airport
+      const gateConflict = await tx.flight.findFirst({
+        where: {
+          origin,
+          gate,
+          departureTime: {
+            gte: gateWindowStart,
+            lte: gateWindowEnd,
+          },
+          status: { notIn: ["CANCELLED", "ARRIVED"] },
+        },
+      });
+
+      if (gateConflict) {
+        throw new Error(
+          `Gate Conflict: Gate ${gate} at ${origin} is already allocated to flight ${gateConflict.callsign} (${gateConflict.departureTime?.toISOString().slice(11, 16)}Z). Please assign an alternate gate.`
+        );
+      }
+
+      // Check 3: Runway conflict at origin airport (minimum 3-minute wake turbulence separation)
+      const runwayConflict = await tx.flight.findFirst({
+        where: {
+          origin,
+          runway,
+          departureTime: {
+            gte: runwayWindowStart,
+            lte: runwayWindowEnd,
+          },
+          status: { notIn: ["CANCELLED", "ARRIVED"] },
+        },
+      });
+
+      if (runwayConflict) {
+        throw new Error(
+          `Runway Slot Conflict: Runway ${runway} at ${origin} has a departure clearance conflict with flight ${runwayConflict.callsign} within 3 minutes of ${depDate.toISOString().slice(11, 16)}Z.`
+        );
+      }
+
+      // Check 4: Aircraft conflict (if aircraftId provided)
+      if (input.aircraftId) {
+        const aircraftConflict = await tx.flight.findFirst({
+          where: {
+            aircraftId: input.aircraftId,
+            status: { notIn: ["CANCELLED", "ARRIVED"] },
+            OR: [
+              {
+                departureTime: { lte: arrDate },
+                arrivalTime: { gte: depDate },
+              },
+            ],
+          },
+        });
+
+        if (aircraftConflict) {
+          throw new Error(
+            `Aircraft Conflict: Airframe is already committed to flight ${aircraftConflict.callsign} (${aircraftConflict.origin} -> ${aircraftConflict.destination}) during this operational window.`
+          );
+        }
+      }
+
+      const id = `flt-${flightNumber.toLowerCase().replace(/[^a-z0-9]/g, "")}-${Date.now().toString(36)}`;
+      const squawk = Math.floor(1000 + Math.random() * 6777).toString();
+      const economyCapacity = input.economyCapacity ?? 150;
+      const businessCapacity = input.businessCapacity ?? 20;
+      const firstCapacity = input.firstCapacity ?? 0;
+
+      const seats = generateSeatsForFlight(id, economyCapacity, businessCapacity, firstCapacity);
+
+      const dbFlight = await tx.flight.create({
         data: {
-          id: flightDTO.id,
-          callsign: flightDTO.callsign,
-          flightNumber: flightDTO.flightNumber,
-          flightName: flightDTO.flightName,
-          airline: flightDTO.airline,
-          aircraftType: flightDTO.aircraftType,
-          status: flightDTO.status,
-          phase: flightDTO.phase,
-          origin: flightDTO.origin,
-          destination: flightDTO.destination,
-          gate: flightDTO.gate,
-          stand: flightDTO.stand,
-          runway: flightDTO.runway,
-          squawk: flightDTO.squawk,
-          latitude: flightDTO.latitude,
-          longitude: flightDTO.longitude,
-          altitudeFt: flightDTO.altitudeFt,
-          speedKt: flightDTO.speedKt,
-          headingDeg: flightDTO.headingDeg,
-          verticalSpeedFpm: flightDTO.verticalSpeedFpm,
-          fuelKg: flightDTO.fuelKg,
-          riskScore: flightDTO.riskScore,
-          eta: new Date(flightDTO.eta),
-          departureTime: new Date(flightDTO.departureTime!),
-          arrivalTime: new Date(flightDTO.arrivalTime!),
-          boardingTime: flightDTO.boardingTime ? new Date(flightDTO.boardingTime) : null,
-          checkInCloseTime: flightDTO.checkInCloseTime ? new Date(flightDTO.checkInCloseTime) : null,
-          terminal: flightDTO.terminal,
-          economyCapacity: flightDTO.economyCapacity,
-          businessCapacity: flightDTO.businessCapacity,
-          firstCapacity: flightDTO.firstCapacity,
-          economyFare: flightDTO.economyFare,
-          businessFare: flightDTO.businessFare,
-          firstFare: flightDTO.firstFare,
+          id,
+          callsign,
+          flightNumber,
+          flightName: input.flightName || `${input.airline} ${flightNumber}`,
+          airline: input.airline,
+          aircraftType: input.aircraftType,
+          status: input.status || "SCHEDULED",
+          phase: "Flight scheduled in system",
+          origin,
+          destination,
+          gate,
+          stand: gate,
+          runway,
+          squawk,
+          latitude: originAirport.latitude,
+          longitude: originAirport.longitude,
+          altitudeFt: 0,
+          speedKt: 0,
+          headingDeg: 90,
+          verticalSpeedFpm: 0,
+          fuelKg: 10000,
+          riskScore: 10,
+          eta: arrDate,
+          departureTime: depDate,
+          arrivalTime: arrDate,
+          boardingTime: input.boardingTime ? new Date(input.boardingTime) : new Date(depDate.getTime() - 25 * 60000),
+          checkInCloseTime: input.checkInCloseTime ? new Date(input.checkInCloseTime) : new Date(depDate.getTime() - 15 * 60000),
+          terminal,
+          economyCapacity,
+          businessCapacity,
+          firstCapacity,
+          economyFare: input.economyFare ?? 4500,
+          businessFare: input.businessFare ?? 8500,
+          firstFare: input.firstFare ?? 15000,
+          airlineId: input.airlineId || undefined,
+          aircraftId: input.aircraftId || undefined,
           seats: {
             create: seats.map((s) => ({
               id: s.id,
@@ -617,26 +695,137 @@ export async function createFlight(input: CreateFlightInput): Promise<FlightDTO>
           },
         },
       });
-    } catch (error) {
-      console.warn("Database createFlight failed; stored in memory.", error);
-    }
+
+      const flightDTO: FlightDTO = {
+        id: dbFlight.id,
+        callsign: dbFlight.callsign,
+        flightNumber: dbFlight.flightNumber ?? dbFlight.callsign,
+        flightName: dbFlight.flightName ?? `${dbFlight.airline} ${dbFlight.callsign}`,
+        airline: dbFlight.airline,
+        aircraftType: dbFlight.aircraftType,
+        status: dbFlight.status as FlightStatus,
+        phase: dbFlight.phase,
+        origin: dbFlight.origin,
+        destination: dbFlight.destination,
+        gate: dbFlight.gate ?? undefined,
+        stand: dbFlight.stand ?? undefined,
+        runway: dbFlight.runway ?? undefined,
+        squawk: dbFlight.squawk,
+        latitude: dbFlight.latitude,
+        longitude: dbFlight.longitude,
+        altitudeFt: dbFlight.altitudeFt,
+        speedKt: dbFlight.speedKt,
+        headingDeg: dbFlight.headingDeg,
+        verticalSpeedFpm: dbFlight.verticalSpeedFpm,
+        fuelKg: dbFlight.fuelKg,
+        riskScore: dbFlight.riskScore,
+        eta: dbFlight.eta.toISOString(),
+        departureTime: dbFlight.departureTime?.toISOString(),
+        arrivalTime: dbFlight.arrivalTime?.toISOString(),
+        boardingTime: dbFlight.boardingTime?.toISOString(),
+        checkInCloseTime: dbFlight.checkInCloseTime?.toISOString(),
+        terminal: dbFlight.terminal ?? undefined,
+        economyCapacity: dbFlight.economyCapacity,
+        businessCapacity: dbFlight.businessCapacity,
+        firstCapacity: dbFlight.firstCapacity,
+        economyFare: dbFlight.economyFare,
+        businessFare: dbFlight.businessFare,
+        firstFare: dbFlight.firstFare,
+        availableSeats: economyCapacity + businessCapacity + firstCapacity,
+        updatedAt: dbFlight.updatedAt.toISOString(),
+      };
+
+      memorySeatMap.set(id, seats);
+      memoryFlights.unshift(flightDTO);
+
+      await logAuditEvent({
+        actorId: input.actorId,
+        actorName: input.actorName || "Admin",
+        action: "FLIGHT_CREATED",
+        entity: "FLIGHT",
+        entityId: flightDTO.flightNumber,
+        after: {
+          flightNumber: flightDTO.flightNumber,
+          route: `${flightDTO.origin} -> ${flightDTO.destination}`,
+          airline: flightDTO.airline,
+          gate: flightDTO.gate,
+          runway: flightDTO.runway,
+          departureTime: flightDTO.departureTime,
+        },
+      });
+
+      return flightDTO;
+    });
   }
 
-  await logAuditEvent({
-    actorId: input.actorId,
-    actorName: input.actorName,
-    action: "ADMIN_CREATED_FLIGHT",
-    entity: "FLIGHT",
-    entityId: flightDTO.flightNumber,
-    after: {
-      flightNumber: flightDTO.flightNumber,
-      route: `${flightDTO.origin} -> ${flightDTO.destination}`,
-      airline: flightDTO.airline,
-      gate: flightDTO.gate,
-      runway: flightDTO.runway,
-    },
-  });
+  // Memory fallback with conflict checks
+  const existingDup = memoryFlights.find(
+    (f) =>
+      f.flightNumber === flightNumber &&
+      f.status !== "CANCELLED" &&
+      Math.abs(new Date(f.departureTime || "").getTime() - depDate.getTime()) < 120 * 60000
+  );
+  if (existingDup) {
+    throw new Error(`Conflict: Flight ${flightNumber} already exists in memory store for this schedule.`);
+  }
 
+  const gateConf = memoryFlights.find(
+    (f) =>
+      f.origin === origin &&
+      f.gate === gate &&
+      f.status !== "CANCELLED" &&
+      f.status !== "ARRIVED" &&
+      Math.abs(new Date(f.departureTime || "").getTime() - depDate.getTime()) < 45 * 60000
+  );
+  if (gateConf) {
+    throw new Error(`Gate Conflict: Stand ${gate} is already occupied by ${gateConf.callsign}.`);
+  }
+
+  const id = `flt-${flightNumber.toLowerCase().replace(/[^a-z0-9]/g, "")}-${Date.now().toString(36)}`;
+  const squawk = Math.floor(1000 + Math.random() * 6777).toString();
+  const seats = generateSeatsForFlight(id, input.economyCapacity ?? 150, input.businessCapacity ?? 20, input.firstCapacity ?? 0);
+
+  const flightDTO: FlightDTO = {
+    id,
+    callsign,
+    flightNumber,
+    flightName: input.flightName || `${input.airline} ${flightNumber}`,
+    airline: input.airline,
+    aircraftType: input.aircraftType,
+    status: input.status || "SCHEDULED",
+    phase: "Flight scheduled in system",
+    origin,
+    destination,
+    gate,
+    stand: gate,
+    runway,
+    squawk,
+    latitude: originAirport.latitude,
+    longitude: originAirport.longitude,
+    altitudeFt: 0,
+    speedKt: 0,
+    headingDeg: 90,
+    verticalSpeedFpm: 0,
+    fuelKg: 10000,
+    riskScore: 10,
+    eta: arrDate.toISOString(),
+    departureTime: depDate.toISOString(),
+    arrivalTime: arrDate.toISOString(),
+    boardingTime: new Date(depDate.getTime() - 25 * 60000).toISOString(),
+    checkInCloseTime: new Date(depDate.getTime() - 15 * 60000).toISOString(),
+    terminal,
+    economyCapacity: input.economyCapacity ?? 150,
+    businessCapacity: input.businessCapacity ?? 20,
+    firstCapacity: input.firstCapacity ?? 0,
+    economyFare: input.economyFare ?? 4500,
+    businessFare: input.businessFare ?? 8500,
+    firstFare: input.firstFare ?? 15000,
+    availableSeats: (input.economyCapacity ?? 150) + (input.businessCapacity ?? 20) + (input.firstCapacity ?? 0),
+    updatedAt: new Date().toISOString(),
+  };
+
+  memorySeatMap.set(id, seats);
+  memoryFlights.unshift(flightDTO);
   return flightDTO;
 }
 

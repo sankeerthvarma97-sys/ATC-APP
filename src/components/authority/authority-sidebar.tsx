@@ -9,6 +9,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Compass,
+  Cpu,
+  DollarSign,
   FileText,
   Key,
   Luggage,
@@ -16,6 +18,7 @@ import {
   Plane,
   QrCode,
   Radio,
+  Receipt,
   Settings,
   Shield,
   Ticket,
@@ -50,6 +53,13 @@ export const navigationCategories: NavSectionCategory[] = [
     ],
   },
   {
+    title: "24/7 SIMULATION ENGINE",
+    items: [
+      { id: "simulation", label: "Simulation Ops", icon: Cpu, badge: "24/7", badgeVariant: "success" },
+      { id: "virtual-staff", label: "Virtual Staff (2,000)", icon: Users, badge: "2,000", badgeVariant: "secondary" },
+    ],
+  },
+  {
     title: "AIRFIELD INFRASTRUCTURE",
     items: [
       { id: "airports", label: "Airports", icon: Compass },
@@ -74,6 +84,18 @@ export const navigationCategories: NavSectionCategory[] = [
       { id: "checkin", label: "Check-in Desk", icon: CheckCircle2 },
       { id: "verification", label: "Ticket Verification", icon: QrCode },
       { id: "boarding", label: "Gate Boarding", icon: Key },
+    ],
+  },
+  {
+    title: "ACCOUNTS & FINANCE",
+    items: [
+      { id: "finance", label: "Finance & Treasury", icon: DollarSign, badge: "₹10 Cr", badgeVariant: "success" },
+      { id: "finance-accounts", label: "Company Accounts", icon: Building },
+      { id: "finance-ledger", label: "Financial Ledger", icon: FileText },
+      { id: "finance-expenses", label: "Company Expenses", icon: Receipt },
+      { id: "finance-payroll", label: "Payroll & Salary", icon: Users, badge: "24/7", badgeVariant: "secondary" },
+      { id: "finance-calendar", label: "Payroll Calendar", icon: Calendar },
+      { id: "finance-wallet", label: "Wallet Activity", icon: QrCode },
     ],
   },
   {

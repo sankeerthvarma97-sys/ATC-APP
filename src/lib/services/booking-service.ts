@@ -7,6 +7,7 @@ import type {
 } from "@/lib/domain";
 import { prisma, shouldUseDatabase } from "@/lib/prisma";
 import { logAuditEvent } from "./audit-service";
+import { adjustUserCredit } from "./credit-service";
 import { getFlightById, memorySeatMap } from "./flight-service";
 
 export interface CreateBookingInput {
@@ -24,6 +25,8 @@ export interface CreateBookingInput {
   };
   baggageCount?: number;
   paymentMethod?: string;
+  useCredit?: boolean;
+  creditAmount?: number;
   createdById?: string;
   actorName?: string;
 }
@@ -137,6 +140,9 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingD
   const ticketNumber = `ET-2026-${Math.floor(100000 + Math.random() * 900000)}`;
   const qrCode = `AOCC-SIM|PNR:${pnr}|FLT:${flight.flightNumber || flight.callsign}|SEAT:${input.seatNumber}|PSG:${input.passenger.fullName}|FARE:${fare}`;
 
+  const isCreditPayment = Boolean(input.useCredit || input.paymentMethod === "CREDIT" || input.paymentMethod === "USER_CREDIT");
+  let creditUsed = 0;
+
   // CONCURRENCY-SAFE TRANSACTION IN DATABASE MODE
   if (shouldUseDatabase()) {
     try {
@@ -157,7 +163,44 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingD
           throw err;
         }
 
-        // 2. Create passenger
+        // 2. Credit check and atomic debit if credit payment
+        if (isCreditPayment && input.createdById) {
+          const user = await tx.user.findUnique({
+            where: { id: input.createdById },
+            select: { id: true, creditBalance: true, name: true },
+          });
+
+          if (!user) {
+            throw new Error(`Booking user not found (${input.createdById}).`);
+          }
+
+          if (user.creditBalance < fare) {
+            throw new Error(`Insufficient credit balance. Current: $${user.creditBalance.toFixed(2)}, Required: $${fare.toFixed(2)}`);
+          }
+
+          const updatedUser = await tx.user.update({
+            where: { id: user.id, creditBalance: { gte: fare } },
+            data: { creditBalance: { decrement: fare } },
+            select: { creditBalance: true },
+          });
+
+          await tx.creditTransaction.create({
+            data: {
+              userId: user.id,
+              type: "BOOKING_DEBIT",
+              amount: fare,
+              balanceBefore: user.creditBalance,
+              balanceAfter: updatedUser.creditBalance,
+              referenceType: "BOOKING",
+              referenceId: pnr,
+              description: `Flight booking ${pnr} (${flight.flightNumber || flight.callsign} - ${input.seatNumber})`,
+            },
+          });
+
+          creditUsed = fare;
+        }
+
+        // 3. Create passenger
         const passenger = await tx.passenger.create({
           data: {
             fullName: input.passenger.fullName,
@@ -170,7 +213,7 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingD
           },
         });
 
-        // 3. Create booking
+        // 4. Create booking
         const booking = await tx.booking.create({
           data: {
             pnr,
@@ -179,6 +222,7 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingD
             seatNumber: input.seatNumber,
             travelClass: input.travelClass,
             fare,
+            creditUsed,
             paymentStatus: "SUCCESSFUL",
             bookingStatus: "CONFIRMED",
             checkInStatus: "NOT_CHECKED_IN",
@@ -188,7 +232,7 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingD
           },
         });
 
-        // 4. Mark seat OCCUPIED
+        // 5. Mark seat OCCUPIED
         await tx.seat.update({
           where: { id: seat.id },
           data: {
@@ -199,7 +243,7 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingD
           },
         });
 
-        // 5. Issue ticket
+        // 6. Issue ticket
         await tx.ticket.create({
           data: {
             bookingId: booking.id,
@@ -210,19 +254,19 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingD
           },
         });
 
-        // 6. Record simulated payment
+        // 7. Record simulated payment
         await tx.payment.create({
           data: {
             bookingId: booking.id,
             amount: fare,
             currency: "INR",
-            method: input.paymentMethod || "SIMULATED_CARD",
+            method: isCreditPayment ? "USER_CREDIT" : (input.paymentMethod || "SIMULATED_CARD"),
             transactionRef: `SIM-TXN-${Date.now()}-${pnr}`,
             status: "SUCCESSFUL",
           },
         });
 
-        // 7. Baggage if specified
+        // 8. Baggage if specified
         if (input.baggageCount && input.baggageCount > 0) {
           await tx.baggage.create({
             data: {
@@ -255,6 +299,7 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingD
         seatNumber: input.seatNumber,
         travelClass: input.travelClass,
         fare,
+        creditUsed,
         paymentStatus: "SUCCESSFUL",
         bookingStatus: "CONFIRMED",
         checkInStatus: "NOT_CHECKED_IN",
@@ -282,12 +327,18 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingD
           seat: input.seatNumber,
           passenger: input.passenger.fullName,
           fare,
+          creditUsed,
         },
       });
 
       return bookingDTO;
     } catch (err: unknown) {
-      if ((err as { code?: string }).code === "SEAT_ALREADY_BOOKED") {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      if (
+        (err as { code?: string }).code === "SEAT_ALREADY_BOOKED" ||
+        errorMsg.includes("Insufficient credit") ||
+        errorMsg.includes("Booking user not found")
+      ) {
         throw err;
       }
       console.warn("Database booking transaction failed; proceeding with memory fallback.", err);
@@ -304,6 +355,18 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingD
       const err = new Error(`Seat ${input.seatNumber} is no longer available.`);
       (err as unknown as { code: string }).code = "SEAT_ALREADY_BOOKED";
       throw err;
+    }
+
+    if (isCreditPayment && input.createdById) {
+      await adjustUserCredit({
+        userId: input.createdById,
+        amount: fare,
+        type: "BOOKING_DEBIT",
+        referenceType: "BOOKING",
+        referenceId: pnr,
+        description: `Flight booking ${pnr} (${flight.flightNumber || flight.callsign} - ${input.seatNumber})`,
+      });
+      creditUsed = fare;
     }
 
     targetSeat.status = "OCCUPIED";
@@ -326,6 +389,7 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingD
       seatNumber: input.seatNumber,
       travelClass: input.travelClass,
       fare,
+      creditUsed,
       paymentStatus: "SUCCESSFUL",
       bookingStatus: "CONFIRMED",
       checkInStatus: "NOT_CHECKED_IN",
@@ -335,6 +399,7 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingD
       terminal: flight.terminal,
       ticketNumber,
       qrCode,
+      createdById: input.createdById || undefined,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -395,6 +460,7 @@ export async function getBookingByPNR(pnr: string): Promise<BookingDTO | null> {
           seatNumber: b.seatNumber,
           travelClass: b.travelClass,
           fare: b.fare,
+          creditUsed: b.creditUsed,
           paymentStatus: b.paymentStatus,
           bookingStatus: b.bookingStatus,
           checkInStatus: b.checkInStatus,
@@ -404,6 +470,7 @@ export async function getBookingByPNR(pnr: string): Promise<BookingDTO | null> {
           terminal: b.flight.terminal ?? undefined,
           ticketNumber: b.ticket?.ticketNumber,
           qrCode: b.ticket?.qrCode,
+          createdById: b.createdById ?? undefined,
           createdAt: b.createdAt.toISOString(),
           updatedAt: b.updatedAt.toISOString(),
         };
@@ -475,6 +542,7 @@ export async function listBookingsPaged(filters?: {
         seatNumber: b.seatNumber,
         travelClass: b.travelClass,
         fare: b.fare,
+        creditUsed: b.creditUsed,
         paymentStatus: b.paymentStatus,
         bookingStatus: b.bookingStatus,
         checkInStatus: b.checkInStatus,
@@ -484,6 +552,7 @@ export async function listBookingsPaged(filters?: {
         terminal: b.flight.terminal ?? undefined,
         ticketNumber: b.ticket?.ticketNumber,
         qrCode: b.ticket?.qrCode,
+        createdById: b.createdById ?? undefined,
         createdAt: b.createdAt.toISOString(),
         updatedAt: b.updatedAt.toISOString(),
       }));
@@ -546,22 +615,66 @@ export async function cancelBooking(pnr: string, actor?: { id?: string; name?: s
 
   if (shouldUseDatabase()) {
     try {
-      await prisma.$transaction([
-        prisma.booking.update({
+      await prisma.$transaction(async (tx) => {
+        await tx.booking.update({
           where: { pnr: booking.pnr },
           data: { bookingStatus: "CANCELLED" },
-        }),
-        prisma.seat.updateMany({
+        });
+        await tx.seat.updateMany({
           where: { flightId: booking.flightId, seatNumber: booking.seatNumber },
           data: { status: "AVAILABLE", bookingId: null, passengerId: null },
-        }),
-        prisma.ticket.updateMany({
+        });
+        await tx.ticket.updateMany({
           where: { pnr: booking.pnr },
           data: { status: "CANCELLED" },
-        }),
-      ]);
+        });
+
+        if (booking.creditUsed && booking.creditUsed > 0 && booking.createdById) {
+          const user = await tx.user.findUnique({
+            where: { id: booking.createdById },
+            select: { id: true, creditBalance: true },
+          });
+
+          if (user) {
+            const updatedUser = await tx.user.update({
+              where: { id: user.id },
+              data: { creditBalance: { increment: booking.creditUsed } },
+              select: { creditBalance: true },
+            });
+
+            await tx.creditTransaction.create({
+              data: {
+                userId: user.id,
+                type: "REFUND",
+                amount: booking.creditUsed,
+                balanceBefore: user.creditBalance,
+                balanceAfter: updatedUser.creditBalance,
+                referenceType: "BOOKING_REFUND",
+                referenceId: booking.pnr,
+                description: `Refund for cancelled booking ${booking.pnr}`,
+              },
+            });
+          }
+        }
+      });
     } catch (error) {
       console.warn("Database cancelBooking failed; updated memory.", error);
+    }
+  }
+
+  // Memory fallback refund
+  if (booking.creditUsed && booking.creditUsed > 0 && booking.createdById) {
+    try {
+      await adjustUserCredit({
+        userId: booking.createdById,
+        amount: booking.creditUsed,
+        type: "REFUND",
+        referenceType: "BOOKING_REFUND",
+        referenceId: booking.pnr,
+        description: `Refund for cancelled booking ${booking.pnr}`,
+      });
+    } catch (err) {
+      console.warn("Memory credit refund failed on cancelBooking", err);
     }
   }
 

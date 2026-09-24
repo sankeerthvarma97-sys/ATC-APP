@@ -108,6 +108,15 @@ const AuditLogsSection = dynamic(() => import("./sections/audit-logs-section").t
 const SystemSettingsSection = dynamic(() => import("./sections/system-settings-section").then((m) => m.SystemSettingsSection), {
   loading: () => <SectionSkeleton name="System Settings" />,
 });
+const SimulationControlSection = dynamic(() => import("./sections/simulation-control-section").then((m) => m.SimulationControlSection), {
+  loading: () => <SectionSkeleton name="24/7 Operations & Simulation Control" />,
+});
+const VirtualStaffSection = dynamic(() => import("./sections/virtual-staff-section").then((m) => m.VirtualStaffSection), {
+  loading: () => <SectionSkeleton name="2,000 Virtual Staff Operations Roster" />,
+});
+const AccountsFinanceSection = dynamic(() => import("./sections/accounts-finance-section").then((m) => m.AccountsFinanceSection), {
+  loading: () => <SectionSkeleton name="Accounts, Finance & Treasury Control" />,
+});
 
 const DEFAULT_AIRPORTS: AirportDTO[] = [
   { id: "apt-jfk", iata: "JFK", icao: "KJFK", name: "Kennedy International Simulation Field", city: "New York", country: "USA", latitude: 40.6413, longitude: -73.7781, elevationFt: 13, status: "ACTIVE" },
@@ -286,6 +295,24 @@ export function AuthorityControlCenter({
         return <StaffSection />;
       case "departments":
         return <DepartmentsSection />;
+      case "simulation":
+        return <SimulationControlSection onNavigateTo={(sec) => handleNavigateTo(sec)} />;
+      case "virtual-staff":
+        return <VirtualStaffSection />;
+      case "finance":
+        return <AccountsFinanceSection initialSubTab="overview" />;
+      case "finance-accounts":
+        return <AccountsFinanceSection initialSubTab="accounts" />;
+      case "finance-ledger":
+        return <AccountsFinanceSection initialSubTab="ledger" />;
+      case "finance-expenses":
+        return <AccountsFinanceSection initialSubTab="expenses" />;
+      case "finance-payroll":
+        return <AccountsFinanceSection initialSubTab="payroll" />;
+      case "finance-calendar":
+        return <AccountsFinanceSection initialSubTab="calendar" />;
+      case "finance-wallet":
+        return <AccountsFinanceSection initialSubTab="wallet-activity" />;
       case "roles":
         return <RolesPermissionsSection />;
       case "analytics":

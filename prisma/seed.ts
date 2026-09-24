@@ -54,6 +54,13 @@ async function main() {
     const isSuperAdminUser = user.email.toLowerCase() === "admin@gmail.com" || user.email.toLowerCase() === (process.env.ADMIN_BOOTSTRAP_EMAIL || "admin@gmail.com").toLowerCase();
     const hashToUse = isSuperAdminUser ? superAdminPasswordHash : defaultPasswordHash;
 
+    const isAdmin =
+      user.role === "SUPER_ADMIN" ||
+      user.role === "ADMIN" ||
+      user.role === "AIRPORT_ADMIN" ||
+      user.email.toLowerCase().includes("admin");
+    const initialCredit = isAdmin ? 600_000_000_000.0 : 10_000.0;
+
     await prisma.user.upsert({
       where: { email: user.email },
       update: {
@@ -61,6 +68,7 @@ async function main() {
         role: user.role,
         shift: user.shift,
         passwordHash: hashToUse,
+        creditBalance: initialCredit,
       },
       create: {
         id: user.id,
@@ -69,6 +77,7 @@ async function main() {
         role: user.role,
         shift: user.shift,
         passwordHash: hashToUse,
+        creditBalance: initialCredit,
       },
     });
   }

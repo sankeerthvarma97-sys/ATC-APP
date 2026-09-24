@@ -61,9 +61,14 @@ export async function POST(request: Request) {
 
     return Response.json({ flight }, { status: 201 });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to create flight";
+    const isConflict = message.includes("Conflict") || message.includes("already scheduled") || message.includes("already allocated");
+    const isBadRequest = message.includes("Invalid") || message.includes("short");
+    const statusCode = isConflict ? 409 : isBadRequest ? 400 : 500;
+
     return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to create flight" },
-      { status: 500 },
+      { error: message },
+      { status: statusCode },
     );
   }
 }

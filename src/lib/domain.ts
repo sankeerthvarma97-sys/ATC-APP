@@ -68,6 +68,23 @@ export const permissions = [
   "MANAGE_SYSTEM_SETTINGS",
   "MANAGE_SIMULATOR",
   "SUPER_ADMIN_ALL_ACCESS",
+  "VIEW_FINANCE",
+  "VIEW_ACCOUNTS",
+  "VIEW_TRANSACTIONS",
+  "MANAGE_ACCOUNTS",
+  "MANAGE_EXPENSES",
+  "MANAGE_PAYROLL",
+  "CREATE_PAYROLL",
+  "APPROVE_PAYROLL",
+  "PROCESS_PAYROLL",
+  "MANAGE_SALARY",
+  "MANAGE_SALARY_HIKES",
+  "MANAGE_BONUSES",
+  "MANAGE_DEDUCTIONS",
+  "MANAGE_REFUNDS",
+  "MANAGE_CREDITS",
+  "VIEW_FINANCIAL_REPORTS",
+  "VIEW_EMPLOYEE_ACCOUNTS",
 ] as const;
 
 export type Permission = (typeof permissions)[number];
@@ -176,6 +193,7 @@ export interface UserDTO {
   role: Role;
   shift?: string;
   airportCode?: string;
+  creditBalance?: number;
   permissions?: Permission[];
 }
 
@@ -198,6 +216,13 @@ export interface EmployeeDTO {
   lastLogin?: string;
   permissions: string[];
   userId?: string;
+  isVirtual?: boolean;
+  currentTask?: string;
+  currentLocation?: string;
+  performanceScore?: number;
+  tasksCompleted?: number;
+  tasksFailed?: number;
+  nextActivity?: string;
 }
 
 export interface AirportDTO {
@@ -356,6 +381,7 @@ export interface BookingDTO {
   seatNumber: string;
   travelClass: SeatClass;
   fare: number;
+  creditUsed?: number;
   paymentStatus: PaymentStatus;
   bookingStatus: BookingStatus;
   checkInStatus: CheckInStatus;
@@ -585,4 +611,350 @@ export interface IcaoFlightPlanDTO {
   status: "FILED" | "ACCEPTED" | "CLEARED" | "CANCELLED";
   filedAt: string;
 }
+
+export type CreditTransactionType =
+  | "CREDIT"
+  | "BOOKING_DEBIT"
+  | "REFUND"
+  | "ADJUSTMENT"
+  | "BONUS"
+  | "REVERSAL"
+  | "SIMULATION_TOP_UP"
+  | "TICKET_PAYMENT"
+  | "REFUND_CREDIT"
+  | "ADMIN_ADJUSTMENT";
+
+export interface CreditTransactionDTO {
+  id: string;
+  userId: string;
+  userName?: string;
+  userEmail?: string;
+  type: CreditTransactionType;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  referenceType?: string;
+  referenceId?: string;
+  description?: string;
+  createdAt: string;
+}
+
+export type SimulationStatus = "RUNNING" | "PAUSED" | "STOPPED" | "DEGRADED";
+
+export type SimulationTaskType =
+  | "ATC_MONITOR"
+  | "GROUND_TURNAROUND"
+  | "TICKET_CHECKIN"
+  | "GATE_BOARDING"
+  | "SECURITY_SCREENING"
+  | "MAINTENANCE_INSPECTION"
+  | "DISPATCH_PREPARATION"
+  | "OPERATIONS_COORDINATION";
+
+export type SimulationTaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED" | "CANCELLED";
+
+export type TaskPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
+
+export interface SimulationConfigDTO {
+  id: string;
+  status: SimulationStatus;
+  staffCount: number;
+  speedMultiplier: number;
+  autoBookingEnabled: boolean;
+  autoFlightEnabled: boolean;
+  maxBookingsPerInterval: number;
+  maxBookingsPerFlight: number;
+  totalBookingsGenerated: number;
+  totalTasksProcessed: number;
+  lastTickAt?: string;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface SimulationTaskDTO {
+  id: string;
+  type: SimulationTaskType;
+  status: SimulationTaskStatus;
+  priority: TaskPriority;
+  staffId: string;
+  flightId?: string;
+  targetEntity?: string;
+  targetEntityId?: string;
+  payload?: Record<string, unknown>;
+  scheduledAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SimulationMetricsDTO {
+  totalStaff: number;
+  activeStaff: number;
+  workingStaff: number;
+  onBreakStaff: number;
+  offShiftStaff: number;
+  idleStaff: number;
+  completedTasks: number;
+  failedTasks: number;
+  pendingTasks: number;
+  activeBookings: number;
+  totalRevenue: number;
+  totalCreditsUsed: number;
+  simSpeed: number;
+  status: SimulationStatus;
+}
+
+// ==========================================
+// AOCC COMPANY FINANCIAL & BANKING DOMAIN
+// ==========================================
+
+export type FinancialAccountType =
+  | "COMPANY_TREASURY"
+  | "OPERATING_ACCOUNT"
+  | "PAYROLL_ACCOUNT"
+  | "REFUND_ACCOUNT"
+  | "REVENUE_ACCOUNT"
+  | "EXPENSE_ACCOUNT"
+  | "EMPLOYEE_SALARY_ACCOUNT"
+  | "USER_CREDIT_ACCOUNT";
+
+export type AccountStatus = "ACTIVE" | "FROZEN" | "CLOSED";
+
+export interface FinancialAccountDTO {
+  id: string;
+  accountNumber: string;
+  accountName: string;
+  accountType: FinancialAccountType;
+  currency: string;
+  balance: number;
+  status: AccountStatus;
+  employeeId?: string;
+  userId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FinancialTransactionType =
+  | "INITIAL_CAPITAL"
+  | "INTERNAL_TRANSFER"
+  | "REVENUE"
+  | "EXPENSE"
+  | "PAYROLL"
+  | "REFUND"
+  | "ADJUSTMENT"
+  | "REVERSAL";
+
+export type TransactionDirection = "DEBIT" | "CREDIT" | "TRANSFER";
+export type TransactionStatus = "PENDING" | "COMPLETED" | "FAILED" | "REVERSED";
+
+export interface FinancialTransactionDTO {
+  id: string;
+  transactionNumber: string;
+  type: FinancialTransactionType;
+  category: string;
+  amount: number;
+  currency: string;
+  direction: TransactionDirection;
+  sourceAccountId?: string;
+  sourceAccountName?: string;
+  destinationAccountId?: string;
+  destinationAccountName?: string;
+  referenceType?: string;
+  referenceId?: string;
+  description: string;
+  status: TransactionStatus;
+  createdBy?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export type SalaryType = "MONTHLY" | "HOURLY" | "CONTRACT";
+export type SalaryChangeType = "INITIAL" | "HIKE_PERCENTAGE" | "HIKE_FIXED" | "REDUCTION" | "CORRECTION";
+export type BonusType = "PERFORMANCE" | "ATTENDANCE" | "EMERGENCY" | "OPERATIONAL" | "SIMULATOR" | "MANUAL";
+export type DeductionType = "ABSENCE" | "PENALTY" | "ADVANCE_RECOVERY" | "OTHER";
+
+export interface SalaryProfileDTO {
+  id: string;
+  employeeId: string;
+  baseSalary: number;
+  allowances: number;
+  overtime: number;
+  bonus: number;
+  deductions: number;
+  grossSalary: number;
+  netSalary: number;
+  salaryType: SalaryType;
+  effectiveDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SalaryRevisionDTO {
+  id: string;
+  salaryProfileId: string;
+  previousBaseSalary: number;
+  newBaseSalary: number;
+  previousGrossSalary: number;
+  newGrossSalary: number;
+  previousNetSalary: number;
+  newNetSalary: number;
+  changeType: SalaryChangeType;
+  percentageChange?: number;
+  fixedChange?: number;
+  reason: string;
+  effectiveDate: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export interface EmployeeBonusDTO {
+  id: string;
+  salaryProfileId: string;
+  bonusType: BonusType;
+  amount: number;
+  reason: string;
+  payrollPeriod?: string;
+  applied: boolean;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export interface EmployeeDeductionDTO {
+  id: string;
+  salaryProfileId: string;
+  deductionType: DeductionType;
+  amount: number;
+  reason: string;
+  payrollPeriod?: string;
+  applied: boolean;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export type PayrollFrequency = "MONTHLY" | "WEEKLY" | "BIWEEKLY" | "DAILY" | "CUSTOM";
+export type PayrollStatus =
+  | "DRAFT"
+  | "SCHEDULED"
+  | "PROCESSING"
+  | "PENDING_APPROVAL"
+  | "APPROVED"
+  | "PAID"
+  | "FAILED"
+  | "CANCELLED"
+  | "PARTIALLY_FAILED";
+
+export type PayrollItemStatus = "PENDING" | "PAID" | "FAILED";
+
+export interface PayrollDTO {
+  id: string;
+  payrollPeriod: string;
+  title: string;
+  frequency: PayrollFrequency;
+  status: PayrollStatus;
+  scheduledDate: string;
+  paymentDate?: string;
+  totalEmployees: number;
+  grossAmount: number;
+  totalBonuses: number;
+  totalDeductions: number;
+  netAmount: number;
+  companyBalanceBefore?: number;
+  companyBalanceAfter?: number;
+  approvedBy?: string;
+  approvedAt?: string;
+  processedBy?: string;
+  failureReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PayrollItemDTO {
+  id: string;
+  payrollId: string;
+  employeeId: string;
+  employeeName: string;
+  department: DepartmentType;
+  role: Role;
+  baseSalary: number;
+  allowances: number;
+  overtime: number;
+  bonus: number;
+  deductions: number;
+  grossSalary: number;
+  netSalary: number;
+  status: PayrollItemStatus;
+  paidAt?: string;
+  failureReason?: string;
+  createdAt: string;
+}
+
+export type ExpenseCategory =
+  | "PAYROLL"
+  | "MAINTENANCE"
+  | "FUEL_SIMULATION"
+  | "GROUND_OPERATIONS"
+  | "AIRPORT_OPERATIONS"
+  | "SECURITY"
+  | "EQUIPMENT"
+  | "UTILITIES"
+  | "MARKETING"
+  | "EMERGENCY_OPERATIONS"
+  | "OTHER";
+
+export interface CompanyExpenseDTO {
+  id: string;
+  expenseNumber: string;
+  category: ExpenseCategory;
+  amount: number;
+  description: string;
+  reference?: string;
+  expenseDate: string;
+  approvedBy?: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface FinanceConfigDTO {
+  id: string;
+  initialCapital: number;
+  autoPayrollEnabled: boolean;
+  payrollFrequency: PayrollFrequency;
+  payrollPaymentDay: number;
+  payrollPaymentTime: string;
+  payrollTimezone: string;
+  approvalRequired: boolean;
+  minWalletTopUp: number;
+  maxWalletTopUp: number;
+  maxWalletBalance: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CompanyFinanceSummaryDTO {
+  treasuryBalance: number;
+  operatingBalance: number;
+  payrollBalance: number;
+  refundBalance: number;
+  revenueBalance: number;
+  expenseBalance: number;
+  totalCompanyBalance: number;
+  todayRevenue: number;
+  todayExpenses: number;
+  totalRevenue: number;
+  totalExpenses: number;
+  totalPayrollPaid: number;
+  totalSalaries?: number;
+  ticketRevenue?: number;
+  otherRevenue?: number;
+  closingBalance?: number;
+  totalRefunds: number;
+  netCashFlow: number;
+  openingBalance: number;
+  totalSimulationMoneyCreated: number;
+}
+
+export type WalletTransactionDTO = CreditTransactionDTO;
+
 

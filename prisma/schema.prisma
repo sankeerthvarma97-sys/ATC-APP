@@ -74,6 +74,23 @@ enum Permission {
   MANAGE_SYSTEM_SETTINGS
   MANAGE_SIMULATOR
   SUPER_ADMIN_ALL_ACCESS
+  VIEW_FINANCE
+  VIEW_ACCOUNTS
+  VIEW_TRANSACTIONS
+  MANAGE_ACCOUNTS
+  MANAGE_EXPENSES
+  MANAGE_PAYROLL
+  CREATE_PAYROLL
+  APPROVE_PAYROLL
+  PROCESS_PAYROLL
+  MANAGE_SALARY
+  MANAGE_SALARY_HIKES
+  MANAGE_BONUSES
+  MANAGE_DEDUCTIONS
+  MANAGE_REFUNDS
+  MANAGE_CREDITS
+  VIEW_FINANCIAL_REPORTS
+  VIEW_EMPLOYEE_ACCOUNTS
 }
 
 enum DepartmentType {
@@ -234,21 +251,24 @@ model User {
   email           String             @unique
   emailVerified   DateTime?
   image           String?
-  passwordHash    String?
-  role            Role               @default(VIEWER)
-  shift           String?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  passwordHash       String?
+  role               Role               @default(VIEWER)
+  shift              String?
+  creditBalance      Float              @default(10000.0)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
-  accounts        Account[]
-  sessions        Session[]
-  assignedFlights Flight[]           @relation("AssignedController")
-  auditLogs       AuditLog[]
-  radioMessages   RadioMessage[]
-  events          OperationalEvent[]
-  aiAnalyses      AiAnalysis[]
-  employee        Employee?
-  createdBookings Booking[]          @relation("BookingCreator")
+  accounts           Account[]
+  sessions           Session[]
+  assignedFlights    Flight[]           @relation("AssignedController")
+  auditLogs          AuditLog[]
+  radioMessages      RadioMessage[]
+  events             OperationalEvent[]
+  aiAnalyses         AiAnalysis[]
+  employee           Employee?
+  createdBookings    Booking[]          @relation("BookingCreator")
+  creditTransactions CreditTransaction[]
+  financialAccount   FinancialAccount?  @relation("UserWalletAccount")
 
   @@index([role])
   @@index([createdAt])
@@ -309,16 +329,28 @@ model Employee {
   lastLogin          DateTime?
   permissions        String[]           @default([])
   userId             String?            @unique
+  isVirtual          Boolean            @default(false)
+  currentTask        String?
+  currentLocation    String?
+  performanceScore   Int                @default(95)
+  tasksCompleted     Int                @default(0)
+  tasksFailed        Int                @default(0)
+  nextActivity       DateTime?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
   user               User?              @relation(fields: [userId], references: [id])
+  simulationTasks    SimulationTask[]
+  salaryProfile      SalaryProfile?
+  salaryAccount      FinancialAccount?  @relation("EmployeeSalaryAccount")
+  payrollItems       PayrollItem[]
 
   @@index([department])
   @@index([role])
   @@index([status])
   @@index([airportCode])
   @@index([shift])
+  @@index([isVirtual])
 }
 
 model Airport {
@@ -534,6 +566,7 @@ model Booking {
   seatNumber         String
   travelClass        SeatClass          @default(ECONOMY)
   fare               Float
+  creditUsed         Float              @default(0)
   paymentStatus      PaymentStatus      @default(SUCCESSFUL)
   bookingStatus      BookingStatus      @default(CONFIRMED)
   checkInStatus      CheckInStatus      @default(NOT_CHECKED_IN)
@@ -732,3 +765,454 @@ model RolePermission {
   @@unique([role, permission])
   @@index([role])
 }
+
+enum CreditTransactionType {
+  CREDIT
+  BOOKING_DEBIT
+  REFUND
+  ADJUSTMENT
+  BONUS
+  REVERSAL
+  SIMULATION_TOP_UP
+  TICKET_PAYMENT
+  REFUND_CREDIT
+  ADMIN_ADJUSTMENT
+}
+
+model CreditTransaction {
+  id            String                @id @default(cuid())
+  userId        String
+  type          CreditTransactionType
+  amount        Float
+  balanceBefore Float
+  balanceAfter  Float
+  referenceType String?
+  referenceId   String?
+  description   String?
+  createdAt     DateTime              @default(now())
+
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([type])
+  @@index([referenceType, referenceId])
+}
+
+enum SimulationStatus {
+  RUNNING
+  PAUSED
+  STOPPED
+  DEGRADED
+}
+
+enum SimulationTaskType {
+  ATC_MONITOR
+  GROUND_TURNAROUND
+  TICKET_CHECKIN
+  GATE_BOARDING
+  SECURITY_SCREENING
+  MAINTENANCE_INSPECTION
+  DISPATCH_PREPARATION
+  OPERATIONS_COORDINATION
+}
+
+enum SimulationTaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model SimulationConfig {
+  id                     String           @id @default("default")
+  status                 SimulationStatus @default(RUNNING)
+  staffCount             Int              @default(500)
+  speedMultiplier        Float            @default(1.0)
+  autoBookingEnabled     Boolean          @default(true)
+  autoFlightEnabled      Boolean          @default(true)
+  maxBookingsPerInterval Int              @default(5)
+  maxBookingsPerFlight   Int              @default(180)
+  totalBookingsGenerated Int              @default(0)
+  totalTasksProcessed    Int              @default(0)
+  lastTickAt             DateTime?
+  updatedAt              DateTime         @updatedAt
+  createdAt              DateTime         @default(now())
+}
+
+model SimulationTask {
+  id             String               @id @default(cuid())
+  type           SimulationTaskType
+  status         SimulationTaskStatus @default(PENDING)
+  priority       TaskPriority         @default(NORMAL)
+  staffId        String
+  flightId       String?
+  targetEntity   String?
+  targetEntityId String?
+  payload        Json?
+  scheduledAt    DateTime             @default(now())
+  startedAt      DateTime?
+  completedAt    DateTime?
+  error          String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  staff          Employee             @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId, status])
+  @@index([status, scheduledAt])
+  @@index([type])
+  @@index([flightId])
+}
+
+model SimulationEvent {
+  id        String   @id @default(cuid())
+  eventType String
+  message   String
+  details   Json?
+  actorId   String?
+  createdAt DateTime @default(now())
+
+  @@index([eventType, createdAt])
+}
+
+enum FinancialAccountType {
+  COMPANY_TREASURY
+  OPERATING_ACCOUNT
+  PAYROLL_ACCOUNT
+  REFUND_ACCOUNT
+  REVENUE_ACCOUNT
+  EXPENSE_ACCOUNT
+  EMPLOYEE_SALARY_ACCOUNT
+  USER_CREDIT_ACCOUNT
+}
+
+enum AccountStatus {
+  ACTIVE
+  FROZEN
+  CLOSED
+}
+
+enum FinancialTransactionType {
+  INITIAL_CAPITAL
+  INTERNAL_TRANSFER
+  REVENUE
+  EXPENSE
+  PAYROLL
+  REFUND
+  ADJUSTMENT
+  REVERSAL
+}
+
+enum TransactionDirection {
+  DEBIT
+  CREDIT
+  TRANSFER
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+enum SalaryType {
+  MONTHLY
+  HOURLY
+  CONTRACT
+}
+
+enum SalaryChangeType {
+  INITIAL
+  HIKE_PERCENTAGE
+  HIKE_FIXED
+  REDUCTION
+  CORRECTION
+}
+
+enum BonusType {
+  PERFORMANCE
+  ATTENDANCE
+  EMERGENCY
+  OPERATIONAL
+  SIMULATOR
+  MANUAL
+}
+
+enum DeductionType {
+  ABSENCE
+  PENALTY
+  ADVANCE_RECOVERY
+  OTHER
+}
+
+enum PayrollFrequency {
+  MONTHLY
+  WEEKLY
+  BIWEEKLY
+  DAILY
+  CUSTOM
+}
+
+enum PayrollStatus {
+  DRAFT
+  SCHEDULED
+  PROCESSING
+  PENDING_APPROVAL
+  APPROVED
+  PAID
+  FAILED
+  CANCELLED
+  PARTIALLY_FAILED
+}
+
+enum PayrollItemStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum ExpenseCategory {
+  PAYROLL
+  MAINTENANCE
+  FUEL_SIMULATION
+  GROUND_OPERATIONS
+  AIRPORT_OPERATIONS
+  SECURITY
+  EQUIPMENT
+  UTILITIES
+  MARKETING
+  EMERGENCY_OPERATIONS
+  OTHER
+}
+
+model FinancialAccount {
+  id            String               @id @default(cuid())
+  accountNumber String               @unique
+  accountName   String
+  accountType   FinancialAccountType
+  currency      String               @default("INR")
+  balance       Decimal              @default(0.0) @db.Decimal(18, 2)
+  status        AccountStatus        @default(ACTIVE)
+  employeeId    String?              @unique
+  userId        String?              @unique
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  employee      Employee?            @relation("EmployeeSalaryAccount", fields: [employeeId], references: [id], onDelete: Cascade)
+  user          User?                @relation("UserWalletAccount", fields: [userId], references: [id], onDelete: Cascade)
+  sourceTx      FinancialTransaction[] @relation("SourceAccount")
+  destTx        FinancialTransaction[] @relation("DestAccount")
+
+  @@index([accountType])
+  @@index([status])
+}
+
+model FinancialTransaction {
+  id                   String                   @id @default(cuid())
+  transactionNumber    String                   @unique
+  type                 FinancialTransactionType
+  category             String
+  amount               Decimal                  @db.Decimal(18, 2)
+  currency             String                   @default("INR")
+  direction            TransactionDirection     @default(TRANSFER)
+  sourceAccountId      String?
+  destinationAccountId String?
+  referenceType        String?
+  referenceId          String?
+  description          String
+  status               TransactionStatus        @default(COMPLETED)
+  createdBy            String?
+  metadata             Json?
+  createdAt            DateTime                 @default(now())
+
+  sourceAccount        FinancialAccount?        @relation("SourceAccount", fields: [sourceAccountId], references: [id])
+  destinationAccount   FinancialAccount?        @relation("DestAccount", fields: [destinationAccountId], references: [id])
+
+  @@index([transactionNumber])
+  @@index([type])
+  @@index([category])
+  @@index([sourceAccountId])
+  @@index([destinationAccountId])
+  @@index([referenceType, referenceId])
+  @@index([createdAt])
+}
+
+model SalaryProfile {
+  id             String              @id @default(cuid())
+  employeeId     String              @unique
+  baseSalary     Decimal             @db.Decimal(18, 2)
+  allowances     Decimal             @default(0.0) @db.Decimal(18, 2)
+  overtime       Decimal             @default(0.0) @db.Decimal(18, 2)
+  bonus          Decimal             @default(0.0) @db.Decimal(18, 2)
+  deductions     Decimal             @default(0.0) @db.Decimal(18, 2)
+  grossSalary    Decimal             @db.Decimal(18, 2)
+  netSalary      Decimal             @db.Decimal(18, 2)
+  salaryType     SalaryType          @default(MONTHLY)
+  effectiveDate  DateTime            @default(now())
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  employee       Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  revisions      SalaryRevision[]
+  bonuses        EmployeeBonus[]
+  deductionItems EmployeeDeduction[]
+
+  @@index([effectiveDate])
+}
+
+model SalaryRevision {
+  id                  String           @id @default(cuid())
+  salaryProfileId     String
+  previousBaseSalary  Decimal          @db.Decimal(18, 2)
+  newBaseSalary       Decimal          @db.Decimal(18, 2)
+  previousGrossSalary Decimal          @db.Decimal(18, 2)
+  newGrossSalary      Decimal          @db.Decimal(18, 2)
+  previousNetSalary   Decimal          @db.Decimal(18, 2)
+  newNetSalary        Decimal          @db.Decimal(18, 2)
+  changeType          SalaryChangeType
+  percentageChange    Float?
+  fixedChange         Decimal?         @db.Decimal(18, 2)
+  reason              String
+  effectiveDate       DateTime
+  createdBy           String?
+  createdAt           DateTime         @default(now())
+
+  salaryProfile       SalaryProfile    @relation(fields: [salaryProfileId], references: [id], onDelete: Cascade)
+
+  @@index([salaryProfileId])
+  @@index([effectiveDate])
+}
+
+model EmployeeBonus {
+  id              String        @id @default(cuid())
+  salaryProfileId String
+  bonusType       BonusType     @default(MANUAL)
+  amount          Decimal       @db.Decimal(18, 2)
+  reason          String
+  payrollPeriod   String?
+  applied         Boolean       @default(false)
+  createdBy       String?
+  createdAt       DateTime      @default(now())
+
+  salaryProfile   SalaryProfile @relation(fields: [salaryProfileId], references: [id], onDelete: Cascade)
+
+  @@index([salaryProfileId])
+  @@index([payrollPeriod])
+}
+
+model EmployeeDeduction {
+  id              String        @id @default(cuid())
+  salaryProfileId String
+  deductionType   DeductionType @default(OTHER)
+  amount          Decimal       @db.Decimal(18, 2)
+  reason          String
+  payrollPeriod   String?
+  applied         Boolean       @default(false)
+  createdBy       String?
+  createdAt       DateTime      @default(now())
+
+  salaryProfile   SalaryProfile @relation(fields: [salaryProfileId], references: [id], onDelete: Cascade)
+
+  @@index([salaryProfileId])
+  @@index([payrollPeriod])
+}
+
+model Payroll {
+  id                   String           @id @default(cuid())
+  payrollPeriod        String           @unique
+  title                String
+  frequency            PayrollFrequency @default(MONTHLY)
+  status               PayrollStatus    @default(DRAFT)
+  scheduledDate        DateTime
+  paymentDate          DateTime?
+  totalEmployees       Int              @default(0)
+  grossAmount          Decimal          @default(0.0) @db.Decimal(18, 2)
+  totalBonuses         Decimal          @default(0.0) @db.Decimal(18, 2)
+  totalDeductions      Decimal          @default(0.0) @db.Decimal(18, 2)
+  netAmount            Decimal          @default(0.0) @db.Decimal(18, 2)
+  companyBalanceBefore Decimal?         @db.Decimal(18, 2)
+  companyBalanceAfter  Decimal?         @db.Decimal(18, 2)
+  approvedBy           String?
+  approvedAt           DateTime?
+  processedBy          String?
+  failureReason        String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  items                PayrollItem[]
+
+  @@index([payrollPeriod])
+  @@index([status])
+  @@index([scheduledDate])
+}
+
+model PayrollItem {
+  id            String            @id @default(cuid())
+  payrollId     String
+  employeeId    String
+  employeeName  String
+  department    DepartmentType
+  role          Role
+  baseSalary    Decimal           @db.Decimal(18, 2)
+  allowances    Decimal           @default(0.0) @db.Decimal(18, 2)
+  overtime      Decimal           @default(0.0) @db.Decimal(18, 2)
+  bonus         Decimal           @default(0.0) @db.Decimal(18, 2)
+  deductions    Decimal           @default(0.0) @db.Decimal(18, 2)
+  grossSalary   Decimal           @db.Decimal(18, 2)
+  netSalary     Decimal           @db.Decimal(18, 2)
+  status        PayrollItemStatus @default(PENDING)
+  paidAt        DateTime?
+  failureReason String?
+  createdAt     DateTime          @default(now())
+
+  payroll       Payroll           @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  employee      Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([payrollId])
+  @@index([employeeId])
+  @@index([status])
+}
+
+model CompanyExpense {
+  id            String          @id @default(cuid())
+  expenseNumber String          @unique
+  category      ExpenseCategory
+  amount        Decimal         @db.Decimal(18, 2)
+  description   String
+  reference     String?
+  expenseDate   DateTime        @default(now())
+  approvedBy    String?
+  status        String          @default("APPROVED")
+  createdAt     DateTime        @default(now())
+
+  @@index([expenseNumber])
+  @@index([category])
+  @@index([expenseDate])
+}
+
+model FinanceConfig {
+  id                 String           @id @default("default")
+  initialCapital     Decimal          @default(100000000.0) @db.Decimal(18, 2)
+  autoPayrollEnabled Boolean          @default(true)
+  payrollFrequency   PayrollFrequency @default(MONTHLY)
+  payrollPaymentDay  Int              @default(30)
+  payrollPaymentTime String           @default("09:00")
+  payrollTimezone    String           @default("Asia/Kolkata")
+  approvalRequired   Boolean          @default(false)
+  minWalletTopUp     Decimal          @default(100.0) @db.Decimal(18, 2)
+  maxWalletTopUp     Decimal          @default(1000000000000.0) @db.Decimal(18, 2)
+  maxWalletBalance   Decimal          @default(1000000000000.0) @db.Decimal(18, 2)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+}
+
+

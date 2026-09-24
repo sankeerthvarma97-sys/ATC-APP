@@ -1,0 +1,1652 @@
+"use client";
+
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  DollarSign,
+  Wallet,
+  TrendingUp,
+  TrendingDown,
+  ArrowDownUp,
+  Receipt,
+  Calendar,
+  Building,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  RefreshCw,
+  Search,
+  Filter,
+  Eye,
+  Plus,
+  Send,
+  ShieldCheck,
+  FileText,
+  UserCheck,
+  Layers,
+  ChevronRight,
+  X,
+  CreditCard,
+  Building2,
+  Lock,
+  Sparkles,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import type {
+  FinancialAccountDTO,
+  FinancialTransactionDTO,
+  CompanyExpenseDTO,
+  PayrollDTO,
+  CompanyFinanceSummaryDTO,
+  WalletTransactionDTO,
+} from "@/lib/domain";
+
+type FinanceTab =
+  | "overview"
+  | "accounts"
+  | "ledger"
+  | "expenses"
+  | "payroll"
+  | "calendar"
+  | "wallet-activity"
+  | "reports";
+
+export function AccountsFinanceSection({
+  initialSubTab = "overview",
+}: {
+  initialSubTab?: string;
+}) {
+  const [activeTab, setActiveTab] = useState<FinanceTab>(
+    (initialSubTab as FinanceTab) || "overview"
+  );
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Data states
+  const [summary, setSummary] = useState<CompanyFinanceSummaryDTO | null>(null);
+  const [accounts, setAccounts] = useState<FinancialAccountDTO[]>([]);
+  const [transactions, setTransactions] = useState<FinancialTransactionDTO[]>([]);
+  const [expenses, setExpenses] = useState<CompanyExpenseDTO[]>([]);
+  const [payrollRuns, setPayrollRuns] = useState<PayrollDTO[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
+  const [walletActivity, setWalletActivity] = useState<{
+    summary: any;
+    transactions: WalletTransactionDTO[];
+    total: number;
+  } | null>(null);
+
+  // Filters & Search
+  const [ledgerSearch, setLedgerSearch] = useState("");
+  const [ledgerTypeFilter, setLedgerTypeFilter] = useState<string>("ALL");
+  const [ledgerPage, setLedgerPage] = useState(1);
+  const [ledgerTotal, setLedgerTotal] = useState(0);
+
+  // Modals
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [showPayrollPreviewModal, setShowPayrollPreviewModal] = useState(false);
+  const [showPayrollRunModal, setShowPayrollRunModal] = useState(false);
+  const [showWalletAdjustmentModal, setShowWalletAdjustmentModal] = useState(false);
+  const [payrollPreviewData, setPayrollPreviewData] = useState<any | null>(null);
+
+  // Form states
+  const [transferForm, setTransferForm] = useState({
+    sourceAccountId: "",
+    destinationAccountId: "",
+    amount: "",
+    reason: "",
+  });
+  const [expenseForm, setExpenseForm] = useState({
+    category: "AIRPORT_OPERATIONS",
+    amount: "",
+    description: "",
+    reference: "",
+  });
+  const [walletAdjustForm, setWalletAdjustForm] = useState({
+    userId: "",
+    direction: "CREDIT",
+    amount: "",
+    reason: "",
+  });
+  const [actionProcessing, setActionProcessing] = useState(false);
+
+  // Format INR currency
+  const formatINR = (val: number | string | undefined | null) => {
+    const num = typeof val === "string" ? Number.parseFloat(val) : Number(val || 0);
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 2,
+    }).format(num);
+  };
+
+  // Fetch all core finance data
+  const fetchData = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      setError(null);
+
+      const [summaryRes, accountsRes, payrollRes, calendarRes] = await Promise.all([
+        fetch("/api/finance/summary"),
+        fetch("/api/finance/accounts"),
+        fetch("/api/finance/payroll"),
+        fetch("/api/finance/payroll/calendar"),
+      ]);
+
+      if (summaryRes.ok) {
+        const sumData = await summaryRes.json();
+        setSummary(sumData);
+      }
+      if (accountsRes.ok) {
+        const accData = await accountsRes.json();
+        setAccounts(accData.accounts || []);
+        if (accData.accounts?.length > 1 && !transferForm.sourceAccountId) {
+          setTransferForm((prev) => ({
+            ...prev,
+            sourceAccountId: accData.accounts[0].id,
+            destinationAccountId: accData.accounts[1].id,
+          }));
+        }
+      }
+      if (payrollRes.ok) {
+        const payData = await payrollRes.json();
+        setPayrollRuns(payData.runs || []);
+      }
+      if (calendarRes.ok) {
+        const calData = await calendarRes.json();
+        setCalendarEvents(calData.calendar || []);
+      }
+    } catch (err) {
+      console.error("Failed to load finance data:", err);
+      setError("Failed to load company finance data. Please try again.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [transferForm.sourceAccountId]);
+
+  // Fetch ledger transactions
+  const fetchLedger = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      params.set("page", ledgerPage.toString());
+      params.set("pageSize", "15");
+      if (ledgerSearch) params.set("search", ledgerSearch);
+      if (ledgerTypeFilter !== "ALL") params.set("type", ledgerTypeFilter);
+
+      const res = await fetch(`/api/finance/transactions?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTransactions(data.transactions || []);
+        setLedgerTotal(data.total || 0);
+      }
+    } catch (err) {
+      console.error("Failed to fetch ledger:", err);
+    }
+  }, [ledgerPage, ledgerSearch, ledgerTypeFilter]);
+
+  // Fetch expenses
+  const fetchExpenses = useCallback(async () => {
+    try {
+      const res = await fetch("/api/finance/expenses?pageSize=20");
+      if (res.ok) {
+        const data = await res.json();
+        setExpenses(data.expenses || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch expenses:", err);
+    }
+  }, []);
+
+  // Fetch wallet activity
+  const fetchWalletActivity = useCallback(async () => {
+    try {
+      const res = await fetch("/api/wallet/activity?pageSize=20");
+      if (res.ok) {
+        const data = await res.json();
+        setWalletActivity(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch wallet activity:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (activeTab === "ledger") {
+      fetchLedger();
+    } else if (activeTab === "expenses") {
+      fetchExpenses();
+    } else if (activeTab === "wallet-activity") {
+      fetchWalletActivity();
+    }
+  }, [activeTab, fetchLedger, fetchExpenses, fetchWalletActivity]);
+
+  // Handle Internal Transfer Submission
+  const handleExecuteTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (transferForm.sourceAccountId === transferForm.destinationAccountId) {
+      setError("Source and destination accounts must be different.");
+      return;
+    }
+    const amt = Number.parseFloat(transferForm.amount);
+    if (isNaN(amt) || amt <= 0) {
+      setError("Please specify a valid positive transfer amount.");
+      return;
+    }
+
+    try {
+      setActionProcessing(true);
+      setError(null);
+      const res = await fetch("/api/finance/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceAccountId: transferForm.sourceAccountId,
+          destinationAccountId: transferForm.destinationAccountId,
+          amount: amt,
+          reason: transferForm.reason || "Internal company transfer",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Transfer failed");
+
+      setSuccessMessage(`Successfully transferred ₹${amt.toLocaleString("en-IN")}`);
+      setShowTransferModal(false);
+      setTransferForm((prev) => ({ ...prev, amount: "", reason: "" }));
+      await fetchData();
+      if (activeTab === "ledger") fetchLedger();
+    } catch (err: any) {
+      setError(err.message || "Transfer failed");
+    } finally {
+      setActionProcessing(false);
+    }
+  };
+
+  // Handle Record Expense Submission
+  const handleRecordExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = Number.parseFloat(expenseForm.amount);
+    if (isNaN(amt) || amt <= 0) {
+      setError("Please specify a valid positive expense amount.");
+      return;
+    }
+
+    try {
+      setActionProcessing(true);
+      setError(null);
+      const res = await fetch("/api/finance/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: expenseForm.category,
+          amount: amt,
+          description: expenseForm.description,
+          reference: expenseForm.reference,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Expense recording failed");
+
+      setSuccessMessage(`Recorded ${expenseForm.category} expense: ₹${amt.toLocaleString("en-IN")}`);
+      setShowExpenseModal(false);
+      setExpenseForm({ category: "AIRPORT_OPERATIONS", amount: "", description: "", reference: "" });
+      await fetchData();
+      if (activeTab === "expenses") fetchExpenses();
+    } catch (err: any) {
+      setError(err.message || "Failed to record expense");
+    } finally {
+      setActionProcessing(false);
+    }
+  };
+
+  // Handle Payroll Preview
+  const handleOpenPayrollPreview = async () => {
+    try {
+      setActionProcessing(true);
+      setError(null);
+      const now = new Date();
+      const period = `PAYROLL-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const res = await fetch(`/api/finance/payroll?preview=true&period=${period}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to preview payroll");
+
+      setPayrollPreviewData(data.preview);
+      setShowPayrollPreviewModal(true);
+    } catch (err: any) {
+      setError(err.message || "Failed to load payroll preview");
+    } finally {
+      setActionProcessing(false);
+    }
+  };
+
+  // Handle Run Payroll Execution
+  const handleExecutePayroll = async () => {
+    try {
+      setActionProcessing(true);
+      setError(null);
+      const now = new Date();
+      const period = `PAYROLL-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+      const res = await fetch("/api/finance/payroll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          period,
+          frequency: "MONTHLY",
+          approveImmediately: true,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Payroll processing failed");
+
+      setSuccessMessage(data.message || "Payroll successfully executed and credited!");
+      setShowPayrollRunModal(false);
+      setShowPayrollPreviewModal(false);
+      await fetchData();
+    } catch (err: any) {
+      setError(err.message || "Payroll processing failed");
+    } finally {
+      setActionProcessing(false);
+    }
+  };
+
+  // Handle Admin Wallet Adjustment
+  const handleExecuteWalletAdjustment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = Number.parseFloat(walletAdjustForm.amount);
+    if (!walletAdjustForm.userId || isNaN(amt) || amt <= 0) {
+      setError("Please provide a valid user ID and positive amount.");
+      return;
+    }
+
+    try {
+      setActionProcessing(true);
+      setError(null);
+      const res = await fetch("/api/wallet/activity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: walletAdjustForm.userId,
+          direction: walletAdjustForm.direction,
+          amount: amt,
+          reason: walletAdjustForm.reason || "Admin ledger adjustment",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Wallet adjustment failed");
+
+      setSuccessMessage(data.message || "Wallet adjusted successfully");
+      setShowWalletAdjustmentModal(false);
+      setWalletAdjustForm({ userId: "", direction: "CREDIT", amount: "", reason: "" });
+      fetchWalletActivity();
+      fetchData();
+    } catch (err: any) {
+      setError(err.message || "Wallet adjustment failed");
+    } finally {
+      setActionProcessing(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Top Banner & Header */}
+      <div className="flex flex-col gap-4 border-b border-slate-800 pb-5 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+              <Building2 className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold tracking-tight text-slate-100 sm:text-2xl">
+                  AOCC Financial Control & Treasury
+                </h1>
+                <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs">
+                  ₹10 CR CAPITAL
+                </Badge>
+                <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-400 text-[10px]">
+                  EDUCATIONAL SIMULATION
+                </Badge>
+              </div>
+              <p className="text-xs text-slate-400">
+                Double-entry simulation ledger, company accounts, automated 24/7 staff payroll & passenger wallets
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Global Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-200 text-xs"
+            onClick={() => {
+              fetchData();
+              if (activeTab === "ledger") fetchLedger();
+              if (activeTab === "expenses") fetchExpenses();
+              if (activeTab === "wallet-activity") fetchWalletActivity();
+            }}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${refreshing ? "animate-spin text-emerald-400" : ""}`} />
+            Refresh
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-cyan-500/30 bg-cyan-950/20 hover:bg-cyan-900/40 text-cyan-300 text-xs"
+            onClick={() => setShowTransferModal(true)}
+          >
+            <ArrowDownUp className="mr-1.5 h-3.5 w-3.5" />
+            Internal Transfer
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-rose-500/30 bg-rose-950/20 hover:bg-rose-900/40 text-rose-300 text-xs"
+            onClick={() => setShowExpenseModal(true)}
+          >
+            <Receipt className="mr-1.5 h-3.5 w-3.5" />
+            Record Expense
+          </Button>
+
+          <Button
+            size="sm"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shadow-lg shadow-emerald-950/50"
+            onClick={handleOpenPayrollPreview}
+            disabled={actionProcessing}
+          >
+            <Calendar className="mr-1.5 h-3.5 w-3.5" />
+            Payroll Actions
+          </Button>
+        </div>
+      </div>
+
+      {/* Alert / Notification Feedback */}
+      {error && (
+        <div className="flex items-center justify-between rounded-lg border border-rose-500/30 bg-rose-950/30 p-3 text-sm text-rose-300">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+            <span>{error}</span>
+          </div>
+          <button onClick={() => setError(null)} className="text-rose-400 hover:text-rose-200">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="flex items-center justify-between rounded-lg border border-emerald-500/30 bg-emerald-950/30 p-3 text-sm text-emerald-300">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+            <span>{successMessage}</span>
+          </div>
+          <button onClick={() => setSuccessMessage(null)} className="text-emerald-400 hover:text-emerald-200">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Navigation Sub-Tabs */}
+      <div className="flex overflow-x-auto border-b border-slate-800 bg-slate-950/40 p-1 rounded-lg">
+        {[
+          { id: "overview", label: "Overview & Treasury", icon: DollarSign },
+          { id: "accounts", label: "Company Accounts", icon: Building },
+          { id: "ledger", label: "Financial Ledger", icon: FileText },
+          { id: "expenses", label: "Company Expenses", icon: Receipt },
+          { id: "payroll", label: "Payroll Processing", icon: UserCheck },
+          { id: "calendar", label: "Payroll Calendar", icon: Calendar },
+          { id: "wallet-activity", label: "Wallet Activity", icon: Wallet },
+          { id: "reports", label: "Reconciliation Reports", icon: TrendingUp },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as FinanceTab)}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-medium rounded-md whitespace-nowrap transition-all ${
+                isActive
+                  ? "bg-slate-800 text-emerald-400 shadow-sm border border-slate-700/60"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/40"
+              }`}
+            >
+              <Icon className={`h-3.5 w-3.5 ${isActive ? "text-emerald-400" : "text-slate-500"}`} />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* TAB 1: OVERVIEW & TREASURY */}
+      {activeTab === "overview" && (
+        <div className="space-y-6">
+          {/* Quick Metrics KPI Grid */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Card className="border-slate-800 bg-slate-900/60 shadow-lg">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Company Treasury
+                </CardTitle>
+                <div className="p-1.5 rounded bg-emerald-500/10 text-emerald-400">
+                  <Building2 className="h-4 w-4" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold font-mono text-emerald-400">
+                  {formatINR(summary?.treasuryBalance)}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500 flex items-center gap-1">
+                  <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                  Primary Capital Reserve (Initial ₹10 Cr)
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-slate-800 bg-slate-900/60 shadow-lg">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Total Revenue
+                </CardTitle>
+                <div className="p-1.5 rounded bg-cyan-500/10 text-cyan-400">
+                  <TrendingUp className="h-4 w-4" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold font-mono text-cyan-400">
+                  {formatINR(summary?.totalRevenue)}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Tickets: {formatINR(summary?.ticketRevenue)} · Fees: {formatINR(summary?.otherRevenue)}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-slate-800 bg-slate-900/60 shadow-lg">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Total Expenses & Payroll
+                </CardTitle>
+                <div className="p-1.5 rounded bg-rose-500/10 text-rose-400">
+                  <TrendingDown className="h-4 w-4" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold font-mono text-rose-400">
+                  {formatINR((summary?.totalExpenses || 0) + (summary?.totalSalaries || 0))}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Salaries: {formatINR(summary?.totalSalaries)} · Ops: {formatINR(summary?.totalExpenses)}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-slate-800 bg-slate-900/60 shadow-lg">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Net Simulation Cash Flow
+                </CardTitle>
+                <div className="p-1.5 rounded bg-amber-500/10 text-amber-400">
+                  <ArrowDownUp className="h-4 w-4" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-2xl font-bold font-mono ${(summary?.netCashFlow || 0) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  {formatINR(summary?.netCashFlow)}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Operating Reserves: {formatINR(summary?.operatingBalance)}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Account Reserves Grid */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <Card className="border-slate-800 bg-slate-900/40 lg:col-span-2">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base text-slate-200">Company Account Portfolios</CardTitle>
+                    <CardDescription className="text-xs text-slate-400">
+                      Realtime balance reconciliation across dedicated operational accounts
+                    </CardDescription>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-slate-700 text-xs h-7"
+                    onClick={() => setActiveTab("accounts")}
+                  >
+                    Manage Accounts
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {accounts.map((acc) => (
+                    <div
+                      key={acc.id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-slate-950/60 border border-slate-800/80"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-900 text-slate-300 font-mono text-xs border border-slate-800">
+                          {acc.accountType.substring(0, 3)}
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-200">{acc.accountName}</div>
+                          <div className="text-[10px] font-mono text-slate-500">{acc.accountNumber}</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono text-sm font-semibold text-slate-100">
+                          {formatINR(acc.balance)}
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-[10px] py-0"
+                        >
+                          ACTIVE
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Quick Actions & Policy Card */}
+            <Card className="border-slate-800 bg-slate-900/40">
+              <CardHeader>
+                <CardTitle className="text-base text-slate-200">Simulation Policy & Rules</CardTitle>
+                <CardDescription className="text-xs text-slate-400">
+                  Strict money flow isolation constraints
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 text-xs text-slate-400">
+                <div className="rounded-md border border-slate-800 bg-slate-950/80 p-3 space-y-2">
+                  <div className="font-semibold text-slate-200 flex items-center gap-1.5">
+                    <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                    Isolated Money Channels
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    User Simulation Top-Ups are passenger funds, never counted as company revenue until tickets are booked.
+                  </p>
+                </div>
+
+                <div className="rounded-md border border-slate-800 bg-slate-950/80 p-3 space-y-2">
+                  <div className="font-semibold text-slate-200 flex items-center gap-1.5">
+                    <Lock className="h-4 w-4 text-cyan-400" />
+                    Double-Entry Immutable Ledger
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Every credit has a corresponding debit or source tracking. No direct balance editing is permitted.
+                  </p>
+                </div>
+
+                <div className="rounded-md border border-slate-800 bg-slate-950/80 p-3 space-y-2">
+                  <div className="font-semibold text-slate-200 flex items-center gap-1.5">
+                    <Calendar className="h-4 w-4 text-amber-400" />
+                    Automated Serverless Payroll
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Runs on scheduled server cron, automatically paying up to 2,000 virtual staff without browser open.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: COMPANY ACCOUNTS & TRANSFERS */}
+      {activeTab === "accounts" && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-200">Company Accounts</h2>
+              <p className="text-xs text-slate-400">Overview of isolated institutional accounts</p>
+            </div>
+            <Button
+              size="sm"
+              className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs"
+              onClick={() => setShowTransferModal(true)}
+            >
+              <ArrowDownUp className="mr-1.5 h-3.5 w-3.5" />
+              Transfer Between Accounts
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {accounts.map((acc) => (
+              <Card key={acc.id} className="border-slate-800 bg-slate-900/60 shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <Badge variant="outline" className="border-slate-700 font-mono text-[10px] text-slate-300">
+                      {acc.accountType}
+                    </Badge>
+                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 text-[10px]">
+                      {acc.status}
+                    </Badge>
+                  </div>
+                  <CardTitle className="text-sm font-bold text-slate-100 mt-2">{acc.accountName}</CardTitle>
+                  <CardDescription className="text-xs font-mono text-slate-400">
+                    {acc.accountNumber}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="pt-2 border-t border-slate-800">
+                    <div className="text-[10px] text-slate-500 uppercase tracking-wider">Current Balance</div>
+                    <div className="text-xl font-bold font-mono text-emerald-400">{formatINR(acc.balance)}</div>
+                  </div>
+                  <div className="flex justify-end pt-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs text-slate-400 hover:text-slate-200 h-7"
+                      onClick={() => {
+                        setTransferForm((prev) => ({ ...prev, sourceAccountId: acc.id }));
+                        setShowTransferModal(true);
+                      }}
+                    >
+                      Transfer Out <ChevronRight className="ml-1 h-3 w-3" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: TRANSACTION LEDGER */}
+      {activeTab === "ledger" && (
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <div className="relative w-64">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                <Input
+                  placeholder="Search reference, tx #..."
+                  value={ledgerSearch}
+                  onChange={(e) => setLedgerSearch(e.target.value)}
+                  className="pl-8 text-xs bg-slate-950 border-slate-800 text-slate-200 h-8"
+                />
+              </div>
+              <select
+                value={ledgerTypeFilter}
+                onChange={(e) => setLedgerTypeFilter(e.target.value)}
+                className="h-8 rounded-md border border-slate-800 bg-slate-950 px-2.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              >
+                <option value="ALL">All Types</option>
+                <option value="INITIAL_CAPITAL_CREATED">Initial Capital</option>
+                <option value="INTERNAL_TRANSFER">Internal Transfer</option>
+                <option value="TICKET_SALE">Ticket Sale</option>
+                <option value="PAYROLL">Payroll</option>
+                <option value="COMPANY_EXPENSE">Company Expense</option>
+                <option value="REFUND">Refund</option>
+                <option value="SIMULATION_TOP_UP">Simulation Top-Up</option>
+              </select>
+            </div>
+            <div className="text-xs text-slate-400">
+              Total Recorded Ledger Entries: <span className="font-mono text-emerald-400 font-bold">{ledgerTotal}</span>
+            </div>
+          </div>
+
+          {/* Transactions Table */}
+          <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950/60">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-800 font-mono">
+                <tr>
+                  <th className="p-3">Tx Number</th>
+                  <th className="p-3">Type</th>
+                  <th className="p-3">Category</th>
+                  <th className="p-3">Amount</th>
+                  <th className="p-3">Description</th>
+                  <th className="p-3">Date</th>
+                  <th className="p-3 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-850 font-sans">
+                {transactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-slate-500">
+                      No financial transactions found matching criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  transactions.map((tx) => (
+                    <tr key={tx.id} className="hover:bg-slate-900/40 transition-colors">
+                      <td className="p-3 font-mono text-[11px] text-slate-200 font-semibold">{tx.transactionNumber}</td>
+                      <td className="p-3">
+                        <Badge variant="outline" className="border-slate-700 bg-slate-900/60 font-mono text-[10px] text-slate-300">
+                          {tx.type}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-slate-400">{tx.category}</td>
+                      <td className="p-3 font-mono font-bold text-slate-100">
+                        {formatINR(tx.amount)}
+                      </td>
+                      <td className="p-3 text-slate-300 max-w-xs truncate">{tx.description}</td>
+                      <td className="p-3 font-mono text-[10px] text-slate-400">
+                        {new Date(tx.createdAt).toLocaleString("en-IN", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
+                      </td>
+                      <td className="p-3 text-right">
+                        <Badge
+                          variant="outline"
+                          className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[10px]"
+                        >
+                          {tx.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination Controls */}
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <div>Page {ledgerPage}</div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs border-slate-800"
+                disabled={ledgerPage <= 1}
+                onClick={() => setLedgerPage((p) => p - 1)}
+              >
+                Previous
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs border-slate-800"
+                disabled={transactions.length < 15}
+                onClick={() => setLedgerPage((p) => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: EXPENSES */}
+      {activeTab === "expenses" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-200">Company Operational Expenses</h2>
+              <p className="text-xs text-slate-400">
+                Audited simulation expenses across ground operations, maintenance, fuel, and security
+              </p>
+            </div>
+            <Button
+              size="sm"
+              className="bg-rose-600 hover:bg-rose-500 text-white text-xs"
+              onClick={() => setShowExpenseModal(true)}
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Record New Expense
+            </Button>
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950/60">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-800 font-mono">
+                <tr>
+                  <th className="p-3">Expense ID</th>
+                  <th className="p-3">Category</th>
+                  <th className="p-3">Amount</th>
+                  <th className="p-3">Description</th>
+                  <th className="p-3">Reference</th>
+                  <th className="p-3">Date</th>
+                  <th className="p-3 text-right">Approval</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-850 font-sans">
+                {expenses.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-slate-500">
+                      No company expenses recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  expenses.map((exp) => (
+                    <tr key={exp.id} className="hover:bg-slate-900/40 transition-colors">
+                      <td className="p-3 font-mono text-[11px] text-slate-300">{exp.id.substring(0, 10)}...</td>
+                      <td className="p-3">
+                        <Badge variant="outline" className="border-rose-500/30 bg-rose-500/10 text-rose-400 font-mono text-[10px]">
+                          {exp.category}
+                        </Badge>
+                      </td>
+                      <td className="p-3 font-mono font-bold text-rose-400">{formatINR(exp.amount)}</td>
+                      <td className="p-3 text-slate-200">{exp.description}</td>
+                      <td className="p-3 font-mono text-slate-400">{exp.reference || "N/A"}</td>
+                      <td className="p-3 font-mono text-[10px] text-slate-400">
+                        {exp.expenseDate ? new Date(exp.expenseDate).toLocaleDateString("en-IN") : "N/A"}
+                      </td>
+                      <td className="p-3 text-right">
+                        <Badge
+                          variant="outline"
+                          className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[10px]"
+                        >
+                          {exp.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: PAYROLL PROCESSING */}
+      {activeTab === "payroll" && (
+        <div className="space-y-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-200">24/7 Virtual Staff & Real Staff Payroll</h2>
+              <p className="text-xs text-slate-400">
+                Automated idempotent batch salary credits debiting Company Payroll Account
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-emerald-500/30 text-emerald-400 text-xs"
+                onClick={handleOpenPayrollPreview}
+                disabled={actionProcessing}
+              >
+                <Eye className="mr-1.5 h-3.5 w-3.5" />
+                Preview Next Payroll
+              </Button>
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
+                onClick={() => setShowPayrollRunModal(true)}
+                disabled={actionProcessing}
+              >
+                <Calendar className="mr-1.5 h-3.5 w-3.5" />
+                Run Current Payroll
+              </Button>
+            </div>
+          </div>
+
+          {/* Payroll Runs History */}
+          <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950/60">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-800 font-mono">
+                <tr>
+                  <th className="p-3">Period</th>
+                  <th className="p-3">Frequency</th>
+                  <th className="p-3">Employees Paid</th>
+                  <th className="p-3">Gross Total</th>
+                  <th className="p-3">Net Disbursed</th>
+                  <th className="p-3">Execution Date</th>
+                  <th className="p-3 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-850 font-sans">
+                {payrollRuns.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-slate-500">
+                      No historical payroll runs found. Click "Preview Next Payroll" or "Run Current Payroll" to execute.
+                    </td>
+                  </tr>
+                ) : (
+                  payrollRuns.map((run) => (
+                    <tr key={run.id} className="hover:bg-slate-900/40 transition-colors">
+                      <td className="p-3 font-mono font-bold text-slate-200">{run.payrollPeriod}</td>
+                      <td className="p-3 text-slate-400">{run.frequency}</td>
+                      <td className="p-3 font-mono text-emerald-400 font-semibold">{run.totalEmployees.toLocaleString()} staff</td>
+                      <td className="p-3 font-mono text-slate-300">{formatINR(run.grossAmount)}</td>
+                      <td className="p-3 font-mono font-bold text-emerald-400">{formatINR(run.netAmount)}</td>
+                      <td className="p-3 font-mono text-[10px] text-slate-400">
+                        {run.paymentDate ? new Date(run.paymentDate).toLocaleString("en-IN") : "Pending"}
+                      </td>
+                      <td className="p-3 text-right">
+                        <Badge
+                          variant="outline"
+                          className={
+                            run.status === "PAID"
+                              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                              : run.status === "FAILED"
+                              ? "border-rose-500/30 bg-rose-500/10 text-rose-400"
+                              : "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                          }
+                        >
+                          {run.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 6: PAYROLL CALENDAR */}
+      {activeTab === "calendar" && (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-slate-200">Automated Payroll Schedule & Calendar</h2>
+            <p className="text-xs text-slate-400">
+              Configured for monthly automated disbursement on the last business day (Default: 30th/31st 00:00 UTC)
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {calendarEvents.map((event) => (
+              <Card key={event.id} className="border-slate-800 bg-slate-900/60 shadow">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-bold text-emerald-400">{event.period}</span>
+                    <Badge
+                      variant="outline"
+                      className={
+                        event.status === "PAID"
+                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                          : "border-cyan-500/30 bg-cyan-500/10 text-cyan-400"
+                      }
+                    >
+                      {event.status}
+                    </Badge>
+                  </div>
+                  <CardTitle className="text-sm font-bold text-slate-100 mt-2">{event.title}</CardTitle>
+                  <CardDescription className="text-xs text-slate-400">
+                    Payment Date: {new Date(event.scheduledDate).toLocaleDateString("en-IN", { dateStyle: "long" })}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2 pt-2 border-t border-slate-800">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400">Eligible Employees:</span>
+                    <span className="font-mono text-slate-200 font-semibold">{event.employeeCount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400">Projected Net Disbursal:</span>
+                    <span className="font-mono text-emerald-400 font-bold">{formatINR(event.netAmount)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 7: WALLET ACTIVITY */}
+      {activeTab === "wallet-activity" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-200">Passenger Simulation Wallet Activity</h2>
+              <p className="text-xs text-slate-400">
+                Audit trail of simulation top-ups, ticket payments, and refund credits
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-emerald-500/30 text-emerald-400 text-xs"
+              onClick={() => setShowWalletAdjustmentModal(true)}
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Adjust User Wallet
+            </Button>
+          </div>
+
+          {/* Quick Metrics for Wallet */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card className="border-slate-800 bg-slate-900/60 p-4">
+              <div className="text-xs font-semibold text-slate-400">Total Simulation Money Created</div>
+              <div className="text-xl font-bold font-mono text-emerald-400 mt-1">
+                {formatINR(walletActivity?.summary?.totalSimulationMoneyCreated)}
+              </div>
+            </Card>
+            <Card className="border-slate-800 bg-slate-900/60 p-4">
+              <div className="text-xs font-semibold text-slate-400">Total Top-Ups Processed</div>
+              <div className="text-xl font-bold font-mono text-cyan-400 mt-1">
+                {walletActivity?.summary?.totalTopUps || 0}
+              </div>
+            </Card>
+            <Card className="border-slate-800 bg-slate-900/60 p-4">
+              <div className="text-xs font-semibold text-slate-400">Average Top-Up Amount</div>
+              <div className="text-xl font-bold font-mono text-amber-400 mt-1">
+                {formatINR(walletActivity?.summary?.averageTopUp)}
+              </div>
+            </Card>
+          </div>
+
+          {/* Transactions Table */}
+          <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950/60">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-800 font-mono">
+                <tr>
+                  <th className="p-3">Tx Number</th>
+                  <th className="p-3">User ID</th>
+                  <th className="p-3">Type</th>
+                  <th className="p-3">Amount</th>
+                  <th className="p-3">Before Balance</th>
+                  <th className="p-3">After Balance</th>
+                  <th className="p-3">Timestamp</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-850 font-sans">
+                {!walletActivity?.transactions || walletActivity.transactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-slate-500">
+                      No passenger wallet transactions recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  walletActivity.transactions.map((tx) => (
+                    <tr key={tx.id} className="hover:bg-slate-900/40 transition-colors">
+                      <td className="p-3 font-mono text-slate-300">{tx.referenceId || tx.id.substring(0, 12)}</td>
+                      <td className="p-3 font-mono text-slate-400">{tx.userId.substring(0, 10)}...</td>
+                      <td className="p-3">
+                        <Badge variant="outline" className="border-slate-700 bg-slate-900 text-slate-300 text-[10px] font-mono">
+                          {tx.type}
+                        </Badge>
+                      </td>
+                      <td className="p-3 font-mono font-bold text-emerald-400">{formatINR(tx.amount)}</td>
+                      <td className="p-3 font-mono text-slate-400">{formatINR(tx.balanceBefore)}</td>
+                      <td className="p-3 font-mono text-slate-100">{formatINR(tx.balanceAfter)}</td>
+                      <td className="p-3 font-mono text-[10px] text-slate-400">
+                        {new Date(tx.createdAt).toLocaleString("en-IN")}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 8: RECONCILIATION REPORTS */}
+      {activeTab === "reports" && (
+        <div className="space-y-6">
+          <Card className="border-slate-800 bg-slate-900/60 shadow">
+            <CardHeader>
+              <CardTitle className="text-base text-slate-200">Ledger Balance Reconciliation Statement</CardTitle>
+              <CardDescription className="text-xs text-slate-400">
+                Formula: Opening Balance + Income - Expenses - Refunds + Other Credits - Other Debits = Closing Balance
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Initial Company Capital:</span>
+                    <span className="font-mono text-emerald-400 font-bold">{formatINR(summary?.openingBalance)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">+ Total Ticket & Service Revenue:</span>
+                    <span className="font-mono text-cyan-400">+{formatINR(summary?.totalRevenue)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">- Total Staff Salaries & Payroll:</span>
+                    <span className="font-mono text-rose-400">-{formatINR(summary?.totalSalaries)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">- Total Operational Expenses:</span>
+                    <span className="font-mono text-rose-400">-{formatINR(summary?.totalExpenses)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">- Total Ticket Refunds Issued:</span>
+                    <span className="font-mono text-amber-400">-{formatINR(summary?.totalRefunds)}</span>
+                  </div>
+                  <div className="pt-2 border-t border-slate-800 flex justify-between font-bold text-sm">
+                    <span className="text-slate-200">Reconciled Closing Balance:</span>
+                    <span className="font-mono text-emerald-400">{formatINR(summary?.closingBalance)}</span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-3 text-xs">
+                  <div className="flex items-center gap-2 font-bold text-slate-200">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                    Ledger Audit Integrity Verification
+                  </div>
+                  <p className="text-slate-400 leading-relaxed text-[11px]">
+                    All debits and credits across the AOCC Treasury, Operating, Payroll, and Refund accounts have matched
+                    the immutable ledger records with 0 rounding errors.
+                  </p>
+                  <div className="p-2.5 rounded bg-emerald-950/20 border border-emerald-500/20 text-emerald-400 font-mono text-[11px]">
+                    INTEGRITY STATUS: 100% BALANCED · DOUBLE-ENTRY PASS
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* MODAL: INTERNAL TRANSFER */}
+      {showTransferModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <ArrowDownUp className="h-4 w-4 text-cyan-400" />
+                Internal Company Transfer
+              </h3>
+              <button onClick={() => setShowTransferModal(false)} className="text-slate-400 hover:text-slate-200">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleExecuteTransfer} className="space-y-4 mt-4 text-xs">
+              <div>
+                <label className="block text-slate-300 mb-1">Source Account</label>
+                <select
+                  value={transferForm.sourceAccountId}
+                  onChange={(e) => setTransferForm({ ...transferForm, sourceAccountId: e.target.value })}
+                  className="w-full rounded-md border border-slate-800 bg-slate-950 p-2 text-slate-200"
+                >
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.accountName} ({formatINR(a.balance)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 mb-1">Destination Account</label>
+                <select
+                  value={transferForm.destinationAccountId}
+                  onChange={(e) => setTransferForm({ ...transferForm, destinationAccountId: e.target.value })}
+                  className="w-full rounded-md border border-slate-800 bg-slate-950 p-2 text-slate-200"
+                >
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.accountName} ({formatINR(a.balance)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 mb-1">Amount (INR / ₹)</label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 500000"
+                  value={transferForm.amount}
+                  onChange={(e) => setTransferForm({ ...transferForm, amount: e.target.value })}
+                  className="bg-slate-950 border-slate-800 text-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 mb-1">Transfer Reason / Audit Memo</label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Allocate funds to Payroll Reserve"
+                  value={transferForm.reason}
+                  onChange={(e) => setTransferForm({ ...transferForm, reason: e.target.value })}
+                  className="bg-slate-950 border-slate-800 text-slate-200"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowTransferModal(false)}
+                  className="border-slate-800 text-slate-400"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold"
+                  disabled={actionProcessing}
+                >
+                  {actionProcessing ? "Processing..." : "Confirm Transfer"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: RECORD EXPENSE */}
+      {showExpenseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Receipt className="h-4 w-4 text-rose-400" />
+                Record Company Expense
+              </h3>
+              <button onClick={() => setShowExpenseModal(false)} className="text-slate-400 hover:text-slate-200">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRecordExpense} className="space-y-4 mt-4 text-xs">
+              <div>
+                <label className="block text-slate-300 mb-1">Category</label>
+                <select
+                  value={expenseForm.category}
+                  onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })}
+                  className="w-full rounded-md border border-slate-800 bg-slate-950 p-2 text-slate-200"
+                >
+                  <option value="AIRPORT_OPERATIONS">Airport Operations</option>
+                  <option value="GROUND_OPERATIONS">Ground Operations</option>
+                  <option value="MAINTENANCE">Maintenance</option>
+                  <option value="FUEL_SIMULATION">Fuel Simulation</option>
+                  <option value="SECURITY">Security</option>
+                  <option value="EQUIPMENT">Equipment</option>
+                  <option value="UTILITIES">Utilities</option>
+                  <option value="MARKETING">Marketing</option>
+                  <option value="EMERGENCY_OPERATIONS">Emergency Operations</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 mb-1">Amount (INR / ₹)</label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 150000"
+                  value={expenseForm.amount}
+                  onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                  className="bg-slate-950 border-slate-800 text-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 mb-1">Description</label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Runway 09R friction test and maintenance"
+                  value={expenseForm.description}
+                  onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
+                  className="bg-slate-950 border-slate-800 text-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 mb-1">Reference / PO #</label>
+                <Input
+                  type="text"
+                  placeholder="e.g. PO-2026-991"
+                  value={expenseForm.reference}
+                  onChange={(e) => setExpenseForm({ ...expenseForm, reference: e.target.value })}
+                  className="bg-slate-950 border-slate-800 text-slate-200"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowExpenseModal(false)}
+                  className="border-slate-800 text-slate-400"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="bg-rose-600 hover:bg-rose-500 text-white font-semibold"
+                  disabled={actionProcessing}
+                >
+                  {actionProcessing ? "Recording..." : "Record Expense"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PAYROLL PREVIEW */}
+      {showPayrollPreviewModal && payrollPreviewData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Eye className="h-4 w-4 text-emerald-400" />
+                Payroll Pre-Flight Preview ({payrollPreviewData.period})
+              </h3>
+              <button onClick={() => setShowPayrollPreviewModal(false)} className="text-slate-400 hover:text-slate-200">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 mt-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+                  <div className="text-slate-400 text-[11px]">Eligible Staff Count</div>
+                  <div className="text-lg font-bold font-mono text-slate-100 mt-1">
+                    {payrollPreviewData.employeeCount.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+                  <div className="text-slate-400 text-[11px]">Company Payroll Reserve</div>
+                  <div className="text-lg font-bold font-mono text-emerald-400 mt-1">
+                    {formatINR(payrollPreviewData.companyBalance)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Total Base & Gross Salaries:</span>
+                  <span className="font-mono text-slate-200">{formatINR(payrollPreviewData.grossSalary)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">+ Operational Bonuses:</span>
+                  <span className="font-mono text-cyan-400">+{formatINR(payrollPreviewData.bonuses)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">- Total Deductions:</span>
+                  <span className="font-mono text-rose-400">-{formatINR(payrollPreviewData.deductions)}</span>
+                </div>
+                <div className="pt-2 border-t border-slate-800 flex justify-between font-bold text-sm">
+                  <span className="text-slate-100">Net Disbursal Required:</span>
+                  <span className="font-mono text-emerald-400">{formatINR(payrollPreviewData.netSalary)}</span>
+                </div>
+                <div className="flex justify-between text-[11px] pt-1">
+                  <span className="text-slate-400">Projected Balance After Disbursal:</span>
+                  <span className="font-mono text-slate-300">{formatINR(payrollPreviewData.projectedBalance)}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 p-2 rounded bg-emerald-950/20 border border-emerald-500/20 text-emerald-400 text-[11px]">
+                <ShieldCheck className="h-4 w-4 shrink-0" />
+                <span>Validation Passed: Company reserves are fully sufficient. No actual balances are modified in preview.</span>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPayrollPreviewModal(false)}
+                  className="border-slate-800 text-slate-400"
+                >
+                  Close Preview
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                  onClick={() => {
+                    setShowPayrollPreviewModal(false);
+                    setShowPayrollRunModal(true);
+                  }}
+                >
+                  Proceed to Execution
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: RUN PAYROLL CONFIRMATION */}
+      {showPayrollRunModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-emerald-400" />
+                Confirm Batch Payroll Execution
+              </h3>
+              <button onClick={() => setShowPayrollRunModal(false)} className="text-slate-400 hover:text-slate-200">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 mt-4 text-xs">
+              <p className="text-slate-300 leading-relaxed">
+                You are about to execute the scheduled batch payroll for all registered real and virtual staff members.
+              </p>
+              <ul className="space-y-1.5 text-slate-400 list-disc list-inside">
+                <li>Atomic transaction: debits Company Payroll Account.</li>
+                <li>Credits individual Employee Salary Accounts.</li>
+                <li>Creates immutable double-entry ledger transactions.</li>
+                <li>Guaranteed idempotent: safe against concurrent duplicate executions.</li>
+              </ul>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPayrollRunModal(false)}
+                  className="border-slate-800 text-slate-400"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                  onClick={handleExecutePayroll}
+                  disabled={actionProcessing}
+                >
+                  {actionProcessing ? "Disbursing Salaries..." : "Execute Payroll Now"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADMIN WALLET ADJUSTMENT */}
+      {showWalletAdjustmentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Wallet className="h-4 w-4 text-emerald-400" />
+                Admin Wallet Balance Adjustment
+              </h3>
+              <button onClick={() => setShowWalletAdjustmentModal(false)} className="text-slate-400 hover:text-slate-200">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleExecuteWalletAdjustment} className="space-y-4 mt-4 text-xs">
+              <div>
+                <label className="block text-slate-300 mb-1">Target User ID</label>
+                <Input
+                  type="text"
+                  placeholder="Enter User ID"
+                  value={walletAdjustForm.userId}
+                  onChange={(e) => setWalletAdjustForm({ ...walletAdjustForm, userId: e.target.value })}
+                  className="bg-slate-950 border-slate-800 text-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 mb-1">Adjustment Direction</label>
+                <select
+                  value={walletAdjustForm.direction}
+                  onChange={(e) => setWalletAdjustForm({ ...walletAdjustForm, direction: e.target.value })}
+                  className="w-full rounded-md border border-slate-800 bg-slate-950 p-2 text-slate-200"
+                >
+                  <option value="CREDIT">CREDIT (+ Add Money)</option>
+                  <option value="DEBIT">DEBIT (- Deduct Money)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 mb-1">Amount (INR / ₹)</label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 5000"
+                  value={walletAdjustForm.amount}
+                  onChange={(e) => setWalletAdjustForm({ ...walletAdjustForm, amount: e.target.value })}
+                  className="bg-slate-950 border-slate-800 text-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 mb-1">Reason / Audit Trail Memo</label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Operational goodwill simulation top-up"
+                  value={walletAdjustForm.reason}
+                  onChange={(e) => setWalletAdjustForm({ ...walletAdjustForm, reason: e.target.value })}
+                  className="bg-slate-950 border-slate-800 text-slate-200"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowWalletAdjustmentModal(false)}
+                  className="border-slate-800 text-slate-400"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                  disabled={actionProcessing}
+                >
+                  {actionProcessing ? "Applying..." : "Confirm Adjustment"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
