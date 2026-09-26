@@ -4,10 +4,19 @@ import type { UserDTO } from "@/lib/domain";
 import { getRequiredRuntimeValue } from "@/lib/config/security";
 
 export const BOOTSTRAP_ADMIN_EMAIL = process.env.ADMIN_BOOTSTRAP_EMAIL || "admin@gmail.com";
-export const BOOTSTRAP_ADMIN_DEFAULT_PASS = getRequiredRuntimeValue("ADMIN_BOOTSTRAP_PASSWORD", {
-  production: process.env.NODE_ENV === "production",
-  fallback: "dev-bootstrap-admin-password",
-});
+
+export function getBootstrapAdminPassword(): string {
+  return (
+    process.env.ADMIN_BOOTSTRAP_PASSWORD ||
+    getRequiredRuntimeValue("ADMIN_BOOTSTRAP_PASSWORD", {
+      production: process.env.NODE_ENV === "production",
+      fallback: "dev-bootstrap-admin-password",
+    })
+  );
+}
+
+export const BOOTSTRAP_ADMIN_DEFAULT_PASS =
+  process.env.ADMIN_BOOTSTRAP_PASSWORD || "dev-bootstrap-admin-password";
 
 /**
  * Idempotently ensures the permanent Super Admin account exists in the database.
@@ -15,7 +24,7 @@ export const BOOTSTRAP_ADMIN_DEFAULT_PASS = getRequiredRuntimeValue("ADMIN_BOOTS
  */
 export async function ensurePermanentSuperAdmin(): Promise<UserDTO | null> {
   const email = BOOTSTRAP_ADMIN_EMAIL.trim().toLowerCase();
-  const rawPassword = BOOTSTRAP_ADMIN_DEFAULT_PASS;
+  const rawPassword = getBootstrapAdminPassword();
 
   if (shouldUseDatabase()) {
     try {

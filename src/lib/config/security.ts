@@ -32,13 +32,29 @@ function normalizeOrigin(value: string): string | null {
   }
 }
 
+function isBuildPhase(): boolean {
+  return (
+    process.env.NEXT_PHASE === "phase-production-build" ||
+    process.env.npm_lifecycle_event === "build" ||
+    process.env.BUILDING === "true" ||
+    process.env.DOCKER_BUILD === "true"
+  );
+}
+
 export function getRequiredRuntimeValue(name: string, options: SecurityConfigOptions = {}): string {
   const env = options.env ?? process.env;
   const value = env[name];
+  const isExplicitProduction = options.production !== undefined;
   const production = options.production ?? process.env.NODE_ENV === "production";
 
   if (value && value.trim() && !PLACEHOLDER_MARKERS.some((marker) => value.toLowerCase().includes(marker.toLowerCase()))) {
     return value.trim();
+  }
+
+  // During static compilation/build phase, runtime secrets are not yet provisioned.
+  // Allow static analysis and page collection to succeed.
+  if (isBuildPhase()) {
+    return options.fallback ?? "build-phase-fallback-value";
   }
 
   if (production) {
