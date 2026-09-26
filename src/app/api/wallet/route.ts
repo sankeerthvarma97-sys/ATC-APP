@@ -1,12 +1,26 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/auth/session";
-import { getUserWallet, topUpUserWallet } from "@/lib/services/wallet-service";
+import { getUserWallet, topUpUserWallet, setUserWalletMode } from "@/lib/services/wallet-service";
 
 export const dynamic = "force-dynamic";
 
 const TopUpSchema = z.object({
-  amount: z.number().positive("Top-up amount must be positive"),
+  action: z.enum(["TOP_UP", "SET_MODE"]).optional(),
+  mode: z.enum(["NORMAL", "UNLIMITED_SIMULATION"]).optional(),
+  amount: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((value, ctx) => {
+      if (value === undefined || value === null) return undefined;
+      const text = String(value).trim();
+      if (!/^\d+(\.\d{1,2})?$/.test(text) || Number(text) <= 0) {
+        ctx.addIssue({ code: "custom", message: "Top-up amount must be a positive finite decimal" });
+        return z.NEVER;
+      }
+      return text;
+    }),
+  idempotencyKey: z.string().min(16).max(128).optional(),
 });
 
 export async function GET() {
@@ -43,14 +57,30 @@ export async function POST(request: Request) {
       );
     }
 
+    // Handle wallet mode change
+    if (parsed.data.mode || parsed.data.action === "SET_MODE") {
+      const targetMode = parsed.data.mode || "UNLIMITED_SIMULATION";
+      const result = await setUserWalletMode(user.id, targetMode);
+      return NextResponse.json({
+        success: true,
+        message: `Wallet mode set to ${targetMode === "UNLIMITED_SIMULATION" ? "Unlimited Simulation" : "Standard"} Mode.`,
+        wallet: result,
+      });
+    }
+
+    if (!parsed.data.amount) {
+      return NextResponse.json({ error: "Amount is required for top-up" }, { status: 400 });
+    }
+
     const result = await topUpUserWallet({
       userId: user.id,
       amount: parsed.data.amount,
+      idempotencyKey: parsed.data.idempotencyKey,
     });
 
     return NextResponse.json({
       success: true,
-      message: `Successfully added ₹${parsed.data.amount.toLocaleString("en-IN")} simulation money to your wallet.`,
+      message: `Successfully added ₹${Number(parsed.data.amount).toLocaleString("en-IN")} simulation money to your wallet.`,
       wallet: result,
     });
   } catch (error) {

@@ -1,9 +1,13 @@
 import { hash } from "bcryptjs";
 import { prisma, shouldUseDatabase } from "@/lib/prisma";
 import type { UserDTO } from "@/lib/domain";
+import { getRequiredRuntimeValue } from "@/lib/config/security";
 
 export const BOOTSTRAP_ADMIN_EMAIL = process.env.ADMIN_BOOTSTRAP_EMAIL || "admin@gmail.com";
-export const BOOTSTRAP_ADMIN_DEFAULT_PASS = process.env.ADMIN_BOOTSTRAP_PASSWORD || "Sankeerth@80";
+export const BOOTSTRAP_ADMIN_DEFAULT_PASS = getRequiredRuntimeValue("ADMIN_BOOTSTRAP_PASSWORD", {
+  production: process.env.NODE_ENV === "production",
+  fallback: "dev-bootstrap-admin-password",
+});
 
 /**
  * Idempotently ensures the permanent Super Admin account exists in the database.

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { prisma, shouldUseDatabase } from "@/lib/prisma";
+import type { SalaryProfileDTO } from "@/lib/domain";
 import { getOrCreateSalaryProfile } from "@/lib/services/payroll-service";
 import Link from "next/link";
 import { ArrowLeft, Building2, Calendar, CheckCircle2, DollarSign, FileText, ShieldCheck, UserCheck } from "lucide-react";
@@ -10,6 +11,44 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 
 export const dynamic = "force-dynamic";
 
+type SalaryPagePayrollItem = {
+  id: string;
+  payroll?: {
+    payrollPeriod?: string | null;
+  } | null;
+  baseSalary?: number | string | null;
+  bonus?: number | string | null;
+  deductions?: number | string | null;
+  netSalary?: number | string | null;
+  status?: string | null;
+  createdAt: Date | string;
+};
+
+type SalaryPageEmployee = {
+  id: string;
+  payrollItems?: SalaryPagePayrollItem[] | null;
+  salaryAccount?: {
+    balance?: number | string | null;
+    accountNumber?: string | null;
+  } | null;
+};
+
+const fallbackSalaryProfile: SalaryProfileDTO = {
+  id: "demo-salary-profile",
+  employeeId: "demo-employee",
+  baseSalary: 85000,
+  allowances: 12750,
+  overtime: 0,
+  bonus: 5000,
+  deductions: 8500,
+  grossSalary: 102750,
+  netSalary: 94250,
+  salaryType: "MONTHLY",
+  effectiveDate: new Date().toISOString(),
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
 export default async function EmployeeSalaryPage() {
   const user = await getAuthenticatedUser();
   if (!user) {
@@ -17,14 +56,14 @@ export default async function EmployeeSalaryPage() {
   }
 
   // Find employee record linked to user
-  let employee: any = null;
-  let salaryProfile: any = null;
-  let payrollItems: any[] = [];
-  let salaryAccount: any = null;
+  let employee: SalaryPageEmployee | null = null;
+  let salaryProfile: SalaryProfileDTO = fallbackSalaryProfile;
+  let payrollItems: SalaryPagePayrollItem[] = [];
+  let salaryAccount: { balance?: number | string | null; accountNumber?: string | null } | null = null;
 
   if (shouldUseDatabase()) {
     try {
-      employee = await prisma.employee.findFirst({
+      employee = (await prisma.employee.findFirst({
         where: { userId: user.id },
         include: {
           salaryProfile: true,
@@ -34,31 +73,16 @@ export default async function EmployeeSalaryPage() {
             take: 12,
           },
         },
-      });
+      })) as SalaryPageEmployee | null;
 
       if (employee) {
         salaryProfile = await getOrCreateSalaryProfile(employee.id);
-        payrollItems = employee.payrollItems || [];
-        salaryAccount = employee.salaryAccount;
+        payrollItems = employee.payrollItems ?? [];
+        salaryAccount = employee.salaryAccount ?? null;
       }
     } catch (err) {
       console.warn("Database lookup for employee salary failed", err);
     }
-  }
-
-  // Fallback demo employee profile if not yet seeded
-  if (!salaryProfile) {
-    salaryProfile = {
-      baseSalary: 85000,
-      allowances: 12750,
-      overtime: 0,
-      bonus: 5000,
-      deductions: 8500,
-      grossSalary: 102750,
-      netSalary: 94250,
-      salaryType: "MONTHLY",
-      effectiveDate: new Date().toISOString(),
-    };
   }
 
   const formatINR = (val: number | undefined | null) => {

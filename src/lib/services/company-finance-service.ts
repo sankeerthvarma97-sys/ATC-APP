@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma, shouldUseDatabase } from "@/lib/prisma";
 import type {
+  AccountStatus,
   FinancialAccountDTO,
   FinancialAccountType,
   FinancialTransactionDTO,
@@ -33,7 +34,7 @@ const memoryAccounts: Map<string, MemoryAccount> = new Map();
 const memoryTransactions: FinancialTransactionDTO[] = [];
 const memoryExpenses: CompanyExpenseDTO[] = [];
 
-let memoryFinanceConfig: FinanceConfigDTO = {
+const memoryFinanceConfig: FinanceConfigDTO = {
   id: "default",
   initialCapital: INITIAL_CAPITAL_AMOUNT,
   autoPayrollEnabled: true,
@@ -200,14 +201,24 @@ export async function initializeCompanyTreasury(): Promise<{
           });
         }
 
-        const mapAccount = (acc: any): FinancialAccountDTO => ({
+        const mapAccount = (acc: {
+          id: string;
+          accountNumber: string;
+          accountName: string;
+          accountType: FinancialAccountType;
+          currency: string;
+          balance: Prisma.Decimal;
+          status: string;
+          createdAt: Date;
+          updatedAt: Date;
+        }): FinancialAccountDTO => ({
           id: acc.id,
           accountNumber: acc.accountNumber,
           accountName: acc.accountName,
           accountType: acc.accountType,
           currency: acc.currency,
           balance: Number(acc.balance),
-          status: acc.status,
+          status: acc.status as AccountStatus,
           createdAt: acc.createdAt.toISOString(),
           updatedAt: acc.updatedAt.toISOString(),
         });
@@ -310,7 +321,7 @@ export async function listFinancialAccounts(): Promise<FinancialAccountDTO[]> {
         accountType: acc.accountType as FinancialAccountType,
         currency: acc.currency,
         balance: Number(acc.balance),
-        status: acc.status as any,
+        status: acc.status as FinancialAccountDTO["status"],
         employeeId: acc.employeeId ?? undefined,
         userId: acc.userId ?? undefined,
         createdAt: acc.createdAt.toISOString(),
@@ -526,7 +537,9 @@ export async function recordCompanyRevenue(input: {
 }): Promise<FinancialTransactionDTO> {
   const category = input.category || input.type || "TICKET_SALE";
   const { amount, referenceType, referenceId, description } = input;
-  if (amount <= 0) return null as any;
+  if (amount <= 0) {
+    throw new Error("Revenue amount must be strictly greater than zero.");
+  }
 
   await initializeCompanyTreasury();
   const txNumber = `FTX-REV-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
@@ -783,13 +796,13 @@ export async function listFinancialTransactionsPaged(params?: {
     try {
       const where: Prisma.FinancialTransactionWhereInput = {};
       if (params?.type && params.type !== "ALL") {
-        where.type = params.type as any;
+        where.type = params.type as FinancialTransactionType;
       }
       if (params?.category && params.category !== "ALL") {
         where.category = params.category;
       }
       if (params?.status && params.status !== "ALL") {
-        where.status = params.status as any;
+        where.status = params.status as TransactionStatus;
       }
       if (params?.accountId) {
         where.OR = [
@@ -896,7 +909,7 @@ export async function listCompanyExpensesPaged(params?: {
     try {
       const where: Prisma.CompanyExpenseWhereInput = {};
       if (params?.category && params.category !== "ALL") {
-        where.category = params.category as any;
+        where.category = params.category as ExpenseCategory;
       }
       if (params?.status && params.status !== "ALL") {
         where.status = params.status;

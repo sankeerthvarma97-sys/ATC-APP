@@ -6,14 +6,13 @@ import {
   Plus,
   ArrowUpRight,
   ArrowDownLeft,
-  RotateCcw,
   CheckCircle2,
   AlertCircle,
   ShieldCheck,
   RefreshCw,
   Coins,
-  CreditCard,
   X,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -22,13 +21,13 @@ import { Badge } from "@/components/ui/badge";
 import type { CreditTransactionDTO } from "@/lib/domain";
 
 export function PassengerWalletCard() {
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   const [wallet, setWallet] = useState<{
     balance: number;
+    walletMode: "NORMAL" | "UNLIMITED_SIMULATION";
     totalAdded: number;
     totalSpent: number;
     totalRefunded: number;
@@ -39,7 +38,13 @@ export function PassengerWalletCard() {
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const quickAmounts = [1000, 5000, 10000, 25000, 50000, 100000];
+  const quickAmounts = [
+    "1000",
+    "100000",
+    "10000000",
+    "1000000000",
+    "100000000000",
+  ];
 
   const formatINR = (val: number | undefined | null) => {
     return new Intl.NumberFormat("en-IN", {
@@ -59,24 +64,46 @@ export function PassengerWalletCard() {
       }
       const data = await res.json();
       setWallet(data.wallet);
-    } catch (err: any) {
-      setError(err.message || "Failed to load wallet data.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load wallet data.");
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchWallet();
   }, [fetchWallet]);
 
-  const handleTopUp = async (amount: number) => {
-    if (amount < 100) {
+  const handleToggleUnlimitedMode = async () => {
+    try {
+      setSubmitting(true);
+      setError(null);
+      const targetMode = wallet?.walletMode === "UNLIMITED_SIMULATION" ? "NORMAL" : "UNLIMITED_SIMULATION";
+      const res = await fetch("/api/wallet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "SET_MODE", mode: targetMode }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to switch mode");
+      setSuccess(`Switched to ${targetMode === "UNLIMITED_SIMULATION" ? "Unlimited Simulation" : "Standard"} Mode.`);
+      await fetchWallet();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to switch wallet mode");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleTopUp = async (amount: string) => {
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount < 100) {
       setError("Minimum top-up is ₹100");
       return;
     }
-    if (amount > 1_000_000_000_000) {
+    if (numericAmount > 1_000_000_000_000) {
       setError("Maximum top-up is ₹1,000 Billion (₹1 Trillion)");
       return;
     }
@@ -88,7 +115,7 @@ export function PassengerWalletCard() {
       const res = await fetch("/api/wallet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({ amount, idempotencyKey: crypto.randomUUID() }),
       });
 
       const data = await res.json();
@@ -96,12 +123,12 @@ export function PassengerWalletCard() {
         throw new Error(data.error || "Top-up failed");
       }
 
-      setSuccess(`Added ₹${amount.toLocaleString("en-IN")} simulation credits!`);
+      setSuccess(`Added ₹${numericAmount.toLocaleString("en-IN")} simulation credits!`);
       setCustomAmount("");
       setIsTopUpOpen(false);
       await fetchWallet();
-    } catch (err: any) {
-      setError(err.message || "Top-up failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Top-up failed");
     } finally {
       setSubmitting(false);
     }
@@ -131,6 +158,20 @@ export function PassengerWalletCard() {
           <div className="flex items-center gap-2">
             <Button
               size="sm"
+              variant={wallet?.walletMode === "UNLIMITED_SIMULATION" ? "default" : "outline"}
+              className={`text-xs h-8 ${
+                wallet?.walletMode === "UNLIMITED_SIMULATION"
+                  ? "bg-purple-600 hover:bg-purple-500 text-white border-purple-500/50 shadow-purple-950/50"
+                  : "border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-300"
+              }`}
+              onClick={handleToggleUnlimitedMode}
+              disabled={submitting || refreshing}
+            >
+              <Zap className="mr-1.5 h-3.5 w-3.5 text-purple-400" />
+              {wallet?.walletMode === "UNLIMITED_SIMULATION" ? "Unlimited ON" : "Unlimited Mode"}
+            </Button>
+            <Button
+              size="sm"
               variant="outline"
               className="border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-300 text-xs h-8"
               onClick={fetchWallet}
@@ -145,7 +186,7 @@ export function PassengerWalletCard() {
               onClick={() => setIsTopUpOpen(true)}
             >
               <Plus className="mr-1.5 h-3.5 w-3.5" />
-              + ADD MONEY
+              Add Simulation Money
             </Button>
           </div>
         </div>
@@ -192,7 +233,7 @@ export function PassengerWalletCard() {
               Available Wallet Balance
             </div>
             <div className="text-3xl font-extrabold font-mono text-emerald-400 mt-1">
-              {formatINR(wallet?.balance)}
+              {wallet?.walletMode === "UNLIMITED_SIMULATION" ? "Unlimited Simulation Money" : formatINR(wallet?.balance)}
             </div>
             <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
               <Coins className="h-3 w-3 text-emerald-500" /> Instant checkout on flight reservations
@@ -219,10 +260,22 @@ export function PassengerWalletCard() {
         </div>
 
         {/* Quick Top-Up Bar */}
-        <div className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-4 space-y-3">
+        {isTopUpOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true" aria-labelledby="add-simulation-money-title">
+            <div className="w-full max-w-2xl rounded-xl border border-emerald-500/30 bg-slate-900 p-5 shadow-2xl">
+              <div className="mb-4 flex items-start justify-between">
+                <div>
+                  <h2 id="add-simulation-money-title" className="text-lg font-bold text-slate-100">Add Simulation Money</h2>
+                  <p className="text-xs text-amber-300">Simulation Money. No real payment is involved.</p>
+                </div>
+                <Button size="sm" variant="outline" aria-label="Close add simulation money dialog" onClick={() => setIsTopUpOpen(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-4 space-y-3">
           <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
             <span>Quick Simulation Top-Up</span>
-            <span className="text-[11px] text-slate-500">Min: ₹100 · Max: ₹10,00,000</span>
+            <span className="text-[11px] text-slate-500">Min: ₹100 · Max: ₹1,000 Billion (₹1 Trillion)</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
@@ -235,7 +288,7 @@ export function PassengerWalletCard() {
                 disabled={submitting}
                 onClick={() => handleTopUp(amt)}
               >
-                +₹{amt >= 1000 ? `${amt / 1000}k` : amt}
+                ₹{Number(amt).toLocaleString("en-IN")}
               </Button>
             ))}
           </div>
@@ -254,12 +307,15 @@ export function PassengerWalletCard() {
               size="sm"
               className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs h-8 shrink-0"
               disabled={submitting || !customAmount}
-              onClick={() => handleTopUp(Number.parseFloat(customAmount))}
+              onClick={() => handleTopUp(customAmount.replaceAll(",", ""))}
             >
               Add Custom
             </Button>
           </div>
-        </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Recent Transactions Table */}
         <div className="space-y-2">

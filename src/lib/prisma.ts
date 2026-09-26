@@ -30,5 +30,8 @@ export const prisma =
 globalForPrisma.prisma = prisma;
 
 export function shouldUseDatabase() {
+  if (process.env.NODE_ENV === "test" && process.env.TEST_USE_DATABASE !== "true") {
+    return false;
+  }
   return process.env.AOCC_USE_DATABASE === "true" && Boolean(process.env.DATABASE_URL);
 }

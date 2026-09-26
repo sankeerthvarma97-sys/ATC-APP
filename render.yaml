@@ -21,10 +21,12 @@ services:
         fromDatabase:
           name: aocc-postgres
           property: connectionString
+      - key: AOCC_USE_DATABASE
+        value: "true"
       - key: ADMIN_BOOTSTRAP_EMAIL
         value: admin@gmail.com
       - key: ADMIN_BOOTSTRAP_PASSWORD
-        value: Sankeerth@80
+        sync: false
       - key: SIMULATION_TICK_RATE_MS
         value: 1200
       - key: NEXT_PUBLIC_AIRPORT_CODE

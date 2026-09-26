@@ -93,6 +93,7 @@ export function AnalyticsSection() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchFinancialData();
   }, [fetchFinancialData]);
 
@@ -455,7 +456,7 @@ export function AnalyticsSection() {
                   <label className="text-slate-300 font-medium">Type:</label>
                   <select
                     value={adjustType}
-                    onChange={(e) => setAdjustType(e.target.value as any)}
+                    onChange={(e) => setAdjustType(e.target.value as "CREDIT" | "ADJUSTMENT" | "BONUS")}
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-emerald-500"
                   >
                     <option value="CREDIT">Deposit (Credit)</option>

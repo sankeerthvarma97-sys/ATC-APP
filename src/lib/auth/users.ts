@@ -80,8 +80,8 @@ export async function validateCredentials(input: unknown): Promise<UserDTO | nul
         // Non-blocking
       }
 
-      // If database is active and user checked, do not fall back to demo accounts
-      return null;
+      // If database credential matched, we already returned.
+      // If user was not found in database or query failed, fall through to demo users
     } catch (error) {
       console.warn("Database credential check failed; checking fallback store.", error);
     }

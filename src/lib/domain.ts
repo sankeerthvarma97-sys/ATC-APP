@@ -636,6 +636,8 @@ export interface CreditTransactionDTO {
   referenceType?: string;
   referenceId?: string;
   description?: string;
+  status?: "PENDING" | "COMPLETED" | "FAILED" | "REVERSED";
+  unlimitedMode?: boolean;
   createdAt: string;
 }
 

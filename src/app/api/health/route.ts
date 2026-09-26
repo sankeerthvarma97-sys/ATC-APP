@@ -8,12 +8,16 @@ export async function GET() {
   let dbStatus = "CONNECTED";
   let dbLatencyMs = 0;
 
-  try {
-    const dbStart = Date.now();
-    await prisma.$queryRaw`SELECT 1`;
-    dbLatencyMs = Date.now() - dbStart;
-  } catch {
-    dbStatus = "DEGRADED_OR_IN_MEMORY_MODE";
+  if (shouldUseDatabase()) {
+    try {
+      const dbStart = Date.now();
+      await prisma.$queryRaw`SELECT 1`;
+      dbLatencyMs = Date.now() - dbStart;
+    } catch {
+      dbStatus = "DEGRADED_OR_IN_MEMORY_MODE";
+    }
+  } else {
+    dbStatus = "IN_MEMORY_SIMULATION_MODE";
   }
 
   const memory = process.memoryUsage();

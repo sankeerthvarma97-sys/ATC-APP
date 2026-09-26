@@ -12,6 +12,18 @@ export const WALLET_CONFIG = {
 
 export const QUICK_AMOUNTS = [1_000, 5_000, 10_000, 25_000, 50_000, 100_000];
 
+function decimalAmount(amount: number | string): Prisma.Decimal {
+  const value = typeof amount === "number" ? amount.toString() : amount.trim();
+  if (!value || !/^\d+(\.\d{1,2})?$/.test(value) || new Prisma.Decimal(value).lessThanOrEqualTo(0)) {
+    throw new Error("Invalid amount. Amount must be a finite positive number.");
+  }
+  return new Prisma.Decimal(value);
+}
+
+function numberAmount(amount: Prisma.Decimal | number): number {
+  return amount instanceof Prisma.Decimal ? amount.toNumber() : amount;
+}
+
 // In-memory fallback stores
 const memoryBalances: Map<string, number> = new Map();
 const memoryTransactions: CreditTransactionDTO[] = [];
@@ -34,6 +46,7 @@ function getDefaultBalance(userId: string): number {
  */
 export async function getUserWallet(userId: string): Promise<{
   balance: number;
+  walletMode: "NORMAL" | "UNLIMITED_SIMULATION";
   totalAdded: number;
   totalSpent: number;
   totalRefunded: number;
@@ -43,10 +56,10 @@ export async function getUserWallet(userId: string): Promise<{
     try {
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { creditBalance: true },
+        select: { creditBalance: true, walletMode: true },
       });
 
-      const balance = user ? user.creditBalance : 0.0;
+      const balance = user ? numberAmount(user.creditBalance) : 0.0;
 
       const [topUpsAgg, spentAgg, refundAgg, txRecords] = await Promise.all([
         prisma.creditTransaction.aggregate({
@@ -72,20 +85,23 @@ export async function getUserWallet(userId: string): Promise<{
         id: t.id,
         userId: t.userId,
         type: t.type as CreditTransactionType,
-        amount: t.amount,
-        balanceBefore: t.balanceBefore,
-        balanceAfter: t.balanceAfter,
+        amount: numberAmount(t.amount),
+        balanceBefore: numberAmount(t.balanceBefore),
+        balanceAfter: numberAmount(t.balanceAfter),
         referenceType: t.referenceType ?? undefined,
         referenceId: t.referenceId ?? undefined,
         description: t.description ?? undefined,
+        status: t.status,
+        unlimitedMode: t.unlimitedMode,
         createdAt: t.createdAt.toISOString(),
       }));
 
       return {
         balance,
-        totalAdded: topUpsAgg._sum.amount || 0,
-        totalSpent: spentAgg._sum.amount || 0,
-        totalRefunded: refundAgg._sum.amount || 0,
+        totalAdded: numberAmount(topUpsAgg._sum.amount || 0),
+        totalSpent: numberAmount(spentAgg._sum.amount || 0),
+        totalRefunded: numberAmount(refundAgg._sum.amount || 0),
+        walletMode: user?.walletMode ?? "NORMAL",
         recentTransactions,
       };
     } catch (err) {
@@ -113,6 +129,7 @@ export async function getUserWallet(userId: string): Promise<{
 
   return {
     balance,
+    walletMode: "NORMAL",
     totalAdded,
     totalSpent,
     totalRefunded,
@@ -127,7 +144,8 @@ export async function getUserWallet(userId: string): Promise<{
  */
 export async function topUpUserWallet(input: {
   userId: string;
-  amount: number;
+  amount: number | string;
+  idempotencyKey?: string;
 }): Promise<{
   balanceBefore: number;
   balanceAfter: number;
@@ -135,35 +153,56 @@ export async function topUpUserWallet(input: {
 }> {
   const { userId, amount } = input;
 
-  if (typeof amount !== "number" || isNaN(amount) || amount <= 0) {
-    throw new Error("Invalid top-up amount. Must be a positive number.");
-  }
+  const decimalTopUp = decimalAmount(amount);
+  const numericAmount = decimalTopUp.toNumber();
 
-  if (amount < WALLET_CONFIG.MIN_TOP_UP) {
+  if (decimalTopUp.lessThan(WALLET_CONFIG.MIN_TOP_UP.toString())) {
     throw new Error(`Minimum top-up amount is ₹${WALLET_CONFIG.MIN_TOP_UP.toLocaleString()}.`);
   }
 
-  if (amount > WALLET_CONFIG.MAX_TOP_UP) {
+  if (decimalTopUp.greaterThan(WALLET_CONFIG.MAX_TOP_UP.toString())) {
     throw new Error(`Maximum top-up per transaction is ₹${WALLET_CONFIG.MAX_TOP_UP.toLocaleString()}.`);
   }
 
   if (shouldUseDatabase()) {
     return await prisma.$transaction(async (tx) => {
+      if (input.idempotencyKey) {
+        const existing = await tx.creditTransaction.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+        if (existing) {
+          return {
+            balanceBefore: numberAmount(existing.balanceBefore),
+            balanceAfter: numberAmount(existing.balanceAfter),
+            transaction: {
+              id: existing.id,
+              userId: existing.userId,
+              type: existing.type as CreditTransactionType,
+              amount: numberAmount(existing.amount),
+              balanceBefore: numberAmount(existing.balanceBefore),
+              balanceAfter: numberAmount(existing.balanceAfter),
+              referenceType: existing.referenceType ?? undefined,
+              referenceId: existing.referenceId ?? undefined,
+              description: existing.description ?? undefined,
+              status: existing.status,
+              unlimitedMode: existing.unlimitedMode,
+              createdAt: existing.createdAt.toISOString(),
+            },
+          };
+        }
+      }
       const user = await tx.user.findUnique({
         where: { id: userId },
-        select: { id: true, name: true, creditBalance: true },
+        select: { id: true, name: true, creditBalance: true, walletMode: true },
       });
 
       if (!user) throw new Error("User account not found.");
 
       const balanceBefore = user.creditBalance;
-      if (balanceBefore + amount > WALLET_CONFIG.MAX_WALLET_BALANCE) {
+      const balanceAfter = balanceBefore.add(decimalTopUp);
+      if (balanceAfter.greaterThan(new Prisma.Decimal(WALLET_CONFIG.MAX_WALLET_BALANCE.toString()))) {
         throw new Error(
           `Wallet balance cannot exceed ₹${WALLET_CONFIG.MAX_WALLET_BALANCE.toLocaleString()}. Current balance: ₹${balanceBefore.toLocaleString()}`
         );
       }
-
-      const balanceAfter = balanceBefore + amount;
 
       await tx.user.update({
         where: { id: userId },
@@ -174,11 +213,13 @@ export async function topUpUserWallet(input: {
         data: {
           userId,
           type: "SIMULATION_TOP_UP",
-          amount,
+          amount: decimalTopUp,
           balanceBefore,
           balanceAfter,
           referenceType: "SIMULATION_WALLET",
-          description: `Simulation money top-up (₹${amount.toLocaleString()})`,
+          description: `Simulation money top-up (₹${numericAmount.toLocaleString("en-IN")})`,
+          idempotencyKey: input.idempotencyKey,
+          unlimitedMode: user.walletMode === "UNLIMITED_SIMULATION",
         },
       });
 
@@ -196,32 +237,34 @@ export async function topUpUserWallet(input: {
         id: txRecord.id,
         userId: txRecord.userId,
         type: txRecord.type as CreditTransactionType,
-        amount: txRecord.amount,
-        balanceBefore: txRecord.balanceBefore,
-        balanceAfter: txRecord.balanceAfter,
+        amount: numberAmount(txRecord.amount),
+        balanceBefore: numberAmount(txRecord.balanceBefore),
+        balanceAfter: numberAmount(txRecord.balanceAfter),
         referenceType: txRecord.referenceType ?? undefined,
         description: txRecord.description ?? undefined,
+        status: txRecord.status,
+        unlimitedMode: txRecord.unlimitedMode,
         createdAt: txRecord.createdAt.toISOString(),
       };
 
-      return { balanceBefore, balanceAfter, transaction: dto };
+      return { balanceBefore: numberAmount(balanceBefore), balanceAfter: numberAmount(balanceAfter), transaction: dto };
     });
   }
 
   // Memory fallback
   const curBal = memoryBalances.get(userId) ?? getDefaultBalance(userId);
-  if (curBal + amount > WALLET_CONFIG.MAX_WALLET_BALANCE) {
+  if (curBal + numericAmount > WALLET_CONFIG.MAX_WALLET_BALANCE) {
     throw new Error(`Wallet balance cannot exceed ₹${WALLET_CONFIG.MAX_WALLET_BALANCE.toLocaleString()}`);
   }
 
-  const balanceAfter = curBal + amount;
+  const balanceAfter = curBal + numericAmount;
   memoryBalances.set(userId, balanceAfter);
 
   const memTx: CreditTransactionDTO = {
     id: `ctx-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     userId,
     type: "SIMULATION_TOP_UP",
-    amount,
+    amount: numericAmount,
     balanceBefore: curBal,
     balanceAfter,
     referenceType: "SIMULATION_WALLET",
@@ -262,22 +305,27 @@ export async function payBookingWithWallet(input: {
     return await prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({
         where: { id: userId },
-        select: { id: true, name: true, creditBalance: true },
+        select: { id: true, name: true, creditBalance: true, walletMode: true },
       });
 
       if (!user) throw new Error("User account not found.");
-      if (user.creditBalance < fare) {
+      const decimalFare = decimalAmount(fare);
+      const isUnlimited = user.walletMode === "UNLIMITED_SIMULATION";
+
+      if (!isUnlimited && user.creditBalance.lessThan(decimalFare)) {
         throw new Error(
           `Insufficient wallet balance. Available: ₹${user.creditBalance.toLocaleString()}, Required: ₹${fare.toLocaleString()}`
         );
       }
 
       const balanceBefore = user.creditBalance;
-      const balanceAfter = balanceBefore - fare;
+      const balanceAfter = isUnlimited && balanceBefore.lessThan(decimalFare)
+        ? new Prisma.Decimal("100000000000.00")
+        : balanceBefore.sub(decimalFare);
 
       // Update user wallet
       await tx.user.update({
-        where: { id: userId, creditBalance: { gte: fare } },
+        where: { id: userId },
         data: { creditBalance: balanceAfter },
       });
 
@@ -286,12 +334,13 @@ export async function payBookingWithWallet(input: {
         data: {
           userId,
           type: "BOOKING_DEBIT",
-          amount: fare,
+          amount: decimalFare,
           balanceBefore,
           balanceAfter,
           referenceType: "BOOKING",
           referenceId: pnr,
           description: `Ticket payment for flight ${flightCallsign} (Seat ${seatNumber}, PNR ${pnr})`,
+          unlimitedMode: isUnlimited,
         },
       });
 
@@ -346,8 +395,8 @@ export async function payBookingWithWallet(input: {
 
       return {
         success: true,
-        balanceBefore,
-        balanceAfter,
+        balanceBefore: numberAmount(balanceBefore),
+        balanceAfter: numberAmount(balanceAfter),
         transaction: {
           id: debitTx.id,
           userId: debitTx.userId,
@@ -439,11 +488,12 @@ export async function refundBookingToWallet(input: {
       });
       if (!user) throw new Error("User account not found.");
 
+      const decimalFare = decimalAmount(fare);
       const balanceBefore = user.creditBalance;
-      const balanceAfter = balanceBefore + fare;
+      const balanceAfter = balanceBefore.add(decimalFare);
 
       // 3. Debit Company Refund Account
-      let refundAcc = await tx.financialAccount.findUnique({
+      const refundAcc = await tx.financialAccount.findUnique({
         where: { accountNumber: "AOCC-REFUND-01" },
       });
 
@@ -458,7 +508,7 @@ export async function refundBookingToWallet(input: {
             transactionNumber: `FTX-REF-${Date.now()}-${pnr}`,
             type: "REFUND",
             category: "BOOKING_REFUND",
-            amount: fare,
+            amount: decimalFare,
             currency: "INR",
             direction: "DEBIT",
             sourceAccountId: refundAcc.id,
@@ -481,7 +531,7 @@ export async function refundBookingToWallet(input: {
         data: {
           userId,
           type: "REFUND_CREDIT",
-          amount: fare,
+          amount: decimalFare,
           balanceBefore,
           balanceAfter,
           referenceType: "BOOKING_REFUND",
@@ -504,16 +554,16 @@ export async function refundBookingToWallet(input: {
         id: txRecord.id,
         userId: txRecord.userId,
         type: txRecord.type as CreditTransactionType,
-        amount: txRecord.amount,
-        balanceBefore: txRecord.balanceBefore,
-        balanceAfter: txRecord.balanceAfter,
+        amount: numberAmount(txRecord.amount),
+        balanceBefore: numberAmount(txRecord.balanceBefore),
+        balanceAfter: numberAmount(txRecord.balanceAfter),
         referenceType: txRecord.referenceType ?? undefined,
         referenceId: txRecord.referenceId ?? undefined,
         description: txRecord.description ?? undefined,
         createdAt: txRecord.createdAt.toISOString(),
       };
 
-      return { success: true, balanceBefore, balanceAfter, transaction: dto };
+      return { success: true, balanceBefore: numberAmount(balanceBefore), balanceAfter: numberAmount(balanceAfter), transaction: dto };
     });
   }
 
@@ -597,7 +647,7 @@ export async function getAdminWalletActivity(params?: {
         }),
       ]);
 
-      const totalSimMoney = topUpsAgg._sum.amount || 0;
+      const totalSimMoney = numberAmount(topUpsAgg._sum.amount || 0);
       const count = topUpsAgg._count.id || 0;
       const averageTopUp = count > 0 ? totalSimMoney / count : 0;
 
@@ -607,9 +657,9 @@ export async function getAdminWalletActivity(params?: {
         userName: r.user.name,
         userEmail: r.user.email,
         type: r.type as CreditTransactionType,
-        amount: r.amount,
-        balanceBefore: r.balanceBefore,
-        balanceAfter: r.balanceAfter,
+        amount: numberAmount(r.amount),
+        balanceBefore: numberAmount(r.balanceBefore),
+        balanceAfter: numberAmount(r.balanceAfter),
         referenceType: r.referenceType ?? undefined,
         description: r.description ?? undefined,
         createdAt: r.createdAt.toISOString(),
@@ -617,11 +667,11 @@ export async function getAdminWalletActivity(params?: {
 
       return {
         totalTopUps: count,
-        todayTopUps: todayTopUpsAgg._sum.amount || 0,
+        todayTopUps: numberAmount(todayTopUpsAgg._sum.amount || 0),
         totalSimulationMoneyCreated: totalSimMoney,
         totalUsers: usersCount,
         averageTopUp,
-        largestTopUp: maxAgg._max.amount || 0,
+        largestTopUp: numberAmount(maxAgg._max.amount || 0),
         transactions,
         total: totalCount,
         page,
@@ -659,9 +709,11 @@ export async function getAdminWalletActivity(params?: {
 export async function adjustUserWallet(input: {
   userId: string;
   direction: "CREDIT" | "DEBIT";
-  amount: number;
+  amount: number | string;
   reason: string;
   adminId: string;
+  reference?: string;
+  idempotencyKey?: string;
 }): Promise<{
   success: boolean;
   balanceBefore: number;
@@ -669,12 +721,34 @@ export async function adjustUserWallet(input: {
   transaction: CreditTransactionDTO;
 }> {
   const { userId, direction, amount, reason, adminId } = input;
-  if (amount <= 0) {
-    throw new Error("Adjustment amount must be positive.");
-  }
+  const decimalAdjustment = decimalAmount(amount);
 
   if (shouldUseDatabase()) {
     return await prisma.$transaction(async (tx) => {
+      if (input.idempotencyKey) {
+        const existing = await tx.creditTransaction.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+        if (existing) {
+          return {
+            success: true,
+            balanceBefore: numberAmount(existing.balanceBefore),
+            balanceAfter: numberAmount(existing.balanceAfter),
+            transaction: {
+              id: existing.id,
+              userId: existing.userId,
+              type: existing.type as CreditTransactionType,
+              amount: numberAmount(existing.amount),
+              balanceBefore: numberAmount(existing.balanceBefore),
+              balanceAfter: numberAmount(existing.balanceAfter),
+              referenceType: existing.referenceType ?? undefined,
+              referenceId: existing.referenceId ?? undefined,
+              description: existing.description ?? undefined,
+              status: existing.status,
+              unlimitedMode: existing.unlimitedMode,
+              createdAt: existing.createdAt.toISOString(),
+            },
+          };
+        }
+      }
       const user = await tx.user.findUnique({
         where: { id: userId },
         select: { id: true, name: true, email: true, creditBalance: true },
@@ -682,16 +756,16 @@ export async function adjustUserWallet(input: {
 
       if (!user) throw new Error("Target user not found.");
 
-      const curBal = Number(user.creditBalance);
+      const curBal = user.creditBalance;
       let balanceAfter = curBal;
 
       if (direction === "CREDIT") {
-        balanceAfter = curBal + amount;
+        balanceAfter = curBal.add(decimalAdjustment);
       } else {
-        if (curBal < amount) {
+        if (curBal.lessThan(decimalAdjustment)) {
           throw new Error(`Insufficient user wallet balance for debit. Current: ₹${curBal}`);
         }
-        balanceAfter = curBal - amount;
+        balanceAfter = curBal.sub(decimalAdjustment);
       }
 
       await tx.user.update({
@@ -703,12 +777,13 @@ export async function adjustUserWallet(input: {
         data: {
           userId,
           type: "ADMIN_ADJUSTMENT",
-          amount,
+          amount: decimalAdjustment,
           balanceBefore: curBal,
           balanceAfter,
           referenceType: "ADMIN_ADJUSTMENT",
-          referenceId: adminId,
+          referenceId: input.reference || adminId,
           description: `Admin ${direction}: ${reason}`,
+          idempotencyKey: input.idempotencyKey,
         },
       });
 
@@ -718,14 +793,14 @@ export async function adjustUserWallet(input: {
         action: "FINANCIAL_ADJUSTMENT",
         entity: "USER_WALLET",
         entityId: userId,
-        before: { balance: curBal },
-        after: { balance: balanceAfter, direction, amount, reason },
+        before: { balance: curBal.toString() },
+        after: { balance: balanceAfter.toString(), direction, amount: decimalAdjustment.toString(), reason },
       });
 
       return {
         success: true,
-        balanceBefore: curBal,
-        balanceAfter,
+        balanceBefore: curBal.toNumber(),
+        balanceAfter: balanceAfter.toNumber(),
         transaction: {
           id: txRecord.id,
           userId: txRecord.userId,
@@ -746,14 +821,15 @@ export async function adjustUserWallet(input: {
 
   // Memory fallback
   const curBal = memoryBalances.get(userId) ?? getDefaultBalance(userId);
+  const numericAdjustment = decimalAdjustment.toNumber();
   let balanceAfter = curBal;
   if (direction === "CREDIT") {
-    balanceAfter = curBal + amount;
+    balanceAfter = curBal + numericAdjustment;
   } else {
-    if (curBal < amount) {
+    if (curBal < numericAdjustment) {
       throw new Error(`Insufficient wallet balance. Current: ₹${curBal}`);
     }
-    balanceAfter = curBal - amount;
+    balanceAfter = curBal - numericAdjustment;
   }
   memoryBalances.set(userId, balanceAfter);
 
@@ -761,7 +837,7 @@ export async function adjustUserWallet(input: {
     id: `ctx-${Date.now()}`,
     userId,
     type: "ADMIN_ADJUSTMENT",
-    amount,
+    amount: numericAdjustment,
     balanceBefore: curBal,
     balanceAfter,
     referenceType: "ADMIN_ADJUSTMENT",
@@ -772,4 +848,64 @@ export async function adjustUserWallet(input: {
 
   memoryTransactions.unshift(memTx);
   return { success: true, balanceBefore: curBal, balanceAfter, transaction: memTx };
+}
+
+/**
+ * Configure user wallet mode (NORMAL vs UNLIMITED_SIMULATION).
+ */
+export async function setUserWalletMode(
+  userId: string,
+  mode: "NORMAL" | "UNLIMITED_SIMULATION"
+): Promise<{
+  success: boolean;
+  walletMode: "NORMAL" | "UNLIMITED_SIMULATION";
+  balance: number;
+}> {
+  if (shouldUseDatabase()) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, creditBalance: true, walletMode: true, name: true },
+    });
+    if (!user) throw new Error("User not found.");
+
+    let newBalance = user.creditBalance;
+    if (mode === "UNLIMITED_SIMULATION" && newBalance.lessThan(new Prisma.Decimal("10000000000.00"))) {
+      newBalance = new Prisma.Decimal("100000000000.00"); // ₹100 Billion simulation reserve
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        walletMode: mode,
+        creditBalance: newBalance,
+      },
+      select: { creditBalance: true, walletMode: true },
+    });
+
+    await logAuditEvent({
+      actorId: userId,
+      actorName: user.name,
+      action: "WALLET_MODE_UPDATED",
+      entity: "USER_WALLET",
+      entityId: userId,
+      before: { walletMode: user.walletMode },
+      after: { walletMode: mode },
+    });
+
+    return {
+      success: true,
+      walletMode: updated.walletMode as "NORMAL" | "UNLIMITED_SIMULATION",
+      balance: numberAmount(updated.creditBalance),
+    };
+  }
+
+  // Memory mode
+  const current = memoryBalances.get(userId) ?? getDefaultBalance(userId);
+  const newBal = mode === "UNLIMITED_SIMULATION" && current < 100_000_000_000 ? 100_000_000_000 : current;
+  memoryBalances.set(userId, newBal);
+  return {
+    success: true,
+    walletMode: mode,
+    balance: newBal,
+  };
 }

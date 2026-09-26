@@ -4,7 +4,7 @@ import { generateStaffBatch, DEPARTMENT_CONFIGS, getRandomElement } from "./virt
 
 // In-memory virtual staff cache
 let memoryVirtualStaff: EmployeeDTO[] = [];
-let isInitialized = false;
+const isInitialized = false;
 
 export function getShiftForHour(hour: number): "SHIFT_A" | "SHIFT_B" | "SHIFT_C" {
   const normalizedHour = ((hour % 24) + 24) % 24;

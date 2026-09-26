@@ -39,7 +39,7 @@ async function main() {
 
   // 1. Seed Users
   const defaultPasswordHash = await hash(defaultPassword, 12);
-  const superAdminPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD || "Sankeerth@80";
+  const superAdminPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD || "dev-bootstrap-admin-password";
   const superAdminPasswordHash = await hash(superAdminPassword, 12);
 
   const extraUsers = [

@@ -2,10 +2,11 @@ import { createServer } from "node:http";
 import next from "next";
 import { Server } from "socket.io";
 
-const port = Number.parseInt(process.env.PORT || "3000", 10);
+const port = Number.parseInt(process.env.PORT || "3005", 10);
+const hostname = process.env.HOSTNAME || "127.0.0.1";
 const lifecycle = process.env.npm_lifecycle_event;
 const dev = process.env.NODE_ENV !== "production" && lifecycle !== "start";
-const app = next({ dev, hostname: "localhost", port });
+const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 const tickMs = Number.parseInt(process.env.AOCC_SIMULATION_TICK_MS || "2500", 10);
 
@@ -317,11 +318,56 @@ function applyCommand(command) {
   return event;
 }
 
+const buildAllowedOrigins = () => {
+  const raw = (process.env.ALLOWED_ORIGINS ?? process.env.CORS_ALLOWED_ORIGINS ?? "").trim();
+  const configured = raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  const selfOrigins = [
+    `http://localhost:${port}`,
+    `http://127.0.0.1:${port}`,
+    `http://${hostname}:${port}`,
+    "http://localhost:3005",
+    "http://127.0.0.1:3005",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+  ];
+
+  if (process.env.NEXTAUTH_URL) {
+    try {
+      const parsed = new URL(process.env.NEXTAUTH_URL);
+      selfOrigins.push(parsed.origin);
+    } catch {
+      // Non-blocking URL parsing fallback
+    }
+  }
+
+  return [...new Set([...configured, ...selfOrigins])];
+};
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  const normalized = origin.replace(/\/$/, "");
+  return buildAllowedOrigins().includes(normalized);
+};
+
 await app.prepare();
 const httpServer = createServer((req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const origin = req.headers.origin;
+  if (origin && !isAllowedOrigin(origin)) {
+    res.writeHead(403, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Origin not allowed" }));
+    return;
+  }
+
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-staff-simulated-id");
+  res.setHeader("Vary", "Origin");
   if (req.method === "OPTIONS") {
     res.writeHead(200);
     res.end();
@@ -333,10 +379,19 @@ const httpServer = createServer((req, res) => {
 const io = new Server(httpServer, {
   path: "/socket.io",
   cors: {
-    origin: "*",
+    origin: (origin, callback) => {
+      if (!origin || isAllowedOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error("Origin not allowed"));
+    },
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
+
+const radioChannels = new Map();
 
 io.on("connection", (socket) => {
   socket.emit("operations:snapshot", snapshot());
@@ -375,6 +430,99 @@ io.on("connection", (socket) => {
     io.emit("radio:message", message);
     io.emit("operations:snapshot", snapshot());
   });
+
+  // WebRTC Radio Signaling & Frequency Coordination
+  socket.on("radio:webrtc:join", ({ channel, callsign }) => {
+    const ch = channel || "Tower";
+    socket.join(`radio:${ch}`);
+    if (!radioChannels.has(ch)) {
+      radioChannels.set(ch, { speaker: null, participants: new Map() });
+    }
+    const room = radioChannels.get(ch);
+    room.participants.set(socket.id, { callsign: callsign || "STAFF", joinedAt: Date.now() });
+
+    socket.to(`radio:${ch}`).emit("radio:webrtc:peer-joined", {
+      peerId: socket.id,
+      callsign: callsign || "STAFF",
+    });
+
+    socket.emit("radio:webrtc:state", {
+      channel: ch,
+      currentSpeaker: room.speaker,
+      peerCount: room.participants.size,
+    });
+  });
+
+  socket.on("radio:webrtc:signal", ({ targetPeerId, signal, channel }) => {
+    if (targetPeerId) {
+      io.to(targetPeerId).emit("radio:webrtc:signal", {
+        fromPeerId: socket.id,
+        signal,
+        channel,
+      });
+    }
+  });
+
+  socket.on("radio:webrtc:ptt-lock", ({ channel, active, callsign }) => {
+    const ch = channel || "Tower";
+    const room = radioChannels.get(ch);
+    if (!room) return;
+
+    if (active) {
+      // Check one-speaker lock
+      if (!room.speaker || room.speaker.socketId === socket.id) {
+        room.speaker = { socketId: socket.id, callsign: callsign || "STAFF", acquiredAt: Date.now() };
+        io.to(`radio:${ch}`).emit("radio:webrtc:speaker-update", {
+          channel: ch,
+          speaker: room.speaker,
+          status: "TRANSMITTING",
+        });
+        socket.emit("radio:webrtc:ptt-acquired", { channel: ch, ok: true });
+      } else {
+        socket.emit("radio:webrtc:ptt-denied", {
+          channel: ch,
+          reason: `Frequency blocked by ${room.speaker.callsign}`,
+        });
+      }
+    } else {
+      if (room.speaker && room.speaker.socketId === socket.id) {
+        room.speaker = null;
+        io.to(`radio:${ch}`).emit("radio:webrtc:speaker-update", {
+          channel: ch,
+          speaker: null,
+          status: "STANDBY",
+        });
+        socket.emit("radio:webrtc:ptt-released", { channel: ch, ok: true });
+      }
+    }
+  });
+
+  socket.on("radio:webrtc:leave", ({ channel }) => {
+    const ch = channel || "Tower";
+    socket.leave(`radio:${ch}`);
+    const room = radioChannels.get(ch);
+    if (room) {
+      room.participants.delete(socket.id);
+      if (room.speaker && room.speaker.socketId === socket.id) {
+        room.speaker = null;
+        io.to(`radio:${ch}`).emit("radio:webrtc:speaker-update", { channel: ch, speaker: null, status: "STANDBY" });
+      }
+      socket.to(`radio:${ch}`).emit("radio:webrtc:peer-left", { peerId: socket.id });
+    }
+  });
+
+  socket.on("disconnect", () => {
+    for (const [ch, room] of radioChannels.entries()) {
+      if (room.participants.has(socket.id)) {
+        room.participants.delete(socket.id);
+        if (room.speaker && room.speaker.socketId === socket.id) {
+          room.speaker = null;
+          io.to(`radio:${ch}`).emit("radio:webrtc:speaker-update", { channel: ch, speaker: null, status: "STANDBY" });
+        }
+        socket.to(`radio:${ch}`).emit("radio:webrtc:peer-left", { peerId: socket.id });
+      }
+    }
+  });
 });
 
 setInterval(() => {
@@ -383,6 +531,27 @@ setInterval(() => {
   io.emit("metrics:update", metrics());
 }, tickMs);
 
-httpServer.listen(port, () => {
-  console.log(`AOCC simulation server listening at http://localhost:${port}`);
+// Server-side scheduled payroll runner (executes hourly; payroll checks calendar and runs when due)
+const payrollCheckIntervalMs = 60 * 60 * 1000;
+setInterval(async () => {
+  try {
+    const cronSecret = process.env.CRON_SECRET;
+    const headers = { "x-vercel-cron": "1" };
+    if (cronSecret) headers["Authorization"] = `Bearer ${cronSecret}`;
+    const url = `http://localhost:${port}/api/cron/payroll`;
+    const res = await fetch(url, { method: "POST", headers }).catch(() => null);
+    if (res && res.ok) {
+      const data = await res.json().catch(() => null);
+      if (data && data.success) {
+        io.emit("payroll:completed", data);
+        console.log(`[PAYROLL SERVER SCHEDULER] Periodic payroll run completed:`, data.period);
+      }
+    }
+  } catch {
+    // Non-blocking server-side check
+  }
+}, payrollCheckIntervalMs);
+
+httpServer.listen(port, hostname, () => {
+  console.log(`AOCC simulation server listening at http://${hostname}:${port}`);
 });

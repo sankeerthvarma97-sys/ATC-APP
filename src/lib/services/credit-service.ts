@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import type { CreditTransactionDTO, CreditTransactionType } from "@/lib/domain";
 import { prisma, shouldUseDatabase } from "@/lib/prisma";
 import { logAuditEvent } from "./audit-service";
@@ -28,7 +29,7 @@ export async function getUserCreditBalance(userId: string): Promise<number> {
         where: { id: userId },
         select: { creditBalance: true },
       });
-      if (user) return user.creditBalance;
+      if (user) return user.creditBalance.toNumber();
     } catch (err) {
       console.warn("Database getUserCreditBalance failed, using memory", err);
     }
@@ -65,15 +66,16 @@ export async function adjustUserCredit(input: AdjustCreditInput): Promise<{
       }
 
       const balanceBefore = user.creditBalance;
+      const decimalAmount = new Prisma.Decimal(amount.toString());
       let balanceAfter = balanceBefore;
 
       if (isDebit) {
-        if (balanceBefore < amount) {
-          throw new Error(`Insufficient credit balance. Current: $${balanceBefore.toFixed(2)}, Required: $${amount.toFixed(2)}`);
+        if (balanceBefore.lessThan(decimalAmount)) {
+          throw new Error(`Insufficient credit balance. Current: ₹${balanceBefore.toFixed(2)}, Required: ₹${amount.toFixed(2)}`);
         }
-        balanceAfter = balanceBefore - amount;
+        balanceAfter = balanceBefore.sub(decimalAmount);
       } else {
-        balanceAfter = balanceBefore + amount;
+        balanceAfter = balanceBefore.add(decimalAmount);
       }
 
       // Concurrency protection: update with conditional balance check
@@ -90,7 +92,7 @@ export async function adjustUserCredit(input: AdjustCreditInput): Promise<{
         data: {
           userId,
           type,
-          amount,
+          amount: decimalAmount,
           balanceBefore,
           balanceAfter: updatedUser.creditBalance,
           referenceType: referenceType || (adminId ? "ADMIN_MANUAL" : "SYSTEM"),
@@ -103,9 +105,9 @@ export async function adjustUserCredit(input: AdjustCreditInput): Promise<{
         id: txRecord.id,
         userId: txRecord.userId,
         type: txRecord.type,
-        amount: txRecord.amount,
-        balanceBefore: txRecord.balanceBefore,
-        balanceAfter: txRecord.balanceAfter,
+        amount: txRecord.amount.toNumber(),
+        balanceBefore: txRecord.balanceBefore.toNumber(),
+        balanceAfter: txRecord.balanceAfter.toNumber(),
         referenceType: txRecord.referenceType ?? undefined,
         referenceId: txRecord.referenceId ?? undefined,
         description: txRecord.description ?? undefined,
@@ -124,7 +126,7 @@ export async function adjustUserCredit(input: AdjustCreditInput): Promise<{
         });
       }
 
-      return { balanceBefore, balanceAfter: updatedUser.creditBalance, transaction: dto };
+      return { balanceBefore: balanceBefore.toNumber(), balanceAfter: updatedUser.creditBalance.toNumber(), transaction: dto };
     });
   }
 
@@ -188,9 +190,9 @@ export async function listCreditTransactions(params?: {
         userName: r.user.name,
         userEmail: r.user.email,
         type: r.type,
-        amount: r.amount,
-        balanceBefore: r.balanceBefore,
-        balanceAfter: r.balanceAfter,
+        amount: r.amount.toNumber(),
+        balanceBefore: r.balanceBefore.toNumber(),
+        balanceAfter: r.balanceAfter.toNumber(),
         referenceType: r.referenceType ?? undefined,
         referenceId: r.referenceId ?? undefined,
         description: r.description ?? undefined,
@@ -203,7 +205,7 @@ export async function listCreditTransactions(params?: {
     }
   }
 
-  let items = params?.userId ? memoryLedger.filter((t) => t.userId === params.userId) : memoryLedger;
+  const items = params?.userId ? memoryLedger.filter((t) => t.userId === params.userId) : memoryLedger;
   const total = items.length;
   const paged = items.slice(skip, skip + pageSize);
   return { transactions: paged, total, page, pageSize };
@@ -243,10 +245,10 @@ export async function getFinancialSummary(): Promise<{
       ]);
 
       const activeBookingsCount = bookingsAgg._count.id || 0;
-      const totalSimulatedRevenue = bookingsAgg._sum.fare || 0;
-      const totalCreditsUsed = debitsAgg._sum.amount || bookingsAgg._sum.creditUsed || 0;
-      const totalCreditsAdded = creditsAgg._sum.amount || 0;
-      const totalRefunds = refundsAgg._sum.amount || 0;
+      const totalSimulatedRevenue = Number(bookingsAgg._sum.fare || 0);
+      const totalCreditsUsed = Number(debitsAgg._sum.amount || bookingsAgg._sum.creditUsed || 0);
+      const totalCreditsAdded = Number(creditsAgg._sum.amount || 0);
+      const totalRefunds = Number(refundsAgg._sum.amount || 0);
       const averageBookingValue = activeBookingsCount > 0 ? totalSimulatedRevenue / activeBookingsCount : 0;
 
       return {

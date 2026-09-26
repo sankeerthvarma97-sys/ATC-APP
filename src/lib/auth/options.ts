@@ -3,10 +3,14 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma, shouldUseDatabase } from "@/lib/prisma";
 import { validateCredentials } from "@/lib/auth/users";
+import { getRequiredRuntimeValue } from "@/lib/config/security";
 
 export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET || "aocc-production-jwt-secret-fallback-key-2026",
-  adapter: shouldUseDatabase() ? PrismaAdapter(prisma) : undefined,
+  secret: getRequiredRuntimeValue("NEXTAUTH_SECRET", {
+    production: process.env.NODE_ENV === "production",
+    fallback: "dev-only-auth-secret",
+  }),
+  // Pure JWT session strategy without database adapter overhead for instantaneous credentials authentication
   session: {
     strategy: "jwt",
   },

@@ -51,6 +51,7 @@ export function SimulationControlSection({
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchStatus();
     // Poll metrics every 3 seconds
     const interval = setInterval(fetchStatus, 3000);

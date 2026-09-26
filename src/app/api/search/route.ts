@@ -239,6 +239,27 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ ok: true, query: q, results });
   } catch {
+    // Graceful fallback to memory store if database query times out or fails
+    const matchedFlights = buildMemorySnapshot().flights
+      .filter(
+        (f) =>
+          f.callsign.toLowerCase().includes(q) ||
+          f.origin.toLowerCase().includes(q) ||
+          f.destination.toLowerCase().includes(q)
+      )
+      .slice(0, 6);
+
+    for (const f of matchedFlights) {
+      results.push({
+        id: f.id,
+        category: "FLIGHTS",
+        title: `${f.callsign} (${f.origin} → ${f.destination})`,
+        subtitle: `FL${Math.round(f.altitudeFt / 100)} · ${f.status}`,
+        badge: f.status,
+        href: `/staff/atc?flight=${f.callsign}`,
+      });
+    }
+
     return NextResponse.json({ ok: true, query: q, results });
   }
 }

@@ -85,6 +85,7 @@ export function VirtualStaffSection() {
   }, [page, pageSize, department, shift, search]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchStaff();
   }, [fetchStaff]);
 

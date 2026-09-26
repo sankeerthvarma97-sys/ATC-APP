@@ -5,6 +5,7 @@ import type {
   SeatClass,
   TicketDTO,
 } from "@/lib/domain";
+import { Prisma } from "@prisma/client";
 import { prisma, shouldUseDatabase } from "@/lib/prisma";
 import { logAuditEvent } from "./audit-service";
 import { adjustUserCredit } from "./credit-service";
@@ -167,20 +168,30 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingD
         if (isCreditPayment && input.createdById) {
           const user = await tx.user.findUnique({
             where: { id: input.createdById },
-            select: { id: true, creditBalance: true, name: true },
+            select: { id: true, creditBalance: true, name: true, walletMode: true },
           });
 
           if (!user) {
             throw new Error(`Booking user not found (${input.createdById}).`);
           }
 
-          if (user.creditBalance < fare) {
-            throw new Error(`Insufficient credit balance. Current: $${user.creditBalance.toFixed(2)}, Required: $${fare.toFixed(2)}`);
+          const fareDecimal = new Prisma.Decimal(fare.toString());
+          const isUnlimited = user.walletMode === "UNLIMITED_SIMULATION";
+
+          if (!isUnlimited && user.creditBalance.lessThan(fareDecimal)) {
+            throw new Error(
+              `Insufficient credit balance. Current: ₹${Number(user.creditBalance).toLocaleString("en-IN")}, Required: ₹${fare.toLocaleString("en-IN")}`
+            );
           }
 
+          const balanceBefore = user.creditBalance;
+          const balanceAfter = isUnlimited && balanceBefore.lessThan(fareDecimal)
+            ? new Prisma.Decimal("100000000000.00")
+            : balanceBefore.sub(fareDecimal);
+
           const updatedUser = await tx.user.update({
-            where: { id: user.id, creditBalance: { gte: fare } },
-            data: { creditBalance: { decrement: fare } },
+            where: { id: user.id },
+            data: { creditBalance: balanceAfter },
             select: { creditBalance: true },
           });
 
@@ -188,12 +199,13 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingD
             data: {
               userId: user.id,
               type: "BOOKING_DEBIT",
-              amount: fare,
+              amount: fareDecimal,
               balanceBefore: user.creditBalance,
               balanceAfter: updatedUser.creditBalance,
               referenceType: "BOOKING",
               referenceId: pnr,
               description: `Flight booking ${pnr} (${flight.flightNumber || flight.callsign} - ${input.seatNumber})`,
+              unlimitedMode: isUnlimited,
             },
           });
 

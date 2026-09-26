@@ -254,7 +254,8 @@ model User {
   passwordHash       String?
   role               Role               @default(VIEWER)
   shift              String?
-  creditBalance      Float              @default(10000.0)
+  creditBalance      Decimal            @default(10000.0) @db.Decimal(24, 2)
+  walletMode         WalletMode         @default(NORMAL)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -783,19 +784,35 @@ model CreditTransaction {
   id            String                @id @default(cuid())
   userId        String
   type          CreditTransactionType
-  amount        Float
-  balanceBefore Float
-  balanceAfter  Float
+  amount        Decimal               @db.Decimal(24, 2)
+  balanceBefore Decimal               @db.Decimal(24, 2)
+  balanceAfter  Decimal               @db.Decimal(24, 2)
   referenceType String?
   referenceId   String?
   description   String?
+  idempotencyKey String?              @unique
+  status         WalletTransactionStatus @default(COMPLETED)
+  unlimitedMode  Boolean               @default(false)
   createdAt     DateTime              @default(now())
 
   user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([userId, type, createdAt])
   @@index([type])
   @@index([referenceType, referenceId])
+}
+
+enum WalletMode {
+  NORMAL
+  UNLIMITED_SIMULATION
+}
+
+enum WalletTransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
 }
 
 enum SimulationStatus {

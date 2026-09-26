@@ -66,15 +66,42 @@ export function AccountsFinanceSection({
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  type WalletActivitySummary = {
+    totalSimulationMoneyCreated?: number;
+    totalTopUps?: number;
+    averageTopUp?: number;
+  };
+
+  type CalendarEvent = {
+    id: string;
+    title: string;
+    period: string;
+    status: string;
+    employeeCount: number;
+    netAmount: number;
+    scheduledDate: string;
+  };
+
+  type PayrollPreviewData = {
+    period: string;
+    employeeCount: number;
+    companyBalance: number;
+    grossSalary: number;
+    bonuses: number;
+    deductions: number;
+    netSalary: number;
+    projectedBalance: number;
+  };
+
   // Data states
   const [summary, setSummary] = useState<CompanyFinanceSummaryDTO | null>(null);
   const [accounts, setAccounts] = useState<FinancialAccountDTO[]>([]);
   const [transactions, setTransactions] = useState<FinancialTransactionDTO[]>([]);
   const [expenses, setExpenses] = useState<CompanyExpenseDTO[]>([]);
   const [payrollRuns, setPayrollRuns] = useState<PayrollDTO[]>([]);
-  const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [walletActivity, setWalletActivity] = useState<{
-    summary: any;
+    summary: WalletActivitySummary;
     transactions: WalletTransactionDTO[];
     total: number;
   } | null>(null);
@@ -91,7 +118,7 @@ export function AccountsFinanceSection({
   const [showPayrollPreviewModal, setShowPayrollPreviewModal] = useState(false);
   const [showPayrollRunModal, setShowPayrollRunModal] = useState(false);
   const [showWalletAdjustmentModal, setShowWalletAdjustmentModal] = useState(false);
-  const [payrollPreviewData, setPayrollPreviewData] = useState<any | null>(null);
+  const [payrollPreviewData, setPayrollPreviewData] = useState<PayrollPreviewData | null>(null);
 
   // Form states
   const [transferForm, setTransferForm] = useState({
@@ -216,15 +243,19 @@ export function AccountsFinanceSection({
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, [fetchData]);
 
   useEffect(() => {
     if (activeTab === "ledger") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchLedger();
     } else if (activeTab === "expenses") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchExpenses();
     } else if (activeTab === "wallet-activity") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchWalletActivity();
     }
   }, [activeTab, fetchLedger, fetchExpenses, fetchWalletActivity]);
@@ -264,8 +295,9 @@ export function AccountsFinanceSection({
       setTransferForm((prev) => ({ ...prev, amount: "", reason: "" }));
       await fetchData();
       if (activeTab === "ledger") fetchLedger();
-    } catch (err: any) {
-      setError(err.message || "Transfer failed");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Transfer failed";
+      setError(message);
     } finally {
       setActionProcessing(false);
     }
@@ -302,8 +334,9 @@ export function AccountsFinanceSection({
       setExpenseForm({ category: "AIRPORT_OPERATIONS", amount: "", description: "", reference: "" });
       await fetchData();
       if (activeTab === "expenses") fetchExpenses();
-    } catch (err: any) {
-      setError(err.message || "Failed to record expense");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to record expense";
+      setError(message);
     } finally {
       setActionProcessing(false);
     }
@@ -322,8 +355,9 @@ export function AccountsFinanceSection({
 
       setPayrollPreviewData(data.preview);
       setShowPayrollPreviewModal(true);
-    } catch (err: any) {
-      setError(err.message || "Failed to load payroll preview");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to load payroll preview";
+      setError(message);
     } finally {
       setActionProcessing(false);
     }
@@ -354,8 +388,9 @@ export function AccountsFinanceSection({
       setShowPayrollRunModal(false);
       setShowPayrollPreviewModal(false);
       await fetchData();
-    } catch (err: any) {
-      setError(err.message || "Payroll processing failed");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Payroll processing failed";
+      setError(message);
     } finally {
       setActionProcessing(false);
     }
@@ -392,8 +427,9 @@ export function AccountsFinanceSection({
       setWalletAdjustForm({ userId: "", direction: "CREDIT", amount: "", reason: "" });
       fetchWalletActivity();
       fetchData();
-    } catch (err: any) {
-      setError(err.message || "Wallet adjustment failed");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Wallet adjustment failed";
+      setError(message);
     } finally {
       setActionProcessing(false);
     }
@@ -1014,7 +1050,7 @@ export function AccountsFinanceSection({
                 {payrollRuns.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="p-8 text-center text-slate-500">
-                      No historical payroll runs found. Click "Preview Next Payroll" or "Run Current Payroll" to execute.
+                      No historical payroll runs found. Click “Preview Next Payroll” or “Run Current Payroll” to execute.
                     </td>
                   </tr>
                 ) : (

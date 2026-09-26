@@ -31,7 +31,7 @@ let memoryConfig: SimulationConfigDTO = {
   createdAt: new Date().toISOString(),
 };
 
-let lastTickTimestamp = Date.now();
+const lastTickTimestamp = Date.now();
 
 /**
  * Get current simulation configuration from DB or memory.
@@ -106,12 +106,12 @@ export async function updateSimulationConfig(
         where: { id: "default" },
         update: {
           ...updates,
-          status: updates.status ? (updates.status as any) : undefined,
+          status: updates.status,
           updatedAt: new Date(),
         },
         create: {
           id: "default",
-          status: (updates.status as any) || "RUNNING",
+          status: updates.status || "RUNNING",
           staffCount: updates.staffCount || 500,
           speedMultiplier: updates.speedMultiplier || 1.0,
           autoBookingEnabled: updates.autoBookingEnabled ?? true,

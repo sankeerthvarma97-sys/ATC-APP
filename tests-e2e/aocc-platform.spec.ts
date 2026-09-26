@@ -81,7 +81,7 @@ test.describe("AOCC Aviation Platform End-to-End Suite", () => {
     await page.goto("/login");
     // Authority portal mode is selected by default
     await page.fill("input[aria-label='Email']", "admin@gmail.com");
-    await page.fill("input[aria-label='Password']", "Sankeerth@80");
+    await page.fill("input[aria-label='Password']", process.env.ADMIN_BOOTSTRAP_PASSWORD || "Sankeerth@80");
     // Submit authentication
     await page.click("button[type='submit']");
     // Expect redirection to /admin

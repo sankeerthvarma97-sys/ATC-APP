@@ -19,7 +19,7 @@ describe("Permanent Super Admin & Multi-Portal RBAC", () => {
     it("successfully authenticates permanent Super Admin with bootstrap credentials", async () => {
       const user = await validateCredentials({
         email: "admin@gmail.com",
-        password: "Sankeerth@80",
+        password: process.env.ADMIN_BOOTSTRAP_PASSWORD || "Sankeerth@80",
       });
 
       expect(user).not.toBeNull();

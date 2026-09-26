@@ -64,7 +64,7 @@ async function runVerification() {
       body: new URLSearchParams({
         csrfToken,
         email: "admin@gmail.com",
-        password: "Sankeerth@80",
+        password: process.env.ADMIN_BOOTSTRAP_PASSWORD || "Sankeerth@80",
         json: "true",
       }),
       redirect: "manual",
