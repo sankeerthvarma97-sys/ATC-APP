@@ -15,7 +15,7 @@ import type {
 } from "@/lib/domain";
 import { logAuditEvent } from "./audit-service";
 
-export const INITIAL_CAPITAL_AMOUNT = 100_000_000.0; // ₹10 Crore initial capital
+export const INITIAL_CAPITAL_AMOUNT = 1_000_000_000_000.0; // ₹1,000 Billion (₹1 Trillion / ₹10 Kharab) billionaire capital
 
 // Memory fallback store for non-DB environments
 interface MemoryAccount {
@@ -94,7 +94,7 @@ export async function initializeCompanyTreasury(): Promise<{
               destinationAccountId: treasury.id,
               referenceType: "INITIAL_CAPITAL",
               referenceId: "AOCC-TREASURY-01",
-              description: "Initial Fictional Airport Simulation Capital (₹10 Crore)",
+              description: "Initial Airport Simulation Capital (₹1,000 Billion - Billionaire Reserve)",
               status: "COMPLETED",
               createdBy: "SYSTEM_BOOTSTRAP",
               metadata: {
@@ -114,6 +114,11 @@ export async function initializeCompanyTreasury(): Promise<{
               currency: "INR",
             },
           });
+        } else if (Number(treasury.balance) < INITIAL_CAPITAL_AMOUNT) {
+          treasury = await tx.financialAccount.update({
+            where: { id: treasury.id },
+            data: { balance: new Prisma.Decimal(INITIAL_CAPITAL_AMOUNT) },
+          });
         }
 
         // 2. Operating Account
@@ -127,9 +132,14 @@ export async function initializeCompanyTreasury(): Promise<{
               accountName: "AOCC OPERATING ACCOUNT",
               accountType: "OPERATING_ACCOUNT",
               currency: "INR",
-              balance: new Prisma.Decimal(5_000_000.0),
+              balance: new Prisma.Decimal(INITIAL_CAPITAL_AMOUNT),
               status: "ACTIVE",
             },
+          });
+        } else if (Number(operating.balance) < INITIAL_CAPITAL_AMOUNT) {
+          operating = await tx.financialAccount.update({
+            where: { id: operating.id },
+            data: { balance: new Prisma.Decimal(INITIAL_CAPITAL_AMOUNT) },
           });
         }
 
@@ -144,9 +154,14 @@ export async function initializeCompanyTreasury(): Promise<{
               accountName: "AOCC PAYROLL ACCOUNT",
               accountType: "PAYROLL_ACCOUNT",
               currency: "INR",
-              balance: new Prisma.Decimal(50_000_000.0),
+              balance: new Prisma.Decimal(INITIAL_CAPITAL_AMOUNT),
               status: "ACTIVE",
             },
+          });
+        } else if (Number(payroll.balance) < INITIAL_CAPITAL_AMOUNT) {
+          payroll = await tx.financialAccount.update({
+            where: { id: payroll.id },
+            data: { balance: new Prisma.Decimal(INITIAL_CAPITAL_AMOUNT) },
           });
         }
 
@@ -161,9 +176,14 @@ export async function initializeCompanyTreasury(): Promise<{
               accountName: "AOCC REFUND ACCOUNT",
               accountType: "REFUND_ACCOUNT",
               currency: "INR",
-              balance: new Prisma.Decimal(2_000_000.0),
+              balance: new Prisma.Decimal(INITIAL_CAPITAL_AMOUNT),
               status: "ACTIVE",
             },
+          });
+        } else if (Number(refund.balance) < INITIAL_CAPITAL_AMOUNT) {
+          refund = await tx.financialAccount.update({
+            where: { id: refund.id },
+            data: { balance: new Prisma.Decimal(INITIAL_CAPITAL_AMOUNT) },
           });
         }
 
@@ -178,9 +198,14 @@ export async function initializeCompanyTreasury(): Promise<{
               accountName: "AOCC REVENUE ACCOUNT",
               accountType: "REVENUE_ACCOUNT",
               currency: "INR",
-              balance: new Prisma.Decimal(0.0),
+              balance: new Prisma.Decimal(INITIAL_CAPITAL_AMOUNT),
               status: "ACTIVE",
             },
+          });
+        } else if (Number(revenue.balance) < INITIAL_CAPITAL_AMOUNT) {
+          revenue = await tx.financialAccount.update({
+            where: { id: revenue.id },
+            data: { balance: new Prisma.Decimal(INITIAL_CAPITAL_AMOUNT) },
           });
         }
 
@@ -257,10 +282,10 @@ export async function initializeCompanyTreasury(): Promise<{
     };
 
     const treasury = createMem("AOCC-TREASURY-01", "AOCC COMPANY TREASURY", "COMPANY_TREASURY", INITIAL_CAPITAL_AMOUNT);
-    const operating = createMem("AOCC-OPS-01", "AOCC OPERATING ACCOUNT", "OPERATING_ACCOUNT", 5_000_000.0);
-    const payroll = createMem("AOCC-PAYROLL-01", "AOCC PAYROLL ACCOUNT", "PAYROLL_ACCOUNT", 50_000_000.0);
-    const refund = createMem("AOCC-REFUND-01", "AOCC REFUND ACCOUNT", "REFUND_ACCOUNT", 2_000_000.0);
-    const revenue = createMem("AOCC-REV-01", "AOCC REVENUE ACCOUNT", "REVENUE_ACCOUNT", 0.0);
+    const operating = createMem("AOCC-OPS-01", "AOCC OPERATING ACCOUNT", "OPERATING_ACCOUNT", INITIAL_CAPITAL_AMOUNT);
+    const payroll = createMem("AOCC-PAYROLL-01", "AOCC PAYROLL ACCOUNT", "PAYROLL_ACCOUNT", INITIAL_CAPITAL_AMOUNT);
+    const refund = createMem("AOCC-REFUND-01", "AOCC REFUND ACCOUNT", "REFUND_ACCOUNT", INITIAL_CAPITAL_AMOUNT);
+    const revenue = createMem("AOCC-REV-01", "AOCC REVENUE ACCOUNT", "REVENUE_ACCOUNT", INITIAL_CAPITAL_AMOUNT);
     const expense = createMem("AOCC-EXP-01", "AOCC EXPENSE ACCOUNT", "EXPENSE_ACCOUNT", 0.0);
 
     memoryTransactions.push({
@@ -275,7 +300,7 @@ export async function initializeCompanyTreasury(): Promise<{
       destinationAccountName: treasury.accountName,
       referenceType: "INITIAL_CAPITAL",
       referenceId: "AOCC-TREASURY-01",
-      description: "Initial Fictional Airport Simulation Capital (₹10 Crore)",
+      description: "Initial Airport Simulation Capital (₹1,000 Billion - Billionaire Reserve)",
       status: "COMPLETED",
       createdBy: "SYSTEM_BOOTSTRAP",
       createdAt: now,
@@ -289,6 +314,14 @@ export async function initializeCompanyTreasury(): Promise<{
       revenueAccount: revenue,
       expenseAccount: expense,
     };
+  }
+
+  // Ensure any existing memory company accounts have at least INITIAL_CAPITAL_AMOUNT
+  for (const [key, acc] of memoryAccounts.entries()) {
+    if (key !== "AOCC-EXP-01" && acc.balance < INITIAL_CAPITAL_AMOUNT) {
+      acc.balance = INITIAL_CAPITAL_AMOUNT;
+      acc.updatedAt = new Date().toISOString();
+    }
   }
 
   const getMem = (num: string) => memoryAccounts.get(num)!;
@@ -521,6 +554,233 @@ export async function executeInternalTransfer(input: {
     transaction: memTx,
     sourceBalanceAfter: sourceMem.balance,
     destBalanceAfter: destMem.balance,
+  };
+}
+
+/**
+ * Injects simulation capital into one or all company accounts (Billionaire Mode).
+ * Admin can add fake money to his accounts anytime to increase liquidity.
+ */
+export async function injectCompanyFunds(input: {
+  accountId?: string;
+  targetAll?: boolean;
+  amount: number;
+  reason?: string;
+  adminId?: string;
+  adminName?: string;
+  actorId?: string;
+}): Promise<{
+  success: boolean;
+  message: string;
+  injectedAmount: number;
+  affectedAccounts: FinancialAccountDTO[];
+  transactions: FinancialTransactionDTO[];
+}> {
+  const { accountId, targetAll, amount, reason, adminName } = input;
+  const adminId = input.adminId || input.actorId;
+
+  if (amount <= 0) {
+    throw new Error("Capital injection amount must be strictly greater than zero.");
+  }
+
+  await initializeCompanyTreasury();
+
+  const decimalAmount = new Prisma.Decimal(amount);
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const txDesc = reason || `Admin simulation capital injection (+₹${amount.toLocaleString("en-IN")})`;
+
+  if (shouldUseDatabase()) {
+    return await prisma.$transaction(async (tx) => {
+      let targetAccounts: Array<{
+        id: string;
+        accountNumber: string;
+        accountName: string;
+        accountType: string;
+        currency: string;
+        balance: Prisma.Decimal;
+        status: string;
+        createdAt: Date;
+        updatedAt: Date;
+      }> = [];
+
+      if (targetAll) {
+        targetAccounts = await tx.financialAccount.findMany({
+          where: {
+            accountNumber: {
+              in: [
+                "AOCC-TREASURY-01",
+                "AOCC-OPS-01",
+                "AOCC-PAYROLL-01",
+                "AOCC-REFUND-01",
+                "AOCC-REV-01",
+              ],
+            },
+          },
+        });
+      } else {
+        if (!accountId) throw new Error("Either accountId or targetAll must be provided.");
+        const single = await tx.financialAccount.findFirst({
+          where: {
+            OR: [{ id: accountId }, { accountNumber: accountId }],
+          },
+        });
+        if (!single) throw new Error("Target account not found.");
+        targetAccounts = [single];
+      }
+
+      const affectedAccounts: FinancialAccountDTO[] = [];
+      const transactions: FinancialTransactionDTO[] = [];
+
+      for (const target of targetAccounts) {
+        const updated = await tx.financialAccount.update({
+          where: { id: target.id },
+          data: { balance: { increment: decimalAmount } },
+        });
+
+        const txNum = `FTX-INJ-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+        const record = await tx.financialTransaction.create({
+          data: {
+            transactionNumber: txNum,
+            type: "INITIAL_CAPITAL",
+            category: "CAPITAL_INJECTION",
+            amount: decimalAmount,
+            currency: target.currency || "INR",
+            direction: "CREDIT",
+            destinationAccountId: target.id,
+            referenceType: "ADMIN_INJECTION",
+            referenceId: target.accountNumber,
+            description: txDesc,
+            status: "COMPLETED",
+            createdBy: adminName || adminId || "ADMIN",
+            metadata: {
+              mode: "BILLIONAIRE_MODE",
+              adminId,
+              adminName,
+              balanceBefore: Number(target.balance),
+              balanceAfter: Number(updated.balance),
+              injectedAmount: amount,
+            },
+          },
+        });
+
+        await logAuditEvent({
+          actorId: adminId,
+          actorName: adminName || "Admin",
+          action: "INITIAL_CAPITAL_CREATED",
+          entity: "COMPANY_FINANCE",
+          entityId: target.id,
+          before: { balance: Number(target.balance) },
+          after: { balance: Number(updated.balance), injectedAmount: amount, reason: txDesc },
+        });
+
+        affectedAccounts.push({
+          id: updated.id,
+          accountNumber: updated.accountNumber,
+          accountName: updated.accountName,
+          accountType: updated.accountType as FinancialAccountType,
+          currency: updated.currency,
+          balance: Number(updated.balance),
+          status: updated.status as AccountStatus,
+          createdAt: updated.createdAt.toISOString(),
+          updatedAt: updated.updatedAt.toISOString(),
+        });
+
+        transactions.push({
+          id: record.id,
+          transactionNumber: record.transactionNumber,
+          type: record.type as FinancialTransactionType,
+          category: record.category,
+          amount: Number(record.amount),
+          currency: record.currency,
+          direction: record.direction as TransactionDirection,
+          destinationAccountId: record.destinationAccountId ?? undefined,
+          destinationAccountName: target.accountName,
+          referenceType: record.referenceType ?? undefined,
+          referenceId: record.referenceId ?? undefined,
+          description: record.description,
+          status: record.status as TransactionStatus,
+          createdBy: record.createdBy ?? undefined,
+          createdAt: record.createdAt.toISOString(),
+        });
+      }
+
+      return {
+        success: true,
+        message: targetAll
+          ? `Successfully injected ₹${amount.toLocaleString("en-IN")} into all ${affectedAccounts.length} company accounts!`
+          : `Successfully injected ₹${amount.toLocaleString("en-IN")} into ${affectedAccounts[0]?.accountName}!`,
+        injectedAmount: amount,
+        affectedAccounts,
+        transactions,
+      };
+    });
+  }
+
+  // Memory fallback implementation
+  const affectedMemAccounts: FinancialAccountDTO[] = [];
+  const memTransactions: FinancialTransactionDTO[] = [];
+
+  const targetKeys = targetAll
+    ? ["AOCC-TREASURY-01", "AOCC-OPS-01", "AOCC-PAYROLL-01", "AOCC-REFUND-01", "AOCC-REV-01"]
+    : Array.from(memoryAccounts.entries())
+        .filter(([key, acc]) => key === accountId || acc.id === accountId || acc.accountNumber === accountId)
+        .map(([key]) => key);
+
+  if (targetKeys.length === 0 && !targetAll) {
+    throw new Error("Target account not found in memory store.");
+  }
+
+  for (const key of targetKeys) {
+    const acc = memoryAccounts.get(key);
+    if (!acc) continue;
+
+    const prevBal = acc.balance;
+    acc.balance += amount;
+    acc.updatedAt = nowIso;
+
+    const txNum = `FTX-INJ-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    const txDto: FinancialTransactionDTO = {
+      id: `ftx-${txNum.toLowerCase()}`,
+      transactionNumber: txNum,
+      type: "INITIAL_CAPITAL",
+      category: "CAPITAL_INJECTION",
+      amount,
+      currency: acc.currency,
+      direction: "CREDIT",
+      destinationAccountId: acc.id,
+      destinationAccountName: acc.accountName,
+      referenceType: "ADMIN_INJECTION",
+      referenceId: acc.accountNumber,
+      description: txDesc,
+      status: "COMPLETED",
+      createdBy: adminName || adminId || "ADMIN",
+      createdAt: nowIso,
+    };
+
+    memoryTransactions.unshift(txDto);
+    memTransactions.push(txDto);
+    affectedMemAccounts.push({ ...acc });
+
+    await logAuditEvent({
+      actorId: adminId,
+      actorName: adminName || "Admin",
+      action: "INITIAL_CAPITAL_CREATED",
+      entity: "COMPANY_FINANCE",
+      entityId: acc.id,
+      before: { balance: prevBal },
+      after: { balance: acc.balance, injectedAmount: amount, reason: txDesc },
+    });
+  }
+
+  return {
+    success: true,
+    message: targetAll
+      ? `Successfully injected ₹${amount.toLocaleString("en-IN")} into all ${affectedMemAccounts.length} company accounts!`
+      : `Successfully injected ₹${amount.toLocaleString("en-IN")} into ${affectedMemAccounts[0]?.accountName}!`,
+    injectedAmount: amount,
+    affectedAccounts: affectedMemAccounts,
+    transactions: memTransactions,
   };
 }
 

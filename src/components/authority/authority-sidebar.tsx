@@ -89,7 +89,7 @@ export const navigationCategories: NavSectionCategory[] = [
   {
     title: "ACCOUNTS & FINANCE",
     items: [
-      { id: "finance", label: "Finance & Treasury", icon: DollarSign, badge: "₹10 Cr", badgeVariant: "success" },
+      { id: "finance", label: "Finance & Treasury", icon: DollarSign, badge: "₹1,000B", badgeVariant: "success" },
       { id: "finance-accounts", label: "Company Accounts", icon: Building },
       { id: "finance-ledger", label: "Financial Ledger", icon: FileText },
       { id: "finance-expenses", label: "Company Expenses", icon: Receipt },

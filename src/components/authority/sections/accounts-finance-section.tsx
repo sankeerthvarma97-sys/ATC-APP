@@ -114,6 +114,7 @@ export function AccountsFinanceSection({
 
   // Modals
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showAddMoneyModal, setShowAddMoneyModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showPayrollPreviewModal, setShowPayrollPreviewModal] = useState(false);
   const [showPayrollRunModal, setShowPayrollRunModal] = useState(false);
@@ -126,6 +127,12 @@ export function AccountsFinanceSection({
     destinationAccountId: "",
     amount: "",
     reason: "",
+  });
+  const [addMoneyForm, setAddMoneyForm] = useState({
+    accountId: "",
+    targetAll: true,
+    amount: "1000000000000",
+    reason: "Billionaire capital injection (Simulation)",
   });
   const [expenseForm, setExpenseForm] = useState({
     category: "AIRPORT_OPERATIONS",
@@ -259,6 +266,58 @@ export function AccountsFinanceSection({
       fetchWalletActivity();
     }
   }, [activeTab, fetchLedger, fetchExpenses, fetchWalletActivity]);
+
+  // Handle Add Money / Capital Injection Submission
+  const handleExecuteAddMoney = async (
+    e?: React.FormEvent,
+    directTargetAll?: boolean,
+    directAmount?: number,
+    directAccountId?: string
+  ) => {
+    if (e) e.preventDefault();
+    const isAll = directTargetAll !== undefined ? directTargetAll : addMoneyForm.targetAll;
+    const targetAccId = directAccountId !== undefined ? directAccountId : addMoneyForm.accountId;
+    const amt = directAmount !== undefined ? directAmount : Number.parseFloat(addMoneyForm.amount);
+
+    if (isNaN(amt) || amt <= 0) {
+      setError("Please specify a valid positive capital amount to inject.");
+      return;
+    }
+
+    if (!isAll && !targetAccId) {
+      setError("Please select a target company account or choose All Accounts.");
+      return;
+    }
+
+    try {
+      setActionProcessing(true);
+      setError(null);
+      const res = await fetch("/api/finance/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "INJECT_FUNDS",
+          accountId: isAll ? undefined : targetAccId,
+          targetAll: isAll,
+          amount: amt,
+          reason: addMoneyForm.reason || "Billionaire capital injection (Simulation)",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to inject capital");
+
+      setSuccessMessage(data.message || `Successfully injected ${formatINR(amt)}! Billionaire status active! 💎`);
+      setShowAddMoneyModal(false);
+      await fetchData();
+      if (activeTab === "ledger") fetchLedger();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Capital injection failed";
+      setError(message);
+    } finally {
+      setActionProcessing(false);
+    }
+  };
 
   // Handle Internal Transfer Submission
   const handleExecuteTransfer = async (e: React.FormEvent) => {
@@ -449,11 +508,12 @@ export function AccountsFinanceSection({
                 <h1 className="text-xl font-bold tracking-tight text-slate-100 sm:text-2xl">
                   AOCC Financial Control & Treasury
                 </h1>
-                <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs">
-                  ₹10 CR CAPITAL
+                <Badge variant="outline" className="border-amber-500/40 bg-gradient-to-r from-amber-500/20 to-emerald-500/20 text-amber-300 text-xs font-semibold flex items-center gap-1">
+                  <Sparkles className="h-3 w-3 text-amber-400 fill-current" />
+                  ₹1,000 BILLION TREASURY · BILLIONAIRE MODE
                 </Badge>
-                <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-400 text-[10px]">
-                  EDUCATIONAL SIMULATION
+                <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[10px]">
+                  UNLIMITED CAPITAL ACTIVE
                 </Badge>
               </div>
               <p className="text-xs text-slate-400">
@@ -465,6 +525,23 @@ export function AccountsFinanceSection({
 
         {/* Global Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            className="bg-gradient-to-r from-amber-500 via-emerald-500 to-teal-500 hover:from-amber-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-950/50 border border-amber-300/40"
+            onClick={() => {
+              setAddMoneyForm({
+                accountId: "",
+                targetAll: true,
+                amount: "1000000000000",
+                reason: "Billionaire mode simulation liquidity expansion",
+              });
+              setShowAddMoneyModal(true);
+            }}
+          >
+            <Sparkles className="mr-1.5 h-3.5 w-3.5 fill-current" />
+            + Add Money / Billionaire Mode
+          </Button>
+
           <Button
             size="sm"
             variant="outline"
@@ -587,9 +664,9 @@ export function AccountsFinanceSection({
                 <div className="text-2xl font-bold font-mono text-emerald-400">
                   {formatINR(summary?.treasuryBalance)}
                 </div>
-                <p className="mt-1 text-[11px] text-slate-500 flex items-center gap-1">
-                  <ShieldCheck className="h-3 w-3 text-emerald-500" />
-                  Primary Capital Reserve (Initial ₹10 Cr)
+                <p className="mt-1 text-[11px] text-slate-400 flex items-center gap-1 font-medium">
+                  <Sparkles className="h-3 w-3 text-amber-400 fill-current" />
+                  Primary Capital Reserve (Billionaire Reserve ₹1,000 Billion)
                 </p>
               </CardContent>
             </Card>
@@ -753,24 +830,98 @@ export function AccountsFinanceSection({
       {/* TAB 2: COMPANY ACCOUNTS & TRANSFERS */}
       {activeTab === "accounts" && (
         <div className="space-y-6">
+          {/* Billionaire Capital Injection Center Hero */}
+          <Card className="border-amber-500/40 bg-gradient-to-br from-amber-950/40 via-slate-900/90 to-emerald-950/40 shadow-xl overflow-hidden relative">
+            <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+              <Sparkles className="h-32 w-32 text-amber-300" />
+            </div>
+            <CardHeader className="pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                      <Sparkles className="h-4 w-4 fill-current" />
+                    </div>
+                    <CardTitle className="text-base font-bold text-slate-100 flex items-center gap-2">
+                      Billionaire Capital Injection Center
+                      <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-[10px]">
+                        ADMIN UNLIMITED FUNDS
+                      </Badge>
+                    </CardTitle>
+                  </div>
+                  <CardDescription className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                    Admin treasury console with unlimited capital generation. Instant 1-click ₹1,000 Billion injection boosts all company balances simultaneously for billionaire-scale aviation simulations.
+                  </CardDescription>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    className="bg-gradient-to-r from-amber-500 via-amber-600 to-emerald-600 hover:from-amber-400 hover:to-emerald-500 text-slate-950 font-bold text-xs shadow-md border border-amber-300/40"
+                    onClick={() => handleExecuteAddMoney(undefined, true, 1_000_000_000_000.0)}
+                    disabled={actionProcessing}
+                  >
+                    <Sparkles className="mr-1.5 h-3.5 w-3.5 fill-current" />
+                    ⚡ Instant +₹1,000B to All Accounts
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-900/40 text-emerald-300 text-xs"
+                    onClick={() => {
+                      setAddMoneyForm({
+                        accountId: accounts[0]?.id || "",
+                        targetAll: false,
+                        amount: "1000000000000",
+                        reason: "Billionaire capital injection",
+                      });
+                      setShowAddMoneyModal(true);
+                    }}
+                  >
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+                    + Custom Add Money
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base font-semibold text-slate-200">Company Accounts</h2>
-              <p className="text-xs text-slate-400">Overview of isolated institutional accounts</p>
+              <h2 className="text-base font-semibold text-slate-200">Company Institutional Accounts</h2>
+              <p className="text-xs text-slate-400">Overview of isolated institutional accounts with billionaire reserves</p>
             </div>
-            <Button
-              size="sm"
-              className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs"
-              onClick={() => setShowTransferModal(true)}
-            >
-              <ArrowDownUp className="mr-1.5 h-3.5 w-3.5" />
-              Transfer Between Accounts
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-xs"
+                onClick={() => {
+                  setAddMoneyForm({
+                    accountId: "",
+                    targetAll: true,
+                    amount: "1000000000000",
+                    reason: "Billionaire mode simulation liquidity expansion",
+                  });
+                  setShowAddMoneyModal(true);
+                }}
+              >
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Add Money
+              </Button>
+              <Button
+                size="sm"
+                className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs"
+                onClick={() => setShowTransferModal(true)}
+              >
+                <ArrowDownUp className="mr-1.5 h-3.5 w-3.5" />
+                Transfer Between Accounts
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {accounts.map((acc) => (
-              <Card key={acc.id} className="border-slate-800 bg-slate-900/60 shadow">
+              <Card key={acc.id} className="border-slate-800 bg-slate-900/60 shadow hover:border-slate-700 transition-colors">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <Badge variant="outline" className="border-slate-700 font-mono text-[10px] text-slate-300">
@@ -790,7 +941,24 @@ export function AccountsFinanceSection({
                     <div className="text-[10px] text-slate-500 uppercase tracking-wider">Current Balance</div>
                     <div className="text-xl font-bold font-mono text-emerald-400">{formatINR(acc.balance)}</div>
                   </div>
-                  <div className="flex justify-end pt-1">
+                  <div className="flex items-center justify-between pt-1 gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 h-7"
+                      onClick={() => {
+                        setAddMoneyForm({
+                          accountId: acc.id,
+                          targetAll: false,
+                          amount: "1000000000000",
+                          reason: `Capital injection to ${acc.accountName}`,
+                        });
+                        setShowAddMoneyModal(true);
+                      }}
+                    >
+                      <Plus className="mr-1 h-3 w-3" />
+                      Add Money
+                    </Button>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -1279,6 +1447,162 @@ export function AccountsFinanceSection({
               </div>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* MODAL: ADD MONEY / BILLIONAIRE CAPITAL INJECTION */}
+      {showAddMoneyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-amber-500/40 bg-slate-900 p-6 shadow-2xl relative">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  <Sparkles className="h-4 w-4 fill-current" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                    Add Money · Billionaire Mode
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Inject simulated capital into company accounts for unlimited liquidity
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowAddMoneyModal(false)} className="text-slate-400 hover:text-slate-200">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={(e) => handleExecuteAddMoney(e)} className="space-y-4 mt-4 text-xs">
+              {/* Target account selection */}
+              <div>
+                <label className="block text-slate-300 mb-1 font-semibold">Target Account</label>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setAddMoneyForm((prev) => ({ ...prev, targetAll: true }))}
+                    className={`p-2.5 rounded-lg border text-left transition-all ${
+                      addMoneyForm.targetAll
+                        ? "border-amber-500 bg-amber-500/10 text-amber-300 shadow-sm"
+                        : "border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700"
+                    }`}
+                  >
+                    <div className="font-bold flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 fill-current" /> All Accounts
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">Inject into all company reserves</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAddMoneyForm((prev) => ({ ...prev, targetAll: false }))}
+                    className={`p-2.5 rounded-lg border text-left transition-all ${
+                      !addMoneyForm.targetAll
+                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-300 shadow-sm"
+                        : "border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700"
+                    }`}
+                  >
+                    <div className="font-bold flex items-center gap-1.5">
+                      <Building className="h-3.5 w-3.5" /> Specific Account
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">Select a single institution account</div>
+                  </button>
+                </div>
+
+                {!addMoneyForm.targetAll && (
+                  <select
+                    value={addMoneyForm.accountId}
+                    onChange={(e) => setAddMoneyForm((prev) => ({ ...prev, accountId: e.target.value }))}
+                    className="w-full rounded-md border border-slate-800 bg-slate-950 p-2 text-slate-200 mt-2 font-mono"
+                  >
+                    <option value="">-- Select Destination Account --</option>
+                    {accounts.map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.accountName} ({acc.accountNumber}) · Bal: {formatINR(acc.balance)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Amount Quick Presets */}
+              <div>
+                <label className="block text-slate-300 mb-1 font-semibold">Quick Amount Presets</label>
+                <div className="grid grid-cols-3 gap-1.5 mb-2">
+                  {[
+                    { label: "₹1,000 Billion 💎", val: 1_000_000_000_000 },
+                    { label: "₹100 Billion", val: 100_000_000_000 },
+                    { label: "₹10 Billion", val: 10_000_000_000 },
+                    { label: "₹1 Billion", val: 1_000_000_000 },
+                    { label: "₹100 Crore", val: 1_000_000_000 },
+                    { label: "₹10 Crore", val: 100_000_000 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() =>
+                        setAddMoneyForm((prev) => ({ ...prev, amount: preset.val.toString() }))
+                      }
+                      className={`px-2 py-1.5 rounded border text-[11px] font-semibold transition-all ${
+                        addMoneyForm.amount === preset.val.toString()
+                          ? "border-amber-400 bg-amber-400/20 text-amber-200"
+                          : "border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-2">
+                  <label className="block text-slate-400 mb-1 text-[11px]">Custom Amount (INR / ₹)</label>
+                  <Input
+                    type="number"
+                    step="any"
+                    placeholder="Enter amount (e.g. 1000000000000)"
+                    value={addMoneyForm.amount}
+                    onChange={(e) => setAddMoneyForm((prev) => ({ ...prev, amount: e.target.value }))}
+                    className="bg-slate-950 border-slate-800 text-slate-100 font-mono text-sm"
+                  />
+                  <div className="mt-1 text-xs text-amber-400 font-mono font-bold flex items-center gap-1">
+                    <span>Preview:</span>
+                    <span>{formatINR(addMoneyForm.amount)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 mb-1">Reason / Audit Memo</label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Billionaire capital expansion / Unlimited liquidity"
+                  value={addMoneyForm.reason}
+                  onChange={(e) => setAddMoneyForm((prev) => ({ ...prev, reason: e.target.value }))}
+                  className="bg-slate-950 border-slate-800 text-slate-200"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddMoneyModal(false)}
+                  className="border-slate-800 text-slate-400"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="bg-gradient-to-r from-amber-500 via-amber-600 to-emerald-600 hover:from-amber-400 hover:to-emerald-500 text-slate-950 font-bold shadow-lg"
+                  disabled={actionProcessing}
+                >
+                  {actionProcessing ? "Injecting Capital..." : "⚡ Inject Money Now"}
+                </Button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

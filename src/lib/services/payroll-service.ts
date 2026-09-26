@@ -16,7 +16,7 @@ import type {
   Role,
 } from "@/lib/domain";
 import { logAuditEvent } from "./audit-service";
-import { initializeCompanyTreasury } from "./company-finance-service";
+import { initializeCompanyTreasury, listFinancialAccounts } from "./company-finance-service";
 
 // Default benchmark salaries by department (in ₹ INR monthly)
 export const DEPARTMENT_SALARY_BENCHMARKS: Record<string, number> = {
@@ -396,18 +396,11 @@ export async function previewPayroll(payrollPeriod: string): Promise<{
 }> {
   await initializeCompanyTreasury();
 
-  let companyPayrollBalance = 50_000_000.0;
-  if (shouldUseDatabase()) {
-    try {
-      const payrollAcc = await prisma.financialAccount.findUnique({
-        where: { accountNumber: "AOCC-PAYROLL-01" },
-        select: { balance: true },
-      });
-      if (payrollAcc) companyPayrollBalance = Number(payrollAcc.balance);
-    } catch (err) {
-      console.warn("Database previewPayroll balance fetch error", err);
-    }
-  }
+  const accounts = await listFinancialAccounts();
+  const payrollAcc = accounts.find(
+    (a) => a.accountType === "PAYROLL_ACCOUNT" || a.accountNumber === "AOCC-PAYROLL-01"
+  );
+  const companyPayrollBalance = payrollAcc ? payrollAcc.balance : 0;
 
   // Calculate across all active employees (real + virtual)
   let totalEmployees = 0;

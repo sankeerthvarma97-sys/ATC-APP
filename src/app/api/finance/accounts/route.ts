@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { assertPermission } from "@/lib/auth/permissions";
-import { listFinancialAccounts, executeInternalTransfer } from "@/lib/services/company-finance-service";
+import {
+  listFinancialAccounts,
+  executeInternalTransfer,
+  injectCompanyFunds,
+} from "@/lib/services/company-finance-service";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +15,14 @@ const TransferSchema = z.object({
   destinationAccountId: z.string().min(1, "Destination account ID is required"),
   amount: z.number().positive("Transfer amount must be positive"),
   reason: z.string().min(3, "Transfer reason must be at least 3 characters"),
+});
+
+const InjectFundsSchema = z.object({
+  action: z.enum(["INJECT_FUNDS", "ADD_MONEY", "BILLIONAIRE_MODE"]),
+  accountId: z.string().optional(),
+  targetAll: z.boolean().optional(),
+  amount: z.number().positive("Injection amount must be positive"),
+  reason: z.string().optional(),
 });
 
 export async function GET() {
@@ -41,6 +53,31 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
+
+    // Check if this is an injection/add money request
+    if (body.action === "INJECT_FUNDS" || body.action === "ADD_MONEY" || body.action === "BILLIONAIRE_MODE") {
+      const parsedInj = InjectFundsSchema.safeParse(body);
+      if (!parsedInj.success) {
+        return NextResponse.json(
+          { error: "Validation failed", details: parsedInj.error.flatten() },
+          { status: 400 }
+        );
+      }
+
+      const result = await injectCompanyFunds({
+        accountId: parsedInj.data.accountId,
+        targetAll: parsedInj.data.targetAll ?? !parsedInj.data.accountId,
+        amount: parsedInj.data.amount,
+        reason: parsedInj.data.reason,
+        adminId: user?.id,
+        adminName: user?.name,
+        actorId: user?.id,
+      });
+
+      return NextResponse.json(result);
+    }
+
+    // Default: internal transfer
     const parsed = TransferSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -55,6 +92,7 @@ export async function POST(request: Request) {
       amount: parsed.data.amount,
       reason: parsed.data.reason,
       actorId: user?.id,
+      adminName: user?.name,
     });
 
     return NextResponse.json({
@@ -65,7 +103,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("POST /api/finance/accounts error:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Transfer failed" },
+      { error: error instanceof Error ? error.message : "Operation failed" },
       { status: 400 }
     );
   }

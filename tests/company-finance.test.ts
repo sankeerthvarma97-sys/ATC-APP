@@ -1,8 +1,10 @@
 import { describe, expect, it, beforeAll } from "vitest";
 import {
+  INITIAL_CAPITAL_AMOUNT,
   initializeCompanyTreasury,
   listFinancialAccounts,
   executeInternalTransfer,
+  injectCompanyFunds,
   recordCompanyRevenue,
   recordCompanyExpense,
   getCompanyFinanceSummary,
@@ -14,12 +16,12 @@ describe("AOCC Company Finance, Treasury & Ledger System", () => {
     await initializeCompanyTreasury();
   });
 
-  it("should initialize company treasury with ₹10 Crore (₹100,000,000) initial capital", async () => {
+  it("should initialize company treasury with ₹1,000 Billion initial capital", async () => {
     const { treasuryAccount } = await initializeCompanyTreasury();
 
     expect(treasuryAccount).toBeDefined();
     expect(treasuryAccount.accountNumber).toBe("AOCC-TREASURY-01");
-    expect(treasuryAccount.balance).toBeGreaterThanOrEqual(100_000_000);
+    expect(treasuryAccount.balance).toBeGreaterThanOrEqual(INITIAL_CAPITAL_AMOUNT);
   });
 
   it("should list all company accounts with active status and non-negative balances", async () => {
@@ -133,11 +135,38 @@ describe("AOCC Company Finance, Treasury & Ledger System", () => {
 
     expect(summary).toBeDefined();
     expect(summary.treasuryBalance).toBeGreaterThanOrEqual(0);
-    expect(summary.totalCompanyBalance).toBeGreaterThanOrEqual(100_000_000);
-    expect(summary.openingBalance).toBe(100_000_000);
+    expect(summary.totalCompanyBalance).toBeGreaterThanOrEqual(INITIAL_CAPITAL_AMOUNT);
+    expect(summary.openingBalance).toBe(INITIAL_CAPITAL_AMOUNT);
 
     // Ledger transactions query
     const ledger = await listFinancialTransactionsPaged({ page: 1, pageSize: 10 });
     expect(ledger.transactions.length).toBeGreaterThan(0);
+  });
+
+  it("should support Admin capital injection (Billionaire Mode) to specific account and all accounts", async () => {
+    // 1. Single account injection
+    const singleRes = await injectCompanyFunds({
+      accountId: "AOCC-TREASURY-01",
+      amount: 500_000_000_000.0,
+      reason: "Billionaire capital injection test",
+      adminName: "Admin Tester",
+    });
+
+    expect(singleRes.success).toBe(true);
+    expect(singleRes.injectedAmount).toBe(500_000_000_000.0);
+    expect(singleRes.affectedAccounts.length).toBe(1);
+    expect(singleRes.affectedAccounts[0].balance).toBeGreaterThanOrEqual(1_500_000_000_000.0);
+
+    // 2. All accounts injection (Billionaire boost)
+    const allRes = await injectCompanyFunds({
+      targetAll: true,
+      amount: 1_000_000_000_000.0,
+      reason: "Billionaire mode unlimited money boost",
+      adminName: "Admin Tester",
+    });
+
+    expect(allRes.success).toBe(true);
+    expect(allRes.affectedAccounts.length).toBeGreaterThanOrEqual(5);
+    expect(allRes.transactions.length).toBeGreaterThanOrEqual(5);
   });
 });
