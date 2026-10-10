@@ -5,9 +5,38 @@ import type {
   Role,
   VerificationStatus,
 } from "@/lib/domain";
+import { hash } from "bcryptjs";
+import { demoUsers } from "@/lib/data/mock";
 import { prisma, shouldUseDatabase } from "@/lib/prisma";
 import { logAuditEvent } from "./audit-service";
 import { assertSuperAdminNotTargeted, isProtectedSuperAdmin } from "@/lib/auth/protection";
+
+export const DEFAULT_STAFF_PASSWORD = "Admin@123";
+export const EMPLOYEE_ID_PREFIX = "AOCC-EMP-";
+
+export function formatEmployeeId(sequence: number): string {
+  return `${EMPLOYEE_ID_PREFIX}${String(sequence).padStart(6, "0")}`;
+}
+
+function parseEmployeeSequence(value?: string | null): number | null {
+  if (!value) return null;
+  const normalized = value.trim().toUpperCase();
+  const match = normalized.match(/(?:AOCC-EMP-|EMP-)(\d+)/i);
+  if (!match) return null;
+  return Number.parseInt(match[1], 10);
+}
+
+function getNextMemoryEmployeeSequence(): number {
+  const sequenceNumbers = memoryEmployees
+    .map((employee) => parseEmployeeSequence(employee.employeeId))
+    .filter((value): value is number => typeof value === "number");
+
+  if (sequenceNumbers.length === 0) {
+    return 1;
+  }
+
+  return Math.max(...sequenceNumbers) + 1;
+}
 
 export interface CreateEmployeeInput {
   fullName: string;
@@ -168,6 +197,59 @@ const memoryEmployees: EmployeeDTO[] = [
 
 let nextEmpSeq = 1006;
 
+export async function getEmployeeByIdentifier(identifier: string): Promise<EmployeeDTO | null> {
+  const normalized = identifier.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const exactLookup = normalized.toUpperCase();
+
+  if (shouldUseDatabase()) {
+    try {
+      const employee = await prisma.employee.findFirst({
+        where: {
+          OR: [{ employeeId: { equals: exactLookup, mode: "insensitive" } }, { id: normalized }, { email: normalized.toLowerCase() }],
+        },
+      });
+
+      if (!employee) {
+        return null;
+      }
+
+      return {
+        id: employee.id,
+        employeeId: employee.employeeId,
+        fullName: employee.fullName,
+        email: employee.email,
+        phone: employee.phone,
+        department: employee.department as DepartmentType,
+        jobTitle: employee.jobTitle,
+        role: employee.role as Role,
+        airportCode: employee.airportCode,
+        terminal: employee.terminal ?? undefined,
+        gateArea: employee.gateArea ?? undefined,
+        shift: employee.shift,
+        status: employee.status as EmployeeStatus,
+        verificationStatus: employee.verificationStatus as VerificationStatus,
+        joinDate: employee.joinDate.toISOString(),
+        lastLogin: employee.lastLogin?.toISOString() ?? undefined,
+        permissions: employee.permissions,
+        userId: employee.userId ?? undefined,
+      };
+    } catch (error) {
+      console.warn("Database employee lookup by identifier failed; falling back to memory.", error);
+    }
+  }
+
+  return memoryEmployees.find(
+    (employee) =>
+      employee.employeeId.toUpperCase() === exactLookup ||
+      employee.id.toLowerCase() === normalized.toLowerCase() ||
+      employee.email.toLowerCase() === normalized.toLowerCase(),
+  ) ?? null;
+}
+
 export async function listEmployees(filters?: {
   department?: DepartmentType;
   role?: Role;
@@ -231,12 +313,25 @@ export async function listEmployees(filters?: {
     result = result.filter((e) => e.status === filters.status);
   }
   if (filters?.search) {
-    const q = filters.search.toLowerCase();
+    const q = filters.search.trim();
+    const exactId = q.toUpperCase();
+    if (/^(AOCC-EMP-|EMP-)/i.test(q)) {
+      result = result.filter(
+        (employee) =>
+          employee.employeeId.toUpperCase() === exactId ||
+          employee.id.toLowerCase() === q.toLowerCase(),
+      );
+      if (result.length > 0) {
+        return result;
+      }
+    }
+
+    const query = q.toLowerCase();
     result = result.filter(
       (e) =>
-        e.fullName.toLowerCase().includes(q) ||
-        e.email.toLowerCase().includes(q) ||
-        e.employeeId.toLowerCase().includes(q),
+        e.fullName.toLowerCase().includes(query) ||
+        e.email.toLowerCase().includes(query) ||
+        e.employeeId.toLowerCase().includes(query),
     );
   }
   return result;
@@ -279,14 +374,19 @@ export async function getEmployeeById(id: string): Promise<EmployeeDTO | null> {
 }
 
 export async function createEmployee(input: CreateEmployeeInput): Promise<EmployeeDTO> {
-  const employeeId = `EMP-${nextEmpSeq++}`;
+  const generatedSequence = getNextMemoryEmployeeSequence();
+  const employeeId = formatEmployeeId(generatedSequence);
+  nextEmpSeq = Math.max(nextEmpSeq, generatedSequence + 1);
+
   const id = `emp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const userId = `usr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const normalizedEmail = input.email.trim().toLowerCase();
 
   const dto: EmployeeDTO = {
     id,
     employeeId,
-    fullName: input.fullName,
-    email: input.email.toLowerCase(),
+    fullName: input.fullName.trim(),
+    email: normalizedEmail,
     phone: input.phone,
     department: input.department,
     jobTitle: input.jobTitle,
@@ -299,12 +399,48 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
     verificationStatus: input.verificationStatus || "PENDING",
     joinDate: new Date().toISOString(),
     permissions: input.permissions ?? [],
+    userId,
   };
 
   memoryEmployees.unshift(dto);
 
+  // Sync with demoUsers fallback store so instant authentication works
+  if (!demoUsers.some((u) => u.email.toLowerCase() === normalizedEmail)) {
+    demoUsers.push({
+      id: userId,
+      name: dto.fullName,
+      email: normalizedEmail,
+      role: dto.role,
+      shift: dto.shift,
+      password: DEFAULT_STAFF_PASSWORD,
+    });
+  }
+
   if (shouldUseDatabase()) {
     try {
+      const passwordHash = await hash(DEFAULT_STAFF_PASSWORD, 10);
+
+      // Create or update User record with default Admin@123 password
+      const dbUser = await prisma.user.upsert({
+        where: { email: normalizedEmail },
+        update: {
+          name: dto.fullName,
+          role: dto.role,
+          shift: dto.shift,
+          passwordHash,
+        },
+        create: {
+          id: userId,
+          name: dto.fullName,
+          email: normalizedEmail,
+          role: dto.role,
+          shift: dto.shift,
+          passwordHash,
+        },
+      });
+
+      dto.userId = dbUser.id;
+
       await prisma.employee.create({
         data: {
           id: dto.id,
@@ -322,6 +458,7 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
           status: dto.status,
           verificationStatus: dto.verificationStatus,
           permissions: dto.permissions,
+          userId: dbUser.id,
         },
       });
     } catch (error) {
@@ -340,6 +477,7 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
       fullName: dto.fullName,
       role: dto.role,
       department: dto.department,
+      defaultPassword: DEFAULT_STAFF_PASSWORD,
     },
   });
 

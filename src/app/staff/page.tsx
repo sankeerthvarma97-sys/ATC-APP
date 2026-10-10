@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PasswordChangeCard } from "@/components/employee/password-change-card";
 import type { Role } from "@/lib/domain";
 
 export const dynamic = "force-dynamic";
@@ -67,6 +68,10 @@ export default async function StaffOverviewPage() {
             </Link>
           </div>
         )}
+      </div>
+
+      <div className="space-y-6">
+        <PasswordChangeCard />
       </div>
 
       {/* Available Operational Modules */}

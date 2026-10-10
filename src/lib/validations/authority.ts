@@ -6,7 +6,7 @@ export const createFlightSchema = z.object({
   flightNumber: z.string().trim().min(3).max(12).toUpperCase(),
   airline: z.string().trim().min(2).max(64),
   aircraftType: z.string().trim().min(2).max(48),
-  origin: z.string().trim().length(3).toUpperCase(),
+  origin: z.string().trim().length(3).toUpperCase().default("HYD"),
   destination: z.string().trim().length(3).toUpperCase(),
   departureTime: z.string().min(10),
   arrivalTime: z.string().min(10),
@@ -86,6 +86,8 @@ export const checkInSchema = z.object({
 
 export const boardingSchema = z.object({
   pnr: z.string().trim().min(3).max(16).toUpperCase(),
+  flightId: z.string().trim().min(3),
+  gate: z.string().trim().min(1).max(16),
 });
 
 export const createAirlineSchema = z.object({

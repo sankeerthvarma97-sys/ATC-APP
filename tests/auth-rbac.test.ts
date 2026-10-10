@@ -49,6 +49,15 @@ describe("Permanent Super Admin & Multi-Portal RBAC", () => {
       });
       expect(ticketUser?.role).toBe("TICKETING_AGENT");
     });
+
+    it("rejects a shared demo password that does not match the account", async () => {
+      const user = await validateCredentials({
+        email: "atc@aocc.test",
+        password: "Admin@123",
+      });
+
+      expect(user).toBeNull();
+    });
   });
 
   describe("2. Super Admin Root Authority", () => {

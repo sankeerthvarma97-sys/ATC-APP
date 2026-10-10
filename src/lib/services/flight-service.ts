@@ -1,7 +1,9 @@
 import type { FlightDTO, FlightStatus, SeatDTO } from "@/lib/domain";
 import { prisma, shouldUseDatabase } from "@/lib/prisma";
 import { logAuditEvent } from "./audit-service";
-import { initialAirports } from "./fleet-service";
+import { ensureDomesticAirports, initialAirports } from "./fleet-service";
+
+const DOMESTIC_ONLY = process.env.AOCC_DOMESTIC_ONLY !== "false";
 
 export interface CreateFlightInput {
   flightName: string;
@@ -536,13 +538,23 @@ export async function createFlight(input: CreateFlightInput): Promise<FlightDTO>
     throw new Error(`Flight duration is unrealistically short (${Math.round(durationMin)} min). Minimum flight duration is 20 minutes.`);
   }
 
-  const originAirport = initialAirports.find((a) => a.iata === origin);
-  const destAirport = initialAirports.find((a) => a.iata === destination);
+  const [originAirport, destAirport] = shouldUseDatabase()
+    ? await Promise.all([
+        prisma.airport.findUnique({ where: { iata: origin } }),
+        prisma.airport.findUnique({ where: { iata: destination } }),
+      ])
+    : [initialAirports.find((airport) => airport.iata === origin), initialAirports.find((airport) => airport.iata === destination)];
   if (!originAirport) {
-    throw new Error(`Origin airport ${origin} is not a registered simulation aerodrome.`);
+    throw new Error(`Origin airport ${origin} is not registered.`);
   }
   if (!destAirport) {
-    throw new Error(`Destination airport ${destination} is not a registered simulation aerodrome.`);
+    throw new Error(`Destination airport ${destination} is not registered.`);
+  }
+  if (originAirport.status !== "ACTIVE" || destAirport.status !== "ACTIVE") {
+    throw new Error("Both route airports must be active.");
+  }
+  if (DOMESTIC_ONLY && (originAirport.country !== "India" || destAirport.country !== "India")) {
+    throw new Error("International routes are disabled while domestic-only mode is active.");
   }
 
   const gate = input.gate || "B12";
@@ -560,6 +572,7 @@ export async function createFlight(input: CreateFlightInput): Promise<FlightDTO>
   const runwayWindowEnd = new Date(depDate.getTime() + 3 * 60000);
 
   if (shouldUseDatabase()) {
+    await ensureDomesticAirports();
     return await prisma.$transaction(async (tx) => {
       // Check 1: Duplicate flight number on same departure date/time
       const existingDuplicate = await tx.flight.findFirst({

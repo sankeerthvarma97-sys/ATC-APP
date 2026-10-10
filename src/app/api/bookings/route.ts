@@ -1,18 +1,37 @@
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { assertPermission } from "@/lib/auth/permissions";
+import { getAirportScope } from "@/lib/auth/airport-scope";
 import { createBooking, listBookingsPaged } from "@/lib/services/booking-service";
 import { createBookingSchema } from "@/lib/validations/authority";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const user = await getAuthenticatedUser();
+  const auth = assertPermission(user, "VIEW_BOOKINGS");
+  if (!auth.ok) return Response.json({ error: auth.message }, { status: auth.status });
+
+  let scope;
+  try {
+    scope = await getAirportScope(user!);
+  } catch {
+    return Response.json({ error: "Could not verify airport assignment." }, { status: 503 });
+  }
+  if (!scope) return Response.json({ error: "No active, verified airport assignment." }, { status: 403 });
+
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q") || undefined;
   const flightId = searchParams.get("flightId") || undefined;
   const page = Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10));
   const pageSize = Math.min(100, Math.max(1, Number.parseInt(searchParams.get("pageSize") || "25", 10)));
 
-  const paged = await listBookingsPaged({ query, flightId, page, pageSize });
+  const paged = await listBookingsPaged({
+    query,
+    flightId,
+    page,
+    pageSize,
+    airportCode: scope.global ? undefined : scope.airportCode,
+  });
   return Response.json({
     bookings: paged.bookings,
     total: paged.total,

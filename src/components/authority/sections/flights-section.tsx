@@ -10,7 +10,7 @@ import {
   Sliders,
   X,
 } from "lucide-react";
-import type { FlightDTO, FlightStatus } from "@/lib/domain";
+import type { AirportDTO, FlightDTO, FlightStatus } from "@/lib/domain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +42,7 @@ export function FlightsSection({
   onRefresh?: () => void;
 }) {
   const [fetchedFlights, setFetchedFlights] = useState<FlightDTO[]>([]);
+  const [airports, setAirports] = useState<AirportDTO[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(15);
   const [total, setTotal] = useState(0);
@@ -73,6 +74,15 @@ export function FlightsSection({
       active = false;
     };
   }, [page, pageSize, debouncedQuery]);
+
+  useEffect(() => {
+    fetch("/api/airports")
+      .then((response) => response.json())
+      .then((data) => setAirports((data.airports || []) as AirportDTO[]))
+      .catch(() => setAirports([]));
+  }, []);
+
+  const domesticAirports = airports.filter((airport) => airport.country === "India" && airport.status === "ACTIVE");
 
   const flights = fetchedFlights.length > 0 || debouncedQuery ? fetchedFlights : (initialFlights || []);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -387,23 +397,29 @@ export function FlightsSection({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[11px] font-mono text-slate-400 uppercase">Origin (IATA)</label>
-                  <Input
+                  <select
                     value={origin}
-                    onChange={(e) => setOrigin(e.target.value.toUpperCase())}
+                    onChange={(e) => setOrigin(e.target.value)}
                     required
-                    maxLength={3}
-                    className="mt-1 bg-slate-900 border-slate-700 text-xs font-mono"
-                  />
+                    className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-mono text-white"
+                  >
+                    {domesticAirports.map((airport) => (
+                      <option key={airport.id} value={airport.iata}>{airport.city} ({airport.iata})</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-[11px] font-mono text-slate-400 uppercase">Destination (IATA)</label>
-                  <Input
+                  <select
                     value={destination}
-                    onChange={(e) => setDestination(e.target.value.toUpperCase())}
+                    onChange={(e) => setDestination(e.target.value)}
                     required
-                    maxLength={3}
-                    className="mt-1 bg-slate-900 border-slate-700 text-xs font-mono"
-                  />
+                    className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-mono text-white"
+                  >
+                    {domesticAirports.filter((airport) => airport.iata !== origin).map((airport) => (
+                      <option key={airport.id} value={airport.iata}>{airport.city} ({airport.iata})</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

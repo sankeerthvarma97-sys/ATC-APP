@@ -121,3 +121,44 @@ select {
     scroll-behavior: auto !important;
   }
 }
+
+/* =========================================================================
+   Universal Text Selection & Copy Support Across Every Domain
+   ========================================================================= */
+html,
+body,
+main,
+section,
+article,
+div,
+p,
+span,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+li,
+td,
+th,
+pre,
+code,
+label,
+blockquote {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+::selection {
+  background: rgba(14, 165, 233, 0.4);
+  color: #ffffff;
+}
+
+::-moz-selection {
+  background: rgba(14, 165, 233, 0.4);
+  color: #ffffff;
+}
+

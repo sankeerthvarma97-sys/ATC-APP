@@ -23,15 +23,12 @@ const simulationRoutes = [
   { callsign: "AV202", flightNumber: "AV202", airline: "AeroVista", aircraft: "Boeing 737-800", from: "DEL", to: "BLR", dur: 160, dep: 60, gate: "C2", rwy: "28", fare: 5200, status: "SCHEDULED" },
   { callsign: "BH305", flightNumber: "BH305", airline: "Blue Horizon Air", aircraft: "Airbus A320", from: "MAA", to: "CCU", dur: 135, dep: 30, gate: "B6", rwy: "07", fare: 4800, status: "BOARDING" },
   { callsign: "NV412", flightNumber: "NV412", airline: "Nova Airways", aircraft: "Airbus A321", from: "COK", to: "GOI", dur: 70, dep: 15, gate: "B2", rwy: "27", fare: 3600, status: "PUSHBACK" },
-  { callsign: "IS501", flightNumber: "IS501", airline: "IndianSky Simulation Airlines", aircraft: "Boeing 777-200ER", from: "HYD", to: "DXB", dur: 220, dep: -40, gate: "A10", rwy: "09L", fare: 14500, status: "AIRBORNE" },
   { callsign: "SC104", flightNumber: "SC104", airline: "SkyConnect Airlines", aircraft: "Airbus A320neo", from: "PNQ", to: "DEL", dur: 125, dep: 90, gate: "A1", rwy: "10", fare: 4200, status: "SCHEDULED" },
   { callsign: "AV210", flightNumber: "AV210", airline: "AeroVista", aircraft: "Boeing 737-800", from: "BLR", to: "AMD", dur: 130, dep: 120, gate: "D1", rwy: "09", fare: 4600, status: "SCHEDULED" },
   { callsign: "BH315", flightNumber: "BH315", airline: "Blue Horizon Air", aircraft: "Airbus A320", from: "JAI", to: "HYD", dur: 110, dep: 75, gate: "A3", rwy: "15", fare: 4100, status: "SCHEDULED" },
   { callsign: "NV420", flightNumber: "NV420", airline: "Nova Airways", aircraft: "Airbus A321", from: "BOM", to: "MAA", dur: 115, dep: 140, gate: "A4", rwy: "27", fare: 4400, status: "SCHEDULED" },
-  { callsign: "IS508", flightNumber: "IS508", airline: "IndianSky Simulation Airlines", aircraft: "Boeing 787-9", from: "DEL", to: "SIN", dur: 320, dep: -80, gate: "D4", rwy: "28", fare: 18500, status: "AIRBORNE" },
   { callsign: "SC112", flightNumber: "SC112", airline: "SkyConnect Airlines", aircraft: "Airbus A320neo", from: "CCU", to: "COK", dur: 165, dep: 180, gate: "B4", rwy: "01R", fare: 5900, status: "SCHEDULED" },
   { callsign: "AV225", flightNumber: "AV225", airline: "AeroVista", aircraft: "Boeing 737-800", from: "GOI", to: "BLR", dur: 65, dep: 40, gate: "C1", rwy: "08", fare: 3200, status: "BOARDING" },
-  { callsign: "BH322", flightNumber: "BH322", airline: "Blue Horizon Air", aircraft: "Airbus A320", from: "BOM", to: "DOH", dur: 210, dep: 240, gate: "A6", rwy: "27", fare: 16200, status: "SCHEDULED" },
 ];
 
 async function main() {

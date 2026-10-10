@@ -76,4 +76,34 @@ describe("Flight Creation Audit & Conflict Tests", () => {
 
     await expect(createFlight(invalidRoute)).rejects.toThrow(/cannot be identical/);
   });
+
+  it("rejects international routes on the server in domestic-only mode", async () => {
+    const internationalFlight = {
+      flightName: "International Route Test",
+      flightNumber: "SC705",
+      airline: "SkyConnect Airlines",
+      aircraftType: "Airbus A320neo",
+      origin: "HYD",
+      destination: "DXB",
+      departureTime: new Date(Date.now() + 40000000).toISOString(),
+      arrivalTime: new Date(Date.now() + 50000000).toISOString(),
+    };
+
+    await expect(createFlight(internationalFlight)).rejects.toThrow(/International routes are disabled/);
+  });
+
+  it("accepts an Indian airport added to the domestic airport catalog", async () => {
+    const flight = await createFlight({
+      flightName: "Hyderabad to Lucknow Test",
+      flightNumber: "SC706",
+      airline: "SkyConnect Airlines",
+      aircraftType: "Airbus A320neo",
+      origin: "HYD",
+      destination: "LKO",
+      departureTime: new Date(Date.now() + 60000000).toISOString(),
+      arrivalTime: new Date(Date.now() + 70000000).toISOString(),
+    });
+
+    expect(flight.destination).toBe("LKO");
+  });
 });

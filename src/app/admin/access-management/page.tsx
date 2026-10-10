@@ -116,7 +116,13 @@ export default function AccessManagementPage() {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const res = await fetch("/api/employees");
+      const params = new URLSearchParams();
+      if (search.trim()) params.set("q", search.trim());
+      if (deptFilter !== "ALL") params.set("department", deptFilter);
+      if (roleFilter !== "ALL") params.set("role", roleFilter);
+      if (statusFilter !== "ALL") params.set("status", statusFilter);
+
+      const res = await fetch(`/api/employees?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setEmployees(data.employees || []);

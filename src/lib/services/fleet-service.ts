@@ -3,17 +3,21 @@ import { prisma, shouldUseDatabase } from "@/lib/prisma";
 import { logAuditEvent } from "./audit-service";
 
 export const initialAirports: AirportDTO[] = [
-  { id: "apt-hyd", iata: "HYD", icao: "VOHS", name: "Rajiv Gandhi International Simulation Field", city: "Hyderabad", country: "India", latitude: 17.2403, longitude: 78.4294, elevationFt: 2024, status: "ACTIVE" },
-  { id: "apt-bom", iata: "BOM", icao: "VABB", name: "Chhatrapati Shivaji Maharaj Simulation Airport", city: "Mumbai", country: "India", latitude: 19.0896, longitude: 72.8656, elevationFt: 39, status: "ACTIVE" },
-  { id: "apt-del", iata: "DEL", icao: "VIDP", name: "Indira Gandhi International Simulation Airport", city: "Delhi", country: "India", latitude: 28.5562, longitude: 77.1000, elevationFt: 777, status: "ACTIVE" },
-  { id: "apt-blr", iata: "BLR", icao: "VOBL", name: "Kempegowda International Simulation Airport", city: "Bengaluru", country: "India", latitude: 13.1986, longitude: 77.7066, elevationFt: 3000, status: "ACTIVE" },
-  { id: "apt-maa", iata: "MAA", icao: "VOMM", name: "Chennai International Simulation Field", city: "Chennai", country: "India", latitude: 12.9941, longitude: 80.1709, elevationFt: 52, status: "ACTIVE" },
-  { id: "apt-ccu", iata: "CCU", icao: "VECC", name: "Netaji Subhash Chandra Bose Simulation Field", city: "Kolkata", country: "India", latitude: 22.6547, longitude: 88.4467, elevationFt: 16, status: "ACTIVE" },
-  { id: "apt-cok", iata: "COK", icao: "VOCI", name: "Cochin International Simulation Field", city: "Kochi", country: "India", latitude: 10.1520, longitude: 76.4019, elevationFt: 30, status: "ACTIVE" },
-  { id: "apt-goi", iata: "GOI", icao: "VOGO", name: "Goa Dabolim Simulation Airport", city: "Goa", country: "India", latitude: 15.3808, longitude: 73.8314, elevationFt: 184, status: "ACTIVE" },
-  { id: "apt-pnq", iata: "PNQ", icao: "VAPO", name: "Pune Airport Simulation Field", city: "Pune", country: "India", latitude: 18.5822, longitude: 73.9197, elevationFt: 1942, status: "ACTIVE" },
-  { id: "apt-amd", iata: "AMD", icao: "VAAH", name: "Sardar Vallabhbhai Patel Simulation Airport", city: "Ahmedabad", country: "India", latitude: 23.0772, longitude: 72.6347, elevationFt: 189, status: "ACTIVE" },
-  { id: "apt-jai", iata: "JAI", icao: "VIJP", name: "Jaipur International Simulation Airport", city: "Jaipur", country: "India", latitude: 26.8242, longitude: 75.8122, elevationFt: 1263, status: "ACTIVE" },
+  { id: "apt-hyd", iata: "HYD", icao: "VOHS", name: "Rajiv Gandhi International Airport", city: "Hyderabad", country: "India", latitude: 17.2403, longitude: 78.4294, elevationFt: 2024, status: "ACTIVE" },
+  { id: "apt-bom", iata: "BOM", icao: "VABB", name: "Chhatrapati Shivaji Maharaj International Airport", city: "Mumbai", country: "India", latitude: 19.0896, longitude: 72.8656, elevationFt: 39, status: "ACTIVE" },
+  { id: "apt-del", iata: "DEL", icao: "VIDP", name: "Indira Gandhi International Airport", city: "Delhi", country: "India", latitude: 28.5562, longitude: 77.1000, elevationFt: 777, status: "ACTIVE" },
+  { id: "apt-blr", iata: "BLR", icao: "VOBL", name: "Kempegowda International Airport", city: "Bengaluru", country: "India", latitude: 13.1986, longitude: 77.7066, elevationFt: 3000, status: "ACTIVE" },
+  { id: "apt-maa", iata: "MAA", icao: "VOMM", name: "Chennai International Airport", city: "Chennai", country: "India", latitude: 12.9941, longitude: 80.1709, elevationFt: 52, status: "ACTIVE" },
+  { id: "apt-ccu", iata: "CCU", icao: "VECC", name: "Netaji Subhas Chandra Bose International Airport", city: "Kolkata", country: "India", latitude: 22.6547, longitude: 88.4467, elevationFt: 16, status: "ACTIVE" },
+  { id: "apt-cok", iata: "COK", icao: "VOCI", name: "Cochin International Airport", city: "Kochi", country: "India", latitude: 10.1520, longitude: 76.4019, elevationFt: 30, status: "ACTIVE" },
+  { id: "apt-goi", iata: "GOI", icao: "VOGO", name: "Goa International Airport", city: "Goa", country: "India", latitude: 15.3808, longitude: 73.8314, elevationFt: 184, status: "ACTIVE" },
+  { id: "apt-pnq", iata: "PNQ", icao: "VAPO", name: "Pune Airport", city: "Pune", country: "India", latitude: 18.5822, longitude: 73.9197, elevationFt: 1942, status: "ACTIVE" },
+  { id: "apt-amd", iata: "AMD", icao: "VAAH", name: "Sardar Vallabhbhai Patel International Airport", city: "Ahmedabad", country: "India", latitude: 23.0772, longitude: 72.6347, elevationFt: 189, status: "ACTIVE" },
+  { id: "apt-jai", iata: "JAI", icao: "VIJP", name: "Jaipur International Airport", city: "Jaipur", country: "India", latitude: 26.8242, longitude: 75.8122, elevationFt: 1263, status: "ACTIVE" },
+  { id: "apt-lko", iata: "LKO", icao: "VILK", name: "Chaudhary Charan Singh International Airport", city: "Lucknow", country: "India", latitude: 26.7606, longitude: 80.8893, elevationFt: 123, status: "ACTIVE" },
+  { id: "apt-bbi", iata: "BBI", icao: "VEBS", name: "Biju Patnaik International Airport", city: "Bhubaneswar", country: "India", latitude: 20.2444, longitude: 85.8178, elevationFt: 138, status: "ACTIVE" },
+  { id: "apt-vtz", iata: "VTZ", icao: "VOVZ", name: "Visakhapatnam International Airport", city: "Visakhapatnam", country: "India", latitude: 17.7212, longitude: 83.2245, elevationFt: 45, status: "ACTIVE" },
+  { id: "apt-tir", iata: "TIR", icao: "VOTP", name: "Tirupati International Airport", city: "Tirupati", country: "India", latitude: 13.6325, longitude: 79.5433, elevationFt: 350, status: "ACTIVE" },
   { id: "apt-dxb", iata: "DXB", icao: "OMDB", name: "Dubai International Simulation Field", city: "Dubai", country: "UAE", latitude: 25.2532, longitude: 55.3657, elevationFt: 62, status: "ACTIVE" },
   { id: "apt-sin", iata: "SIN", icao: "WSSS", name: "Singapore Changi Simulation Field", city: "Singapore", country: "Singapore", latitude: 1.3644, longitude: 103.9915, elevationFt: 22, status: "ACTIVE" },
   { id: "apt-jfk", iata: "JFK", icao: "KJFK", name: "Kennedy International Simulation Field", city: "New York", country: "USA", latitude: 40.6413, longitude: -73.7781, elevationFt: 13, status: "ACTIVE" },
@@ -68,9 +72,40 @@ const memoryAircraft = [...initialAircraft];
 const memoryRunways = [...initialRunways];
 let memoryGates = [...initialGates];
 
+export async function ensureDomesticAirports(): Promise<void> {
+  if (!shouldUseDatabase()) return;
+
+  const domesticAirports = initialAirports.filter((airport) => airport.country === "India");
+  const existing = await prisma.airport.findMany({
+    where: { iata: { in: domesticAirports.map((airport) => airport.iata) } },
+    select: { iata: true },
+  });
+  const existingCodes = new Set(existing.map((airport) => airport.iata));
+  const missingAirports = domesticAirports.filter((airport) => !existingCodes.has(airport.iata));
+
+  if (missingAirports.length > 0) {
+    await prisma.airport.createMany({
+      data: missingAirports.map(({ id, iata, icao, name, city, country, latitude, longitude, elevationFt, status }) => ({
+        id,
+        iata,
+        icao,
+        name,
+        city,
+        country,
+        latitude,
+        longitude,
+        elevationFt,
+        status,
+      })),
+      skipDuplicates: true,
+    });
+  }
+}
+
 export async function listAirports(): Promise<AirportDTO[]> {
   if (shouldUseDatabase()) {
     try {
+      await ensureDomesticAirports();
       const dbAirports = await prisma.airport.findMany({ orderBy: { iata: "asc" } });
       if (dbAirports.length > 0) {
         return dbAirports.map((a) => ({

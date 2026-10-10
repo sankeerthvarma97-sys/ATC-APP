@@ -488,7 +488,8 @@ export async function getBookingByPNR(pnr: string): Promise<BookingDTO | null> {
         };
       }
     } catch (error) {
-      console.warn("Database getBookingByPNR failed; checking memory.", error);
+      console.warn("Database getBookingByPNR failed.", error);
+      throw error;
     }
   }
 
@@ -506,6 +507,7 @@ export interface PagedBookingResult {
 export async function listBookingsPaged(filters?: {
   query?: string;
   flightId?: string;
+  airportCode?: string;
   page?: number;
   pageSize?: number;
 }): Promise<PagedBookingResult> {
@@ -517,6 +519,7 @@ export async function listBookingsPaged(filters?: {
     try {
       const where: Record<string, unknown> = {};
       if (filters?.flightId) where.flightId = filters.flightId;
+      if (filters?.airportCode) where.flight = { origin: filters.airportCode };
       if (filters?.query) {
         where.OR = [
           { pnr: { contains: filters.query, mode: "insensitive" } },
@@ -577,13 +580,17 @@ export async function listBookingsPaged(filters?: {
         totalPages: Math.ceil(total / pageSize) || 1,
       };
     } catch (error) {
-      console.warn("Database listBookings failed; using memory.", error);
+      console.warn("Database listBookings failed.", error);
+      throw error;
     }
   }
 
   let result = [...memoryBookings];
   if (filters?.flightId) {
     result = result.filter((b) => b.flightId === filters.flightId);
+  }
+  if (filters?.airportCode) {
+    result = result.filter((booking) => booking.origin?.toUpperCase() === filters.airportCode?.toUpperCase());
   }
   if (filters?.query) {
     const q = filters.query.toLowerCase();

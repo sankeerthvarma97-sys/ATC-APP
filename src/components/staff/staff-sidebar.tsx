@@ -149,7 +149,7 @@ export function StaffSidebar({
   return (
     <aside
       className={cn(
-        "relative flex flex-col border-r border-slate-800 bg-[#070b13] transition-all duration-200 select-none z-30 shrink-0",
+        "relative flex flex-col border-r border-slate-800 bg-[#070b13] transition-all duration-200 z-30 shrink-0",
         collapsed ? "w-16" : "w-64",
       )}
     >

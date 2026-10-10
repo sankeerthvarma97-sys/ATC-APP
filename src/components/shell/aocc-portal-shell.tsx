@@ -176,7 +176,7 @@ export function AoccPortalShell({
   });
 
   return (
-    <div className="relative flex h-screen w-screen overflow-hidden bg-[#070b13] text-slate-100 font-sans select-none antialiased">
+    <div className="relative flex h-screen w-screen overflow-hidden bg-[#070b13] text-slate-100 font-sans select-text antialiased">
       {/* 24/7 Subtle Ambient Aerospace Grid Animation */}
       <AerospaceAmbientGrid />
 

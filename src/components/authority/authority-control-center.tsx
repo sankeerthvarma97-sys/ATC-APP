@@ -290,7 +290,14 @@ export function AuthorityControlCenter({
       case "verification":
         return <VerificationSection onNavigateTo={handleNavigateTo} />;
       case "boarding":
-        return <BoardingSection onNavigateTo={(sec: string) => handleNavigateTo(sec)} />;
+        return (
+          <BoardingSection
+            key={`${sectionParams.flight ?? ""}:${sectionParams.pnr ?? ""}`}
+            onNavigateTo={(sec: string, params?: Record<string, string>) => handleNavigateTo(sec, params)}
+            initialFlight={sectionParams.flight}
+            initialPnr={sectionParams.pnr}
+          />
+        );
       case "staff":
         return <StaffSection />;
       case "departments":
@@ -335,7 +342,7 @@ export function AuthorityControlCenter({
   };
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#070b13] text-slate-100 font-sans select-none antialiased">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#070b13] text-slate-100 font-sans select-text antialiased">
       {/* Top Application Header */}
       <AuthorityHeader
         currentUser={currentUser}

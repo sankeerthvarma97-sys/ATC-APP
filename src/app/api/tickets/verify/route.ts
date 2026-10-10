@@ -24,7 +24,30 @@ export async function POST(request: Request) {
       name: user?.name,
     });
 
-    return Response.json(result);
+    const booking = result.booking;
+    const ticket = booking
+      ? {
+          ticketNumber: booking.ticketNumber || "",
+          pnr: booking.pnr,
+          flightNumber: booking.flightNumber,
+          passengerName: booking.passengerName,
+          seatNumber: booking.seatNumber,
+          origin: booking.origin || "",
+          destination: booking.destination || "",
+          departureTime: booking.departureTime || "",
+          status: booking.bookingStatus,
+          gate: booking.gate || "",
+          qrCode: booking.qrCode || "",
+          bookingStatus: booking.bookingStatus,
+          paymentStatus: booking.paymentStatus,
+          boardingStatus: booking.boardingStatus,
+        }
+      : undefined;
+
+    return Response.json({
+      ...result,
+      ticket,
+    });
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : "Verification error" },

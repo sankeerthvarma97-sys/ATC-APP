@@ -16,12 +16,15 @@ import {
   Ticket as TicketIcon,
   User,
   XCircle,
+  Copy,
+  Check,
+  Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import type { TicketVerificationResult } from "@/lib/domain";
+import type { TicketVerificationResult, BookingDTO } from "@/lib/domain";
 
 export function VerificationSection({
   onNavigateTo,
@@ -30,6 +33,18 @@ export function VerificationSection({
 }) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [gatewayActionLoading, setGatewayActionLoading] = useState(false);
+  const [gatewayMessage, setGatewayMessage] = useState<string | null>(null);
+
+  const copyText = (text: string, key: string) => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
+    }
+  };
+
   const [result, setResult] = useState<{
     status: TicketVerificationResult;
     message: string;
@@ -49,6 +64,7 @@ export function VerificationSection({
       paymentStatus?: string;
       boardingStatus?: string;
     };
+    booking?: BookingDTO;
     flight?: {
       id: string;
       callsign: string;
@@ -70,11 +86,29 @@ export function VerificationSection({
     }>
   >([]);
 
+  const ticketData = result?.ticket || (result?.booking ? {
+    ticketNumber: result.booking.ticketNumber || "",
+    pnr: result.booking.pnr,
+    flightNumber: result.booking.flightNumber,
+    passengerName: result.booking.passengerName,
+    seatNumber: result.booking.seatNumber,
+    origin: result.booking.origin || "",
+    destination: result.booking.destination || "",
+    departureTime: result.booking.departureTime || "",
+    status: result.booking.bookingStatus,
+    gate: result.booking.gate || "",
+    qrCode: result.booking.qrCode || "",
+    bookingStatus: result.booking.bookingStatus,
+    paymentStatus: result.booking.paymentStatus,
+    boardingStatus: result.booking.boardingStatus,
+  } : undefined);
+
   const handleVerify = async (codeToVerify?: string) => {
     const targetCode = (codeToVerify || query).trim().toUpperCase();
     if (!targetCode) return;
 
     setLoading(true);
+    setGatewayMessage(null);
     try {
       const res = await fetch("/api/tickets/verify", {
         method: "POST",
@@ -85,12 +119,18 @@ export function VerificationSection({
       const data = await res.json();
       setResult(data);
 
-      if (data.ticket) {
+      const activeTicket = data.ticket || (data.booking ? {
+        pnr: data.booking.pnr,
+        passengerName: data.booking.passengerName,
+        flightNumber: data.booking.flightNumber,
+      } : undefined);
+
+      if (activeTicket) {
         setScanHistory((prev) => [
           {
-            pnr: data.ticket.pnr,
-            name: data.ticket.passengerName,
-            flight: data.ticket.flightNumber,
+            pnr: activeTicket.pnr,
+            name: activeTicket.passengerName,
+            flight: activeTicket.flightNumber,
             status: data.status,
             time: new Date().toLocaleTimeString(),
           },
@@ -104,6 +144,45 @@ export function VerificationSection({
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGatewayClearance = async (pnrToBoard: string, flightId: string, gate: string) => {
+    if (!flightId || !gate) {
+      setGatewayMessage("Boarding requires a flight with an assigned gate. Open the flight's gate manifest.");
+      return;
+    }
+
+    setGatewayActionLoading(true);
+    setGatewayMessage(null);
+    try {
+      const res = await fetch("/api/boarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pnr: pnrToBoard, flightId, gate }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setGatewayMessage("Passenger cleared and successfully boarded at gate!");
+        setResult((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            status: "ALREADY_USED",
+            message: "Passenger successfully boarded at gateway.",
+            ticket: prev.ticket
+              ? { ...prev.ticket, boardingStatus: "BOARDED" }
+              : undefined,
+          };
+        });
+      } else {
+        setGatewayMessage(data.error || "Gateway clearance failed. Please check boarding state.");
+      }
+    } catch {
+      setGatewayMessage("Gateway server error. Failed to clear passenger.");
+    } finally {
+      setGatewayActionLoading(false);
     }
   };
 
@@ -221,6 +300,16 @@ export function VerificationSection({
             </CardContent>
           </Card>
 
+          {/* Gateway Action Feedback */}
+          {gatewayMessage && (
+            <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 text-primary text-sm flex items-center justify-between">
+              <span>{gatewayMessage}</span>
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setGatewayMessage(null)}>
+                Dismiss
+              </Button>
+            </div>
+          )}
+
           {/* Verification Result Card */}
           {result && (
             <Card
@@ -237,8 +326,16 @@ export function VerificationSection({
                     <div>
                       <div className="flex items-center gap-3">
                         {getStatusBadge(result.status)}
-                        <span className="font-mono text-sm text-muted-foreground">
-                          {result.ticket?.pnr || query}
+                        <span className="font-mono text-sm text-muted-foreground flex items-center gap-1.5">
+                          {ticketData?.pnr || query}
+                          <button
+                            type="button"
+                            onClick={() => copyText(ticketData?.pnr || query, "pnr-hdr")}
+                            title="Copy PNR"
+                            className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {copiedKey === "pnr-hdr" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                          </button>
                         </span>
                       </div>
                       <p className="text-sm font-medium mt-1 text-foreground">
@@ -247,14 +344,32 @@ export function VerificationSection({
                     </div>
                   </div>
 
-                  {result.ticket && (
-                    <div className="flex items-center gap-2">
+                  {ticketData && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        disabled={gatewayActionLoading || ticketData.boardingStatus === "BOARDED"}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-sm"
+                        onClick={() => handleGatewayClearance(
+                          ticketData.pnr,
+                          result.booking?.flightId || result.flight?.id || "",
+                          (result.booking?.gate || ticketData.gate || "").replace(/^GATE\s*/i, "").trim(),
+                        )}
+                      >
+                        {gatewayActionLoading ? (
+                          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent mr-1.5" />
+                        ) : (
+                          <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                        )}
+                        {ticketData.boardingStatus === "BOARDED" ? "Boarded at Gate" : "⚡ Gateway Clearance (Board Now)"}
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => {
                           if (onNavigateTo) {
-                            onNavigateTo("checkin", { pnr: result.ticket?.pnr || "" });
+                            onNavigateTo("checkin", { pnr: ticketData.pnr });
                           }
                         }}
                       >
@@ -263,10 +378,13 @@ export function VerificationSection({
                       </Button>
                       <Button
                         size="sm"
-                        variant="default"
+                        variant="secondary"
                         onClick={() => {
                           if (onNavigateTo) {
-                            onNavigateTo("boarding", { flight: result.ticket?.flightNumber || "" });
+                            onNavigateTo("boarding", {
+                              flight: ticketData.flightNumber ?? "UNKNOWN",
+                              pnr: ticketData.pnr ?? "",
+                            });
                           }
                         }}
                       >
@@ -277,13 +395,21 @@ export function VerificationSection({
                   )}
                 </div>
 
-                {result.ticket && (
+                {ticketData && (
                   <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                     <div className="space-y-1">
                       <span className="text-xs text-muted-foreground block">PASSENGER NAME</span>
                       <span className="font-semibold text-foreground flex items-center gap-1.5">
                         <User className="h-3.5 w-3.5 text-primary" />
-                        {result.ticket.passengerName}
+                        {ticketData.passengerName}
+                        <button
+                          type="button"
+                          onClick={() => copyText(ticketData.passengerName ?? "", "name")}
+                          title="Copy Passenger Name"
+                          className="p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {copiedKey === "name" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                        </button>
                       </span>
                     </div>
 
@@ -291,52 +417,76 @@ export function VerificationSection({
                       <span className="text-xs text-muted-foreground block">FLIGHT NUMBER</span>
                       <span className="font-mono font-semibold text-foreground flex items-center gap-1.5">
                         <Plane className="h-3.5 w-3.5 text-primary" />
-                        {result.ticket.flightNumber}
+                        {ticketData.flightNumber}
+                        <button
+                          type="button"
+                          onClick={() => copyText(ticketData.flightNumber ?? "", "flight")}
+                          title="Copy Flight Number"
+                          className="p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {copiedKey === "flight" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                        </button>
                       </span>
                     </div>
 
                     <div className="space-y-1">
                       <span className="text-xs text-muted-foreground block">SEAT</span>
-                      <span className="font-mono font-bold text-base text-primary">
-                        {result.ticket.seatNumber}
+                      <span className="font-mono font-bold text-base text-primary flex items-center gap-1.5">
+                        {ticketData.seatNumber}
+                        <button
+                          type="button"
+                          onClick={() => copyText(ticketData.seatNumber, "seat")}
+                          title="Copy Seat"
+                          className="p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {copiedKey === "seat" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                        </button>
                       </span>
                     </div>
 
                     <div className="space-y-1">
                       <span className="text-xs text-muted-foreground block">ROUTING</span>
                       <span className="font-semibold text-foreground">
-                        {result.ticket.origin} &rarr; {result.ticket.destination}
+                        {ticketData.origin} &rarr; {ticketData.destination}
                       </span>
                     </div>
 
                     <div className="space-y-1">
                       <span className="text-xs text-muted-foreground block">SCHEDULED DEP</span>
                       <span className="font-mono text-muted-foreground">
-                        {result.ticket.departureTime || "14:30Z"}
+                        {ticketData.departureTime || "Unavailable"}
                       </span>
                     </div>
 
                     <div className="space-y-1">
                       <span className="text-xs text-muted-foreground block">GATE</span>
-                      <span className="font-mono font-semibold text-foreground">
-                        {result.ticket.gate || "GATE A1"}
+                      <span className="font-mono font-semibold text-foreground flex items-center gap-1.5">
+                        {ticketData.gate || "Unassigned"}
+                        <button
+                          type="button"
+                          onClick={() => copyText(ticketData.gate || "", "gate")}
+                          title="Copy Gate"
+                          className="p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {copiedKey === "gate" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                        </button>
                       </span>
                     </div>
 
                     <div className="space-y-1">
                       <span className="text-xs text-muted-foreground block">PAYMENT STATUS</span>
                       <Badge variant="outline" className="text-xs">
-                        {result.ticket.paymentStatus || "PAID"}
+                        {ticketData.paymentStatus || "Unavailable"}
                       </Badge>
                     </div>
 
                     <div className="space-y-1">
                       <span className="text-xs text-muted-foreground block">BOARDING STATE</span>
                       <Badge
-                        variant={result.ticket.boardingStatus === "BOARDED" ? "default" : "secondary"}
+                        variant={ticketData.boardingStatus === "BOARDED" ? "default" : "secondary"}
                         className="text-xs"
                       >
-                        {result.ticket.boardingStatus || "PENDING"}
+                        {ticketData.boardingStatus || "PENDING"}
                       </Badge>
                     </div>
                   </div>
@@ -378,20 +528,34 @@ export function VerificationSection({
                   {scanHistory.map((item, idx) => (
                     <div
                       key={idx}
-                      onClick={() => {
-                        setQuery(item.pnr);
-                        handleVerify(item.pnr);
-                      }}
-                      className="p-2.5 rounded border border-border/50 bg-background/50 hover:bg-muted/50 cursor-pointer text-xs space-y-1 transition-colors"
+                      className="p-2.5 rounded border border-border/50 bg-background/50 hover:bg-muted/50 text-xs space-y-1 transition-colors"
                     >
                       <div className="flex items-center justify-between font-mono font-medium">
-                        <span>{item.pnr}</span>
-                        <Badge
-                          variant={item.status === "VALID" ? "default" : "destructive"}
-                          className="text-[10px] px-1.5 py-0"
+                        <span
+                          className="cursor-pointer hover:underline text-primary"
+                          onClick={() => {
+                            setQuery(item.pnr);
+                            handleVerify(item.pnr);
+                          }}
                         >
-                          {item.status}
-                        </Badge>
+                          {item.pnr}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => copyText(item.pnr, `log-${idx}`)}
+                            title="Copy PNR"
+                            className="p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {copiedKey === `log-${idx}` ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                          </button>
+                          <Badge
+                            variant={item.status === "VALID" ? "default" : "destructive"}
+                            className="text-[10px] px-1.5 py-0"
+                          >
+                            {item.status}
+                          </Badge>
+                        </div>
                       </div>
                       <div className="flex items-center justify-between text-muted-foreground">
                         <span>{item.name} ({item.flight})</span>

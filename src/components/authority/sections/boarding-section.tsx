@@ -1,34 +1,24 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
-  AlertCircle,
-  ArrowRight,
   Camera,
   Check,
   CheckCircle2,
   Clock,
   DoorClosed,
   DoorOpen,
-  Filter,
-  Luggage,
   Plane,
   PlaneTakeoff,
-  QrCode,
   RefreshCw,
   Scan,
-  Search,
-  Send,
-  ShieldAlert,
-  Sparkles,
-  UserCheck,
   Users,
   Volume2,
   VolumeX,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import type { FlightDTO } from "@/lib/domain";
@@ -37,6 +27,11 @@ export interface ManifestPassenger {
   id: string;
   pnr: string;
   ticketNumber: string;
+  flightId: string;
+  flightNumber: string;
+  origin: string;
+  destination: string;
+  departureTime?: string;
   name: string;
   seat: string;
   row: number;
@@ -47,52 +42,37 @@ export interface ManifestPassenger {
   boarded: boolean;
   boardedAt?: string;
   baggageCount: number;
+  terminal?: string;
+  gate?: string;
+  ticketStatus?: string;
+  boardingPassStatus?: string;
 }
-
-const INITIAL_DEMO_MANIFEST: ManifestPassenger[] = [
-  { id: "pax-1", pnr: "SC7K92P", ticketNumber: "TKT-SC-1001", name: "Rahul Varma", seat: "1A", row: 1, col: "A", seatClass: "BUSINESS", zone: 1, checkedIn: true, boarded: false, baggageCount: 2 },
-  { id: "pax-2", pnr: "AV38120", ticketNumber: "TKT-AV-1002", name: "Dr. Marcus Chen", seat: "1C", row: 1, col: "C", seatClass: "BUSINESS", zone: 1, checkedIn: true, boarded: true, boardedAt: "14:10Z", baggageCount: 1 },
-  { id: "pax-3", pnr: "BH99412", ticketNumber: "TKT-BH-1003", name: "Sarah Jenkins", seat: "1D", row: 1, col: "D", seatClass: "BUSINESS", zone: 1, checkedIn: true, boarded: false, baggageCount: 1 },
-  { id: "pax-4", pnr: "NV44190", ticketNumber: "TKT-NV-1004", name: "David Morales", seat: "1F", row: 1, col: "F", seatClass: "BUSINESS", zone: 1, checkedIn: true, boarded: false, baggageCount: 0 },
-  { id: "pax-5", pnr: "IS88201", ticketNumber: "TKT-IS-1005", name: "Elena Rostova", seat: "2A", row: 2, col: "A", seatClass: "BUSINESS", zone: 2, checkedIn: true, boarded: true, boardedAt: "14:12Z", baggageCount: 2 },
-  { id: "pax-6", pnr: "SC29104", ticketNumber: "TKT-SC-1006", name: "Vikram Sen", seat: "2C", row: 2, col: "C", seatClass: "BUSINESS", zone: 2, checkedIn: true, boarded: false, baggageCount: 1 },
-  { id: "pax-7", pnr: "AV10294", ticketNumber: "TKT-AV-1007", name: "Ananya Desai", seat: "2D", row: 2, col: "D", seatClass: "BUSINESS", zone: 2, checkedIn: true, boarded: false, baggageCount: 2 },
-  { id: "pax-8", pnr: "BH55019", ticketNumber: "TKT-BH-1008", name: "Karan Sharma", seat: "2F", row: 2, col: "F", seatClass: "BUSINESS", zone: 2, checkedIn: true, boarded: false, baggageCount: 1 },
-  { id: "pax-9", pnr: "NV71829", ticketNumber: "TKT-NV-1009", name: "Priya Nair", seat: "3A", row: 3, col: "A", seatClass: "ECONOMY", zone: 4, checkedIn: true, boarded: false, baggageCount: 1 },
-  { id: "pax-10", pnr: "IS33910", ticketNumber: "TKT-IS-1010", name: "Arjun Reddy", seat: "3B", row: 3, col: "B", seatClass: "ECONOMY", zone: 4, checkedIn: true, boarded: false, baggageCount: 2 },
-  { id: "pax-11", pnr: "SC44812", ticketNumber: "TKT-SC-1011", name: "Meera Patel", seat: "3C", row: 3, col: "C", seatClass: "ECONOMY", zone: 4, checkedIn: true, boarded: false, baggageCount: 1 },
-  { id: "pax-12", pnr: "AV66192", ticketNumber: "TKT-AV-1012", name: "Suresh Menon", seat: "3D", row: 3, col: "D", seatClass: "ECONOMY", zone: 4, checkedIn: true, boarded: false, baggageCount: 1 },
-  { id: "pax-13", pnr: "BH88219", ticketNumber: "TKT-BH-1013", name: "Rohan Kapoor", seat: "3E", row: 3, col: "E", seatClass: "ECONOMY", zone: 4, checkedIn: false, boarded: false, baggageCount: 0 },
-  { id: "pax-14", pnr: "NV99104", ticketNumber: "TKT-NV-1014", name: "Sunil Joshi", seat: "3F", row: 3, col: "F", seatClass: "ECONOMY", zone: 4, checkedIn: true, boarded: false, baggageCount: 1 },
-  { id: "pax-15", pnr: "IS11928", ticketNumber: "TKT-IS-1015", name: "Deepa Iyer", seat: "4A", row: 4, col: "A", seatClass: "ECONOMY", zone: 4, checkedIn: true, boarded: false, baggageCount: 1 },
-  { id: "pax-16", pnr: "SC22910", ticketNumber: "TKT-SC-1016", name: "Amitava Ghosh", seat: "4B", row: 4, col: "B", seatClass: "ECONOMY", zone: 4, checkedIn: true, boarded: false, baggageCount: 2 },
-  { id: "pax-17", pnr: "AV55819", ticketNumber: "TKT-AV-1017", name: "Maya Rao", seat: "4C", row: 4, col: "C", seatClass: "ECONOMY", zone: 4, checkedIn: true, boarded: false, baggageCount: 1 },
-  { id: "pax-18", pnr: "BH77102", ticketNumber: "TKT-BH-1018", name: "Zoya Akhtar", seat: "5A", row: 5, col: "A", seatClass: "ECONOMY", zone: 3, checkedIn: true, boarded: false, baggageCount: 1 },
-  { id: "pax-19", pnr: "NV88491", ticketNumber: "TKT-NV-1019", name: "Tariq Mansoor", seat: "5B", row: 5, col: "B", seatClass: "ECONOMY", zone: 3, checkedIn: true, boarded: false, baggageCount: 1 },
-  { id: "pax-20", pnr: "IS99214", ticketNumber: "TKT-IS-1020", name: "Nisha Varma", seat: "5C", row: 5, col: "C", seatClass: "ECONOMY", zone: 3, checkedIn: true, boarded: false, baggageCount: 2 },
-  { id: "pax-21", pnr: "SC66381", ticketNumber: "TKT-SC-1021", name: "Aditya Roy", seat: "6A", row: 6, col: "A", seatClass: "ECONOMY", zone: 3, checkedIn: true, boarded: false, baggageCount: 1 },
-  { id: "pax-22", pnr: "AV77492", ticketNumber: "TKT-AV-1022", name: "Divya Balan", seat: "6B", row: 6, col: "B", seatClass: "ECONOMY", zone: 3, checkedIn: true, boarded: false, baggageCount: 0 },
-  { id: "pax-23", pnr: "BH88301", ticketNumber: "TKT-BH-1023", name: "Kunal Mehra", seat: "6C", row: 6, col: "C", seatClass: "ECONOMY", zone: 3, checkedIn: true, boarded: false, baggageCount: 1 },
-  { id: "pax-24", pnr: "NV11029", ticketNumber: "TKT-NV-1024", name: "Aparna Sen", seat: "6D", row: 6, col: "D", seatClass: "ECONOMY", zone: 3, checkedIn: true, boarded: false, baggageCount: 2 },
-];
 
 export function BoardingSection({
   onNavigateTo,
+  initialFlight,
+  initialPnr,
 }: {
   onNavigateTo?: (section: string, params?: Record<string, string>) => void;
+  initialFlight?: string;
+  initialPnr?: string;
 }) {
   const [flights, setFlights] = useState<FlightDTO[]>([]);
   const [selectedFlightId, setSelectedFlightId] = useState<string>("");
-  const [selectedGate, setSelectedGate] = useState<string>("GATE A1");
   const [loading, setLoading] = useState(false);
-  const [scanInput, setScanInput] = useState("");
-  const [manifest, setManifest] = useState<ManifestPassenger[]>(INITIAL_DEMO_MANIFEST);
+  const [scanInput, setScanInput] = useState(initialPnr || "");
+  const [manifest, setManifest] = useState<ManifestPassenger[]>([]);
+  const [manifestError, setManifestError] = useState<string | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"ALL" | "BOARDED" | "WAITING">("ALL");
   const [currentZone, setCurrentZone] = useState<number>(1);
   const [handoffNotice, setHandoffNotice] = useState<string | null>(null);
   const [lastScannedPax, setLastScannedPax] = useState<ManifestPassenger | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [selectedSeatPax, setSelectedSeatPax] = useState<ManifestPassenger | null>(null);
+  const selectedFlight = flights.find((flight) => flight.id === selectedFlightId) || flights[0];
+  const assignedGateCode = selectedFlight?.gate?.replace(/^GATE\s*/i, "").trim() || "";
+  const selectedGate = assignedGateCode ? `GATE ${assignedGateCode}` : "UNASSIGNED";
 
   // Play synthetic barcode beep
   const playBeep = useCallback((success = true) => {
@@ -134,11 +114,20 @@ export function BoardingSection({
       const data = await res.json();
       const list = (data.flights || []) as FlightDTO[];
       setFlights(list);
-      setSelectedFlightId((current) => current || (list[0]?.id ?? null));
+      if (initialFlight) {
+        const match = list.find(
+          (f) => f.flightNumber === initialFlight || f.callsign === initialFlight || f.id === initialFlight
+        );
+        if (match) {
+          setSelectedFlightId(match.id);
+          return;
+        }
+      }
+      setSelectedFlightId((current) => current || (list[0]?.id ?? ""));
     } catch (err) {
       console.warn("Failed to fetch flights:", err);
     }
-  }, []);
+  }, [initialFlight]);
 
   useEffect(() => {
     let active = true;
@@ -148,57 +137,89 @@ export function BoardingSection({
         if (!active) return;
         const list = (data.flights || []) as FlightDTO[];
         setFlights(list);
-        setSelectedFlightId((current) => current || (list[0]?.id ?? null));
+        if (initialFlight) {
+          const match = list.find(
+            (f) => f.flightNumber === initialFlight || f.callsign === initialFlight || f.id === initialFlight
+          );
+          if (match) {
+            setSelectedFlightId(match.id);
+            return;
+          }
+        }
+        setSelectedFlightId((current) => current || (list[0]?.id ?? ""));
       })
       .catch((err) => console.warn("Failed to fetch flights:", err));
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialFlight]);
 
-  const selectedFlight = flights.find((f) => f.id === selectedFlightId) || flights[0];
+  const refreshManifest = useCallback(async () => {
+    if (!selectedFlightId) return [] as ManifestPassenger[];
 
-  const handleScanBoard = (pnrOrTicket: string) => {
-    const code = pnrOrTicket.trim().toUpperCase();
-    if (!code) return;
+    try {
+      const response = await fetch(`/api/boarding?flightId=${encodeURIComponent(selectedFlightId)}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not load this flight's manifest.");
 
-    const foundIndex = manifest.findIndex(
-      (p) => p.pnr.toUpperCase() === code || p.ticketNumber.toUpperCase() === code || p.seat.toUpperCase() === code
-    );
-
-    if (foundIndex !== -1) {
-      const updatedPax = {
-        ...manifest[foundIndex],
-        checkedIn: true,
-        boarded: true,
-        boardedAt: new Date().toLocaleTimeString(),
-      };
-
-      setManifest((prev) => {
-        const next = [...prev];
-        next[foundIndex] = updatedPax;
-        return next;
+      const nextManifest: ManifestPassenger[] = (data.manifest || []).map((entry: Omit<ManifestPassenger, "row" | "col" | "zone">) => {
+        const seatMatch = entry.seat.match(/^(\d+)([A-Z]+)$/i);
+        return {
+          ...entry,
+          row: seatMatch ? Number(seatMatch[1]) : 0,
+          col: seatMatch?.[2]?.toUpperCase() || "",
+          zone: entry.seatClass === "BUSINESS" || entry.seatClass === "FIRST" ? 1 : 3,
+        };
       });
 
-      setLastScannedPax(updatedPax);
+      setManifest(nextManifest);
+      setManifestError(null);
+      return nextManifest;
+    } catch (error) {
+      setManifest([]);
+      setManifestError(error instanceof Error ? error.message : "Could not load this flight's manifest.");
+      return [] as ManifestPassenger[];
+    }
+  }, [selectedFlightId]);
+
+  useEffect(() => {
+    const initialRefresh = window.setTimeout(() => void refreshManifest(), 0);
+    const interval = window.setInterval(() => void refreshManifest(), 10_000);
+    return () => {
+      window.clearTimeout(initialRefresh);
+      window.clearInterval(interval);
+    };
+  }, [refreshManifest]);
+
+  const handleScanBoard = async (pnrOrTicket: string) => {
+    const code = pnrOrTicket.trim().toUpperCase();
+    if (!code || !selectedFlight || !assignedGateCode) {
+      setHandoffNotice("Assign this flight to an airport gate before boarding passengers.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch("/api/boarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pnr: code, flightId: selectedFlight.id, gate: assignedGateCode }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || result.message || "Boarding was denied.");
+
+      const updatedManifest = await refreshManifest();
+      const updatedPassenger = updatedManifest.find((passenger) => passenger.pnr === code || passenger.ticketNumber === code);
+      if (updatedPassenger) setLastScannedPax(updatedPassenger);
+      setScanError(null);
       playBeep(true);
       setScanInput("");
-    } else {
+    } catch (error) {
       playBeep(false);
-      alert(`Invalid boarding pass: "${code}" not found on active flight manifest.`);
+      setScanError(error instanceof Error ? error.message : "Boarding was denied.");
+    } finally {
+      setLoading(false);
     }
-  };
-
-  const handleBoardAll = () => {
-    setManifest((prev) =>
-      prev.map((pax) => ({
-        ...pax,
-        checkedIn: true,
-        boarded: true,
-        boardedAt: pax.boardedAt || new Date().toLocaleTimeString(),
-      }))
-    );
-    playBeep(true);
   };
 
   const handleCloseGateAndHandoff = async () => {
@@ -361,34 +382,18 @@ export function BoardingSection({
 
             <div className="space-y-1.5">
               <label className="text-xs font-mono uppercase tracking-wider text-slate-400 block">
-                Assigned Boarding Gate Stand
+                Flight-Assigned Boarding Gate
               </label>
-              <select
-                value={selectedGate}
-                onChange={(e) => setSelectedGate(e.target.value)}
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-mono font-semibold text-slate-100 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-              >
-                {["GATE A1", "GATE A2", "GATE A4", "GATE B12", "GATE C2", "GATE D1"].map((g) => (
-                  <option key={g} value={g}>
-                    {g} (Jet Bridge Active)
-                  </option>
-                ))}
-              </select>
+              <div className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-mono font-semibold text-slate-100">
+                {selectedGate}
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center">
               <Button
-                variant="outline"
-                className="flex-1 border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 font-mono text-xs rounded-xl h-9"
-                onClick={handleBoardAll}
-              >
-                <UserCheck className="h-3.5 w-3.5 mr-1.5 text-emerald-400" />
-                Board All Manifest
-              </Button>
-              <Button
-                className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-xs rounded-xl h-9 shadow-lg shadow-cyan-600/20"
+                className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-xs rounded-xl h-9 shadow-lg shadow-cyan-600/20"
                 onClick={handleCloseGateAndHandoff}
-                disabled={loading}
+                disabled={loading || !assignedGateCode}
               >
                 <DoorClosed className="h-3.5 w-3.5 mr-1.5" />
                 Close & Handoff
@@ -403,10 +408,10 @@ export function BoardingSection({
         <Card className="border-slate-800 bg-slate-900/60 p-3">
           <div className="text-[10px] font-mono uppercase text-slate-400">Flight & Airframe</div>
           <div className="text-lg font-bold font-mono text-white mt-1">
-            {selectedFlight?.callsign || "SC101"}
+            {selectedFlight?.callsign || "No flight selected"}
           </div>
           <div className="text-[11px] text-cyan-400 font-mono">
-            {selectedFlight?.aircraftType || "Airbus A320neo"} · Gate {selectedGate.replace("GATE ", "")}
+            {selectedFlight?.aircraftType || "Aircraft unavailable"} · {selectedGate}
           </div>
         </Card>
 
@@ -492,6 +497,7 @@ export function BoardingSection({
                     Scan
                   </Button>
                 </div>
+                {scanError && <p role="alert" className="text-xs text-rose-300">{scanError}</p>}
               </div>
 
               {/* Last Scanned Result Confirmation */}
@@ -579,7 +585,7 @@ export function BoardingSection({
 
               {/* Rows Grid */}
               <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-                {[1, 2, 3, 4, 5, 6].map((rowNum) => {
+                {[...new Set(manifest.map((passenger) => passenger.row).filter((row) => row > 0))].sort((a, b) => a - b).map((rowNum) => {
                   const isBusiness = rowNum <= 2;
                   const cols = isBusiness ? ["A", "C", "D", "F"] : ["A", "B", "C", "D", "E", "F"];
 
@@ -603,7 +609,6 @@ export function BoardingSection({
                               onClick={() => {
                                 if (pax) {
                                   setSelectedSeatPax(pax);
-                                  handleScanBoard(pax.pnr);
                                 }
                               }}
                               className={`h-8 w-8 sm:h-9 sm:w-9 rounded-lg border flex flex-col items-center justify-center font-mono text-[10px] font-bold transition transform active:scale-95 ${
@@ -642,7 +647,6 @@ export function BoardingSection({
                               onClick={() => {
                                 if (pax) {
                                   setSelectedSeatPax(pax);
-                                  handleScanBoard(pax.pnr);
                                 }
                               }}
                               className={`h-8 w-8 sm:h-9 sm:w-9 rounded-lg border flex flex-col items-center justify-center font-mono text-[10px] font-bold transition transform active:scale-95 ${
@@ -665,7 +669,7 @@ export function BoardingSection({
               </div>
 
               <div className="text-[10px] text-center text-slate-500 font-mono mt-3">
-                * Click any seat to instantly validate and scan passenger pass
+                Select an occupied seat to inspect its passenger; boarding requires a pass scan.
               </div>
             </CardContent>
           </Card>
@@ -702,12 +706,12 @@ export function BoardingSection({
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-950 text-[10px] font-mono text-slate-400 uppercase border-b border-slate-800 sticky top-0">
                   <tr>
-                    <th className="py-2.5 px-3">Seat</th>
-                    <th className="py-2.5 px-3">Passenger</th>
-                    <th className="py-2.5 px-3">PNR</th>
-                    <th className="py-2.5 px-3">Zone</th>
-                    <th className="py-2.5 px-3">Bags</th>
-                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3">Passenger / Seat</th>
+                    <th className="py-2.5 px-3">PNR / Ticket</th>
+                    <th className="py-2.5 px-3">Flight / Route</th>
+                    <th className="py-2.5 px-3">Class</th>
+                    <th className="py-2.5 px-3">Ticket / Pass</th>
+                    <th className="py-2.5 px-3">Boarding</th>
                     <th className="py-2.5 px-3 text-right">Action</th>
                   </tr>
                 </thead>
@@ -719,15 +723,23 @@ export function BoardingSection({
                         pax.boarded ? "bg-emerald-950/20 text-emerald-200" : "hover:bg-slate-800/40"
                       }`}
                     >
-                      <td className="py-2 px-3 font-bold text-white">{pax.seat}</td>
-                      <td className="py-2 px-3 text-slate-200 font-sans font-medium">{pax.name}</td>
-                      <td className="py-2 px-3 text-cyan-300">{pax.pnr}</td>
                       <td className="py-2 px-3">
-                        <Badge variant="outline" className="text-[9px] py-0 px-1 font-mono border-slate-700">
-                          Z{pax.zone}
-                        </Badge>
+                        <div className="font-sans font-medium text-slate-100">{pax.name}</div>
+                        <div className="text-slate-400">Seat {pax.seat} · {pax.terminal || "Terminal unavailable"} · {pax.gate || "Gate unavailable"}</div>
                       </td>
-                      <td className="py-2 px-3 text-slate-400">{pax.baggageCount} pcs</td>
+                      <td className="py-2 px-3 text-cyan-300">
+                        <div>{pax.pnr}</div>
+                        <div className="text-slate-400">{pax.ticketNumber || "Ticket unavailable"}</div>
+                      </td>
+                      <td className="py-2 px-3">
+                        <div>{pax.flightNumber}</div>
+                        <div className="text-slate-400">{pax.origin} → {pax.destination}</div>
+                      </td>
+                      <td className="py-2 px-3 text-slate-300">{pax.seatClass}</td>
+                      <td className="py-2 px-3">
+                        <div>Ticket: {pax.ticketStatus || "MISSING"}</div>
+                        <div className="text-slate-400">Pass: {pax.boardingPassStatus || "MISSING"}</div>
+                      </td>
                       <td className="py-2 px-3">
                         {pax.boarded ? (
                           <span className="text-emerald-400 font-semibold flex items-center gap-1 text-[11px]">
@@ -737,7 +749,7 @@ export function BoardingSection({
                         ) : pax.checkedIn ? (
                           <span className="text-amber-400 flex items-center gap-1 text-[11px]">
                             <Clock className="h-3 w-3" />
-                            Checked In
+                            Checked In · {pax.baggageCount} bags
                           </span>
                         ) : (
                           <span className="text-slate-500 text-[11px]">Pending</span>
@@ -758,6 +770,13 @@ export function BoardingSection({
                       </td>
                     </tr>
                   ))}
+                  {filteredManifest.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="py-8 px-3 text-center text-slate-400">
+                        {manifestError || (selectedFlight ? "No checked-in passengers for this flight." : "Select a flight to load its manifest.")}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

@@ -26,7 +26,9 @@ export async function validateCredentials(input: unknown): Promise<UserDTO | nul
   if (shouldUseDatabase()) {
     try {
       const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-      if (user?.passwordHash && (await compare(password, user.passwordHash))) {
+      const isPasswordValid = user?.passwordHash ? await compare(password, user.passwordHash) : false;
+
+      if (user && isPasswordValid) {
         // Record successful login audit log in PostgreSQL database
         try {
           await prisma.auditLog.create({
@@ -80,16 +82,18 @@ export async function validateCredentials(input: unknown): Promise<UserDTO | nul
         // Non-blocking
       }
 
-      // If database credential matched, we already returned.
-      // If user was not found in database or query failed, fall through to demo users
+      return null;
     } catch (error) {
-      console.warn("Database credential check failed; checking fallback store.", error);
+      console.warn("Database credential check failed.", error);
+      return null;
     }
   }
 
   // Graceful fallback store when database is offline or unconfigured
   const demoUser = demoUsers.find(
-    (user) => user.email.toLowerCase() === normalizedEmail && user.password === password,
+    (user) =>
+      user.email.toLowerCase() === normalizedEmail &&
+      user.password === password,
   );
   if (!demoUser) {
     return null;
