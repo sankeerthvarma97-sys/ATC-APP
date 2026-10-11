@@ -2,6 +2,10 @@
 
 import { useState, useMemo } from "react";
 import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   Compass,
   Gauge,
   Layers,
@@ -14,12 +18,21 @@ import {
   VolumeX,
   Zap,
   Shield,
+  ShieldAlert,
   Plane,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import type { FlightDTO } from "@/lib/domain";
+
+// Distance calculation between two lat/lon points in Nautical Miles
+function calcDistanceNm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const dLat = (lat2 - lat1) * 60;
+  const dLon = (lon2 - lon1) * 60 * Math.cos(((lat1 + lat2) / 2) * (Math.PI / 180));
+  return Math.sqrt(dLat * dLat + dLon * dLon);
+}
 
 export function PrimaryFlightDisplay({
   flight,
@@ -34,28 +47,30 @@ export function PrimaryFlightDisplay({
   const [apEngaged, setApEngaged] = useState(true);
   const [athrEngaged, setAthrEngaged] = useState(true);
   const [fdEngaged, setFdEngaged] = useState(true);
+  const [apprMode, setApprMode] = useState(true); // ILS Approach Mode
+  const [tcasMode, setTcasMode] = useState<"TA_RA" | "TA_ONLY" | "STBY">("TA_RA");
   const [targetSpeed, setTargetSpeed] = useState(250);
   const [targetAltitude, setTargetAltitude] = useState(24000);
   const [targetHeading, setTargetHeading] = useState(90);
   const [baroMode, setBaroMode] = useState<"STD" | "QNH">("STD");
 
-  // Derive current telemetry with fallbacks
+  // Telemetry with fallbacks
   const speed = flight?.speedKt ?? 245;
   const altitude = flight?.altitudeFt ?? 18400;
   const heading = flight?.headingDeg ?? 85;
   const vspeed = flight?.verticalSpeedFpm ?? 1200;
   const callsign = flight?.callsign ?? "SC101";
   const squawk = flight?.squawk ?? "4721";
+  const runway = flight?.runway || "09L";
 
-  // Pitch angle calculated from vertical speed (approx: 1000 fpm ~= 2.5 deg pitch)
+  // Pitch angle (approx: 1000 fpm ~= 2.5 deg pitch)
   const pitchDeg = Math.max(-20, Math.min(25, (vspeed / 1000) * 2.5 + (speed < 180 ? 4 : 2)));
-  // Bank angle calculated from heading change rate or smooth simulated bank
+  // Bank angle calculated from heading delta
   const bankDeg = Math.max(-30, Math.min(30, (targetHeading - heading) * 0.8));
-
-  // Mach number calculation (approx speed in knots / 661.47 at sea level)
+  // Mach number calculation
   const mach = (speed / 580).toFixed(2);
 
-  // Speed tape ticks (speed +/- 40 kts)
+  // Speed tape ticks (speed +/- 50 kts)
   const speedTicks = useMemo(() => {
     const center = Math.round(speed / 10) * 10;
     const ticks: number[] = [];
@@ -91,6 +106,137 @@ export function PrimaryFlightDisplay({
     return ticks;
   }, [heading]);
 
+  // ==========================================
+  // ILS Localizer & Glideslope Deviation Engine
+  // ==========================================
+  const ilsTelemetry = useMemo(() => {
+    const isApproachPhase =
+      flight?.status === "APPROACH" ||
+      altitude < 5000 ||
+      apprMode;
+
+    if (!isApproachPhase) {
+      return {
+        active: false,
+        locDots: 0,
+        gsDots: 0,
+        locCaptured: false,
+        gsCaptured: false,
+        runwayHeading: 92,
+        ilsFreq: "110.30",
+      };
+    }
+
+    // Runway inbound course (e.g. 092 deg for RWY 09L)
+    const runwayHeading = runway.startsWith("27") ? 272 : 92;
+    const headingError = ((heading - runwayHeading + 180) % 360) - 180;
+    // Localizer deviation clamped between -2.5 and +2.5 dots
+    const locDots = Math.max(-2.5, Math.min(2.5, headingError / 5));
+
+    // Glideslope 3-degree descent profile: target altitude = dist * 318 ft/NM
+    // Approx glide path: if vspeed is ~ -750 fpm at 140kt, on slope
+    const targetVs = -750;
+    const vsError = vspeed - targetVs;
+    // Glideslope deviation clamped between -2.5 (fly down) and +2.5 (fly up)
+    const gsDots = Math.max(-2.5, Math.min(2.5, vsError / 300));
+
+    const locCaptured = Math.abs(locDots) < 1.2;
+    const gsCaptured = Math.abs(gsDots) < 1.2;
+
+    return {
+      active: true,
+      locDots,
+      gsDots,
+      locCaptured,
+      gsCaptured,
+      runwayHeading,
+      ilsFreq: "110.30",
+    };
+  }, [flight, altitude, apprMode, heading, runway, vspeed]);
+
+  // ==========================================
+  // TCAS II Resolution Advisory (RA/TA) Engine
+  // ==========================================
+  const tcasTelemetry = useMemo(() => {
+    if (tcasMode === "STBY" || !flight || allFlights.length <= 1) {
+      return {
+        level: "CLEAR" as const,
+        closestTarget: null,
+        resolutionText: "TCAS STANDBY / CLEAR",
+        requiredVsMin: 0,
+        requiredVsMax: 0,
+        threatDistanceNm: 99,
+        threatAltDelta: 0,
+      };
+    }
+
+    // Find nearest airborne traffic
+    let nearestDist = 999;
+    let nearestTraffic: FlightDTO | null = null;
+
+    for (const other of allFlights) {
+      if (other.id === flight.id) continue;
+      const d = calcDistanceNm(flight.latitude, flight.longitude, other.latitude, other.longitude);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearestTraffic = other;
+      }
+    }
+
+    if (!nearestTraffic || nearestDist > 8.0) {
+      return {
+        level: "CLEAR" as const,
+        closestTarget: null,
+        resolutionText: "TCAS TA/RA ACTIVE · CLEAR",
+        requiredVsMin: 0,
+        requiredVsMax: 0,
+        threatDistanceNm: nearestDist,
+        threatAltDelta: 0,
+      };
+    }
+
+    const altDelta = nearestTraffic.altitudeFt - altitude;
+    const absAltDelta = Math.abs(altDelta);
+
+    // RESOLUTION ADVISORY (RA): distance < 3.2 NM and altitude separation < 900 ft
+    if (tcasMode === "TA_RA" && nearestDist < 3.5 && absAltDelta < 900) {
+      // Determine climb or descend advisory
+      const shouldClimb = altDelta <= 0; // Other is below or level -> CLIMB
+      return {
+        level: "RA" as const,
+        closestTarget: nearestTraffic,
+        resolutionText: shouldClimb ? "CLIMB, CLIMB NOW! (+1500 FPM)" : "DESCEND, DESCEND NOW! (-1500 FPM)",
+        requiredVsMin: shouldClimb ? 1500 : -3500,
+        requiredVsMax: shouldClimb ? 3500 : -1500,
+        threatDistanceNm: nearestDist,
+        threatAltDelta: altDelta,
+      };
+    }
+
+    // TRAFFIC ADVISORY (TA): distance < 6.0 NM and altitude separation < 1500 ft
+    if (nearestDist < 6.0 && absAltDelta < 1500) {
+      return {
+        level: "TA" as const,
+        closestTarget: nearestTraffic,
+        resolutionText: `TRAFFIC, TRAFFIC · ${nearestTraffic.callsign} (${nearestDist.toFixed(1)} NM, ${altDelta >= 0 ? "+" : ""}${altDelta} FT)`,
+        requiredVsMin: 0,
+        requiredVsMax: 0,
+        threatDistanceNm: nearestDist,
+        threatAltDelta: altDelta,
+      };
+    }
+
+    return {
+      level: "CLEAR" as const,
+      closestTarget: nearestTraffic,
+      resolutionText: "TCAS MONITORING · AIRSPACE CLEAR",
+      requiredVsMin: 0,
+      requiredVsMax: 0,
+      threatDistanceNm: nearestDist,
+      threatAltDelta: altDelta,
+    };
+  }, [flight, allFlights, tcasMode, altitude]);
+
   return (
     <Card className="border border-slate-800 bg-slate-950/90 text-slate-100 shadow-2xl backdrop-blur overflow-hidden">
       {/* Cockpit Top Bar / Flight Mode Annunciator (FMA) */}
@@ -102,15 +248,21 @@ export function PrimaryFlightDisplay({
           <div>
             <div className="flex items-center gap-2">
               <CardTitle className="text-sm font-bold text-white tracking-wide">
-                PRIMARY FLIGHT DISPLAY (PFD) &bull; GLASS COCKPIT
+                PRIMARY FLIGHT DISPLAY (PFD) &bull; GLASS COCKPIT HUD
               </CardTitle>
               <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px] font-mono">
-                EFIS / ADS-B OUT
+                EFIS / ADS-B OUT & IN
               </Badge>
+              {ilsTelemetry.active && (
+                <Badge className="bg-cyan-500/20 text-cyan-300 border-cyan-500/30 text-[10px] font-mono animate-pulse">
+                  ILS {ilsTelemetry.ilsFreq} &bull; RWY {runway}
+                </Badge>
+              )}
             </div>
             <p className="text-[11px] text-slate-400 font-mono">
               Aircraft: <span className="text-white font-bold">{callsign}</span> ({flight?.aircraftType || "B789"}) &bull; Squawk:{" "}
-              <span className="text-cyan-400 font-bold">{squawk}</span>
+              <span className="text-cyan-400 font-bold">{squawk}</span> &bull; Phase:{" "}
+              <span className="text-emerald-400 font-semibold">{flight?.phase || "Cruising"}</span>
             </p>
           </div>
         </div>
@@ -145,26 +297,59 @@ export function PrimaryFlightDisplay({
             </div>
           </div>
           <div className="p-1 rounded bg-slate-900 border border-slate-800">
-            <div className="text-[10px] text-slate-400">ROLL MODE</div>
-            <div className="font-bold text-emerald-400">LNAV</div>
-          </div>
-          <div className="p-1 rounded bg-slate-900 border border-slate-800">
-            <div className="text-[10px] text-slate-400">PITCH MODE</div>
-            <div className="font-bold text-emerald-400">
-              {Math.abs(altitude - targetAltitude) < 200 ? "ALT CRZ" : "VNAV PATH"}
+            <div className="text-[10px] text-slate-400">ROLL / LOC</div>
+            <div className={cn("font-bold", ilsTelemetry.locCaptured ? "text-cyan-300" : "text-emerald-400")}>
+              {ilsTelemetry.locCaptured ? "LOC CAP" : "LNAV"}
             </div>
           </div>
           <div className="p-1 rounded bg-slate-900 border border-slate-800">
-            <div className="text-[10px] text-slate-400">APPROACH</div>
-            <div className="font-bold text-cyan-400">ILS CAT III</div>
+            <div className="text-[10px] text-slate-400">PITCH / G/S</div>
+            <div className={cn("font-bold", ilsTelemetry.gsCaptured ? "text-cyan-300" : "text-emerald-400")}>
+              {ilsTelemetry.gsCaptured
+                ? "G/S CAP"
+                : Math.abs(altitude - targetAltitude) < 200
+                ? "ALT CRZ"
+                : "VNAV PATH"}
+            </div>
+          </div>
+          <div className="p-1 rounded bg-slate-900 border border-slate-800">
+            <div className="text-[10px] text-slate-400">APPROACH CAPABILITY</div>
+            <div className="font-bold text-cyan-400">
+              {ilsTelemetry.active ? "ILS CAT IIIb DUAL" : "RNAV / RNP 0.3"}
+            </div>
           </div>
           <div className="p-1 rounded bg-slate-900 border border-slate-800">
             <div className="text-[10px] text-slate-400">COMMAND</div>
             <div className={`font-bold ${apEngaged ? "text-emerald-400" : "text-amber-400"}`}>
-              {apEngaged ? "AP 1 / FD" : "MANUAL"}
+              {apEngaged ? "CMD 1 / FD" : "MANUAL"}
             </div>
           </div>
         </div>
+
+        {/* TCAS Resolution / Traffic Advisory Alert Banner if Active */}
+        {tcasTelemetry.level !== "CLEAR" && (
+          <div
+            className={cn(
+              "flex items-center justify-between rounded-lg p-2.5 font-mono text-xs shadow-lg animate-pulse",
+              tcasTelemetry.level === "RA"
+                ? "border-2 border-red-500 bg-red-950/80 text-red-100"
+                : "border border-amber-500/60 bg-amber-950/60 text-amber-200",
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <ShieldAlert className={cn("h-4 w-4 shrink-0", tcasTelemetry.level === "RA" ? "text-red-400" : "text-amber-400")} />
+              <span className="font-bold tracking-wider">
+                {tcasTelemetry.level === "RA" ? "TCAS RESOLUTION ADVISORY (RA): " : "TCAS TRAFFIC ADVISORY (TA): "}
+                {tcasTelemetry.resolutionText}
+              </span>
+            </div>
+            {tcasTelemetry.level === "RA" && (
+              <Badge className="bg-red-600 text-white font-bold text-[10px] animate-bounce">
+                AVOIDANCE ACTIVE
+              </Badge>
+            )}
+          </div>
+        )}
 
         {/* The Avionics Display Instrument Bezel */}
         <div className="relative mx-auto max-w-2xl h-[420px] rounded-2xl border-4 border-slate-800 bg-black overflow-hidden shadow-[inset_0_0_25px_rgba(0,0,0,0.9)] select-none">
@@ -230,6 +415,26 @@ export function PrimaryFlightDisplay({
             </div>
           </div>
 
+          {/* Flight Director (FD) Crosshair Guidance (Magenta Bars) */}
+          {fdEngaged && (
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+              {/* Pitch Bar */}
+              <div
+                className="absolute w-44 h-1 bg-fuchsia-500/90 shadow-[0_0_8px_#d946ef] transition-transform duration-200"
+                style={{
+                  transform: `translateY(${Math.max(-40, Math.min(40, -pitchDeg * 2))}px)`,
+                }}
+              />
+              {/* Roll Bar */}
+              <div
+                className="absolute h-44 w-1 bg-fuchsia-500/90 shadow-[0_0_8px_#d946ef] transition-transform duration-200"
+                style={{
+                  transform: `translateX(${Math.max(-40, Math.min(40, (targetHeading - heading) * 1.5))}px)`,
+                }}
+              />
+            </div>
+          )}
+
           {/* Fixed Boresight Crosshair / Aircraft Symbol */}
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
             <div className="relative flex items-center">
@@ -251,6 +456,55 @@ export function PrimaryFlightDisplay({
               </div>
             </div>
           </div>
+
+          {/* ================= ILS Localizer (LOC) Horizontal Scale ================= */}
+          {ilsTelemetry.active && (
+            <div className="absolute bottom-20 inset-x-0 flex flex-col items-center pointer-events-none font-mono">
+              <div className="relative w-48 flex items-center justify-between px-2">
+                {/* 5 Dots Scale */}
+                <div className="h-1.5 w-1.5 rounded-full border border-white/60 bg-transparent" />
+                <div className="h-1.5 w-1.5 rounded-full border border-white/60 bg-transparent" />
+                <div className="h-2 w-0.5 bg-white/80" /> {/* Center */}
+                <div className="h-1.5 w-1.5 rounded-full border border-white/60 bg-transparent" />
+                <div className="h-1.5 w-1.5 rounded-full border border-white/60 bg-transparent" />
+
+                {/* Localizer Deviation Diamond Pointer (Magenta) */}
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 transition-transform duration-200"
+                  style={{
+                    left: `calc(50% + ${ilsTelemetry.locDots * 36}px - 6px)`,
+                  }}
+                >
+                  <div className="h-3 w-3 rotate-45 border border-white bg-fuchsia-500 shadow-[0_0_8px_#d946ef]" />
+                </div>
+              </div>
+              <span className="text-[9px] text-cyan-300 font-bold mt-1">
+                LOC: {ilsTelemetry.locCaptured ? "CAPTURED" : "ARMED"} &bull; CRS {ilsTelemetry.runwayHeading}°
+              </span>
+            </div>
+          )}
+
+          {/* ================= ILS Glideslope (G/S) Vertical Scale ================= */}
+          {ilsTelemetry.active && (
+            <div className="absolute right-36 inset-y-0 my-auto h-48 flex flex-col justify-between items-center pointer-events-none font-mono">
+              {/* 5 Vertical Dots Scale */}
+              <div className="h-1.5 w-1.5 rounded-full border border-white/60 bg-transparent" />
+              <div className="h-1.5 w-1.5 rounded-full border border-white/60 bg-transparent" />
+              <div className="w-2 h-0.5 bg-white/80" /> {/* Center */}
+              <div className="h-1.5 w-1.5 rounded-full border border-white/60 bg-transparent" />
+              <div className="h-1.5 w-1.5 rounded-full border border-white/60 bg-transparent" />
+
+              {/* Glideslope Deviation Diamond Pointer (Magenta) */}
+              <div
+                className="absolute left-1/2 -translate-x-1/2 transition-transform duration-200"
+                style={{
+                  top: `calc(50% - ${ilsTelemetry.gsDots * 36}px - 6px)`,
+                }}
+              >
+                <div className="h-3 w-3 rotate-45 border border-white bg-fuchsia-500 shadow-[0_0_8px_#d946ef]" />
+              </div>
+            </div>
+          )}
 
           {/* ================= Left: Airspeed Tape ================= */}
           <div className="absolute left-0 top-0 bottom-16 w-24 bg-black/75 border-r border-slate-700/80 flex flex-col justify-between pointer-events-none font-mono">
@@ -352,8 +606,8 @@ export function PrimaryFlightDisplay({
 
         {/* Mode Control Panel (MCP) Tactical Autopilot Knobs */}
         <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/60 flex flex-wrap items-center justify-between gap-4 font-mono text-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400 uppercase text-[10px] block">Autopilot Modes:</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-slate-400 uppercase text-[10px] block">Autopilot & Guidance:</span>
             <Button
               size="sm"
               variant={apEngaged ? "default" : "outline"}
@@ -384,10 +638,30 @@ export function PrimaryFlightDisplay({
             >
               FD {fdEngaged ? "ON" : "OFF"}
             </Button>
+            <Button
+              size="sm"
+              variant={apprMode ? "default" : "outline"}
+              onClick={() => setApprMode(!apprMode)}
+              className={`h-7 px-3 text-[11px] font-bold ${
+                apprMode ? "bg-fuchsia-600 hover:bg-fuchsia-500 text-white" : "border-slate-700 text-slate-400"
+              }`}
+            >
+              APP/ILS {apprMode ? "ARMED" : "OFF"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setTcasMode(tcasMode === "TA_RA" ? "TA_ONLY" : tcasMode === "TA_ONLY" ? "STBY" : "TA_RA")}
+              className={`h-7 px-2.5 text-[10px] font-bold border-slate-700 ${
+                tcasMode === "TA_RA" ? "text-emerald-400" : tcasMode === "TA_ONLY" ? "text-amber-400" : "text-slate-500"
+              }`}
+            >
+              TCAS: {tcasMode}
+            </Button>
           </div>
 
           {/* Tactical Selectors */}
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-1.5">
               <span className="text-slate-400 text-[10px]">SPD BUG:</span>
               <input
