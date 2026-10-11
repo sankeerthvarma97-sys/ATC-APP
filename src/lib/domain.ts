@@ -644,6 +644,71 @@ export interface AiBriefingResponse {
   risk: Severity;
 }
 
+export interface DetectedAirspaceConflict {
+  conflictId: string;
+  flightA: {
+    id: string;
+    callsign: string;
+    altitudeFt: number;
+    headingDeg: number;
+    speedKt: number;
+  };
+  flightB: {
+    id: string;
+    callsign: string;
+    altitudeFt: number;
+    headingDeg: number;
+    speedKt: number;
+  };
+  horizontalSeparationNm: number;
+  verticalSeparationFt: number;
+  conflictType: "LOSS_OF_SEPARATION" | "RUNWAY_INCURSION_RISK" | "WAKE_TURBULENCE_SPACING" | "ALTITUDE_BUST";
+  severity: "CRITICAL" | "WARNING" | "ADVISORY";
+  resolutionAdvisory: string;
+  suggestedAction?: {
+    callsign: string;
+    targetAltitudeFt?: number;
+    targetHeadingDeg?: number;
+    targetSpeedKt?: number;
+    squawk?: string;
+  };
+}
+
+export interface AiAtcAssistantRequest {
+  pilotTransmission: string;
+  selectedFlightId?: string;
+  airportCode?: string;
+}
+
+export interface AiAtcAssistantResponse {
+  callsign: string;
+  intent:
+    | "WAYPOINT_DIRECT"
+    | "CLIMB_DESCEND"
+    | "PUSHBACK_STARTUP"
+    | "TAXI_CLEARANCE"
+    | "TAKEOFF_APPROACH"
+    | "EMERGENCY_MAYDAY"
+    | "EMERGENCY_PAN_PAN"
+    | "SPEED_VECTOR"
+    | "GENERAL_QUERY";
+  recommendedClearance: string;
+  pilotReadback: string;
+  suggestedParameters: {
+    altitudeFt?: number;
+    headingDeg?: number;
+    speedKt?: number;
+    squawk?: string;
+    runway?: string;
+    status?: string;
+  };
+  conflicts: DetectedAirspaceConflict[];
+  reasoning: string;
+  model: string;
+  simulated: boolean;
+  timestamp: string;
+}
+
 export interface IcaoFlightPlanDTO {
   id: string;
   callsign: string;

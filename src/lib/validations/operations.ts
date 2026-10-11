@@ -40,3 +40,9 @@ export const loginSchema = z.object({
   email: z.email().toLowerCase(),
   password: z.string().min(8).max(128),
 });
+
+export const aiAtcAssistantSchema = z.object({
+  pilotTransmission: z.string().trim().min(3).max(500),
+  selectedFlightId: z.string().trim().optional(),
+  airportCode: z.string().trim().optional(),
+});

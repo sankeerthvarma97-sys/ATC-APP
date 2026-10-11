@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { FlightDTO, AirportDTO } from "@/lib/domain";
+import { AiAtcAssistantCard } from "@/components/ai/ai-atc-assistant-card";
 
 const FlightMap = dynamic(
   () => import("@/components/maps/flight-map").then((mod) => mod.FlightMap),
@@ -381,6 +382,18 @@ export function AtcOperationsSection({
               )}
             </CardContent>
           </Card>
+
+          {/* AI Air Traffic Controller Assistant (Gemini Co-Pilot) */}
+          <AiAtcAssistantCard
+            selectedFlight={selectedFlight}
+            activeAirportCode={activeAirport?.iata || "HYD"}
+            onApplyParameters={(params) => {
+              if (params.altitudeFt !== undefined) setAltInput(params.altitudeFt.toString());
+              if (params.headingDeg !== undefined) setHdgInput(params.headingDeg.toString());
+              if (params.speedKt !== undefined) setSpdInput(params.speedKt.toString());
+              if (params.squawk !== undefined) setSquawkInput(params.squawk);
+            }}
+          />
         </div>
       </div>
     </div>
