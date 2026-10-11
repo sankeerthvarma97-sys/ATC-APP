@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { departments, flightStatuses, roles } from "@/lib/domain";
+import { departments, flightStatuses, roles, gatePassTypes, securityZones } from "@/lib/domain";
 
 export const createFlightSchema = z.object({
   flightName: z.string().trim().min(3).max(64),
@@ -113,4 +113,29 @@ export const createAircraftSchema = z.object({
   status: z.string().default("IN_SERVICE"),
   currentAirport: z.string().trim().length(3).toUpperCase().optional().default("HYD"),
   currentGate: z.string().trim().max(16).optional().default("B12"),
+});
+
+export const createGatePassSchema = z.object({
+  holderName: z.string().trim().min(2).max(80),
+  idNumber: z.string().trim().min(3).max(32).toUpperCase(),
+  passType: z.enum(gatePassTypes),
+  organization: z.string().trim().min(2).max(64),
+  airportCode: z.string().trim().length(3).toUpperCase().default("HYD"),
+  terminal: z.string().trim().max(16).default("T1"),
+  authorizedZones: z.array(z.enum(securityZones)).min(1, "At least one security zone clearance is required."),
+  durationHours: z.coerce.number().int().min(1).max(168).default(8),
+  escortRequired: z.boolean().default(false),
+  purpose: z.string().trim().min(3).max(200),
+});
+
+export const verifyGatePassSchema = z.object({
+  passNumberOrQr: z.string().trim().min(3).max(256),
+  turnstileId: z.string().trim().min(1).max(32).default("TURNSTILE-01"),
+  turnstileName: z.string().trim().min(1).max(64).default("Turnstile T-01 Ramp Access"),
+  zone: z.enum(securityZones),
+  direction: z.enum(["ENTRY", "EXIT"]).default("ENTRY"),
+});
+
+export const revokeGatePassSchema = z.object({
+  reason: z.string().trim().min(3).max(200),
 });

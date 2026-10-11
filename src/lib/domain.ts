@@ -186,6 +186,59 @@ export type TicketVerificationResult =
   | "FLIGHT_CANCELLED";
 export type BaggageStatus = "CHECKED" | "LOADED" | "TRANSIT" | "CLAIMED";
 
+export const gatePassTypes = ["VISITOR", "CREW", "CONTRACTOR", "VIP", "TEMPORARY_STAFF"] as const;
+export type GatePassType = (typeof gatePassTypes)[number];
+
+export const securityZones = [
+  "ZONE_A_PUBLIC",      // Public Terminal & Check-in Area
+  "ZONE_B_SECURITY",    // Security Sterile Area
+  "ZONE_C_BOARDING",    // Boarding Gates & Aerobridges
+  "ZONE_D_RAMP",        // Airside Ramp, Apron & Baggage Makeup
+  "ZONE_E_ATC",         // Air Traffic Control Tower & Radar Cab
+] as const;
+export type SecurityZone = (typeof securityZones)[number];
+
+export const gatePassStatuses = ["ACTIVE", "EXPIRED", "REVOKED", "SUSPENDED"] as const;
+export type GatePassStatus = (typeof gatePassStatuses)[number];
+
+export interface TurnstileScanEntry {
+  id: string;
+  timestamp: string;
+  turnstileId: string;
+  turnstileName: string;
+  zone: SecurityZone;
+  direction: "ENTRY" | "EXIT";
+  granted: boolean;
+  reason: string;
+  passNumber: string;
+  holderName: string;
+  organization: string;
+  officerId?: string;
+}
+
+export interface GatePassDTO {
+  id: string;
+  passNumber: string;
+  passType: GatePassType;
+  holderName: string;
+  idNumber: string;
+  organization: string;
+  airportCode: string;
+  terminal: string;
+  authorizedZones: SecurityZone[];
+  validFrom: string;
+  validUntil: string;
+  status: GatePassStatus;
+  escortRequired: boolean;
+  purpose: string;
+  issuedBy: string;
+  issuedById?: string;
+  qrCode: string;
+  createdAt: string;
+  updatedAt: string;
+  accessLogs: TurnstileScanEntry[];
+}
+
 export interface UserDTO {
   id: string;
   name: string;

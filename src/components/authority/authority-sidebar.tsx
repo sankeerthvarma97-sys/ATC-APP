@@ -83,7 +83,7 @@ export const navigationCategories: NavSectionCategory[] = [
       { id: "bookings", label: "Bookings", icon: Calendar },
       { id: "passengers", label: "Passengers", icon: Users },
       { id: "checkin", label: "Check-in Desk", icon: CheckCircle2 },
-      { id: "verification", label: "Ticket Verification", icon: QrCode },
+      { id: "verification", label: "Security & Gate Passes", icon: Shield, badge: "Airside", badgeVariant: "success" },
       { id: "boarding", label: "Gate Boarding", icon: Key },
     ],
   },

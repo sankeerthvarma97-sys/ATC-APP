@@ -12,6 +12,7 @@ import {
   QrCode,
   RotateCcw,
   Search,
+  Shield,
   ShieldCheck,
   Ticket as TicketIcon,
   User,
@@ -24,12 +25,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/ui/copy-button";
 import type { TicketVerificationResult, BookingDTO } from "@/lib/domain";
+import { GatePassSubsystem } from "./gate-pass-subsystem";
 
 export function VerificationSection({
   onNavigateTo,
 }: {
   onNavigateTo?: (section: string, params?: Record<string, string>) => void;
 }) {
+  const [activeTab, setActiveTab] = useState<"GATE_PASSES" | "TICKETS">("GATE_PASSES");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [gatewayActionLoading, setGatewayActionLoading] = useState(false);
@@ -215,14 +218,42 @@ export function VerificationSection({
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <QrCode className="h-6 w-6 text-primary" />
-            Ticket Verification & Gate Validation
+            <ShieldCheck className="h-6 w-6 text-primary" />
+            Security Screening & Airside Verification
           </h2>
           <p className="text-sm text-muted-foreground">
-            Authoritative ticket validity checker for security check, customs, and boarding gate entry.
+            Authoritative gate passes, security turnstile access, and ticket validity checkpoints.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Tab Navigation Pill */}
+          <div className="flex items-center gap-1 p-1 bg-muted/60 rounded-lg border border-border/60">
+            <button
+              type="button"
+              onClick={() => setActiveTab("GATE_PASSES")}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                activeTab === "GATE_PASSES"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Shield className="h-3.5 w-3.5" />
+              Airside Gate Passes & Turnstiles
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("TICKETS")}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                activeTab === "TICKETS"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <TicketIcon className="h-3.5 w-3.5" />
+              Passenger Tickets & Boarding
+            </button>
+          </div>
+
           <Badge variant="outline" className="border-primary/40 text-primary bg-primary/10">
             <ShieldCheck className="h-3.5 w-3.5 mr-1" />
             Security Subsystem Active
@@ -230,9 +261,12 @@ export function VerificationSection({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Verification Scanner Form */}
-        <div className="lg:col-span-2 space-y-6">
+      {activeTab === "GATE_PASSES" ? (
+        <GatePassSubsystem />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Verification Scanner Form */}
+          <div className="lg:col-span-2 space-y-6">
           <Card className="border-border/60 bg-card/80 backdrop-blur">
             <CardHeader>
               <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -532,6 +566,7 @@ export function VerificationSection({
           </Card>
         </div>
       </div>
+      )}
     </div>
   );
 }
