@@ -93,10 +93,27 @@ describe("AOCC Station Intelligence, METAR Weather & Resource Persistence", () =
       const targetStatus = initialStatus === "AVAILABLE" ? "OCCUPIED" : "AVAILABLE";
 
       const updated = await updateGateStatus(gate.id, targetStatus);
-      expect(updated.status).toBe(targetStatus);
+      expect(updated).toBeDefined();
+      expect(updated?.status).toBe(targetStatus);
 
       // Restore initial status
       await updateGateStatus(gate.id, initialStatus);
+    });
+  });
+
+  describe("Commercial Fleet Aircraft Register", () => {
+    it("permits updating aircraft maintenance status", async () => {
+      const { listAircraft, updateAircraftStatus } = await import("@/lib/services/fleet-service");
+      const fleet = await listAircraft();
+      expect(fleet.length).toBeGreaterThan(0);
+
+      const ac = fleet[0];
+      const updated = await updateAircraftStatus(ac.registration, "MAINTENANCE");
+      expect(updated).toBeDefined();
+      expect(updated?.status).toBe("MAINTENANCE");
+
+      // Restore status
+      await updateAircraftStatus(ac.registration, ac.status);
     });
   });
 });

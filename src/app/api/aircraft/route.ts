@@ -1,6 +1,6 @@
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { assertPermission } from "@/lib/auth/permissions";
-import { createAircraft, listAircraft } from "@/lib/services/fleet-service";
+import { createAircraft, listAircraft, updateAircraftStatus } from "@/lib/services/fleet-service";
 import { createAircraftSchema } from "@/lib/validations/authority";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +33,35 @@ export async function POST(request: Request) {
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : "Failed to create aircraft" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  const user = await getAuthenticatedUser();
+  const auth = assertPermission(user, "MANAGE_AIRCRAFT");
+  if (!auth.ok) {
+    return Response.json({ error: auth.message }, { status: auth.status });
+  }
+
+  try {
+    const body = await request.json();
+    const { registration, id, status } = body;
+    const target = registration || id;
+    if (!target || !status) {
+      return Response.json({ error: "Missing aircraft registration/id or target status" }, { status: 400 });
+    }
+
+    const updated = await updateAircraftStatus(target, status, { id: user?.id, name: user?.name });
+    if (!updated) {
+      return Response.json({ error: "Aircraft not found" }, { status: 404 });
+    }
+
+    return Response.json({ success: true, aircraft: updated });
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to update aircraft status" },
       { status: 500 },
     );
   }

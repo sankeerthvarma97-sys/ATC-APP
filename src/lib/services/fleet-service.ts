@@ -365,6 +365,47 @@ export async function createAircraft(input: Omit<AircraftDTO, "id">, actor?: { i
   return aircraft;
 }
 
+export async function updateAircraftStatus(
+  registrationOrId: string,
+  status: string,
+  actor?: { id?: string; name?: string }
+): Promise<AircraftDTO | null> {
+  const norm = registrationOrId.trim().toUpperCase();
+  const index = memoryAircraft.findIndex(
+    (a) => a.registration.toUpperCase() === norm || a.id === registrationOrId
+  );
+  if (index === -1) return null;
+
+  const previous = { ...memoryAircraft[index] };
+  memoryAircraft[index] = {
+    ...memoryAircraft[index],
+    status,
+  };
+
+  if (shouldUseDatabase()) {
+    try {
+      await prisma.aircraft.updateMany({
+        where: { registration: memoryAircraft[index].registration },
+        data: { status },
+      });
+    } catch (err) {
+      console.warn("Database aircraft status update failed; in-memory updated.", err);
+    }
+  }
+
+  await logAuditEvent({
+    actorId: actor?.id,
+    actorName: actor?.name,
+    action: "AIRCRAFT_STATUS_UPDATED",
+    entity: "AIRCRAFT",
+    entityId: memoryAircraft[index].registration,
+    before: { status: previous.status },
+    after: { status },
+  });
+
+  return memoryAircraft[index];
+}
+
 export async function listRunways(): Promise<RunwayDTO[]> {
   return memoryRunways;
 }
