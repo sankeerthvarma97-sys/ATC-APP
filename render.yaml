@@ -1,11 +1,11 @@
 # Render Infrastructure Blueprint for AOCC Platform
-# Supports 1-Click Production Deployment with persistent WebSocket server + PostgreSQL
+# Supports persistent WebSocket server + PostgreSQL for the educational simulation.
 services:
   - type: web
     name: aocc-aviation-platform
     env: docker
     dockerfilePath: ./Dockerfile
-    plan: starter # Starter or higher recommended for 24/7 aviation WebSocket uptime
+    plan: starter
     region: oregon
     healthCheckPath: /api/health
     envVars:
@@ -14,7 +14,7 @@ services:
       - key: PORT
         value: 3000
       - key: NEXTAUTH_URL
-        sync: false # Set to your Render URL e.g. https://aocc-aviation-platform.onrender.com
+        sync: false # Set to the canonical Render service URL when deploying there.
       - key: NEXTAUTH_SECRET
         generateValue: true
       - key: DATABASE_URL
@@ -24,10 +24,10 @@ services:
       - key: AOCC_USE_DATABASE
         value: "true"
       - key: ADMIN_BOOTSTRAP_EMAIL
-        value: admin@gmail.com
+        sync: false
       - key: ADMIN_BOOTSTRAP_PASSWORD
         sync: false
-      - key: SIMULATION_TICK_RATE_MS
+      - key: AOCC_SIMULATION_TICK_MS
         value: 1200
       - key: NEXT_PUBLIC_AIRPORT_CODE
         value: HYD
@@ -36,7 +36,7 @@ services:
 
 databases:
   - name: aocc-postgres
-    plan: free # Free or Starter managed PostgreSQL
+    plan: free
     region: oregon
     databaseName: aocc_db
     user: aocc_admin
