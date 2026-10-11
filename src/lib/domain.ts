@@ -1106,4 +1106,48 @@ export interface CompanyFinanceSummaryDTO {
 
 export type WalletTransactionDTO = CreditTransactionDTO;
 
+export interface NeonBranchDTO {
+  id: string;
+  name: string;
+  parentId?: string;
+  createdAt: string;
+  updatedAt: string;
+  currentLsn?: string;
+  logicalSizeMb: number;
+  primary: boolean;
+  status: "ready" | "creating" | "restoring" | "archived";
+  pointInTime?: string;
+  role: "PRODUCTION" | "SIMULATION_ISOLATED" | "DISASTER_RECOVERY_STANDBY" | "SCHEMA_MIGRATION_TEST";
+}
+
+export interface NeonSnapshotDTO {
+  id: string;
+  branchId: string;
+  label: string;
+  createdAt: string;
+  lsn: string;
+  recordCounts: {
+    flights: number;
+    users: number;
+    transactions: number;
+    auditLogs: number;
+  };
+  checksum: string;
+  status: "VALIDATED" | "RESTORED";
+}
+
+export interface DisasterRecoveryStatusDTO {
+  healthy: boolean;
+  region: string;
+  primaryBranch: string;
+  activeBranchesCount: number;
+  totalSnapshotsCount: number;
+  lastSnapshotAt?: string;
+  rpoMinutes: number;
+  rtoMinutes: number;
+  replicationLagSeconds: number;
+  storageDecoupled: boolean;
+  scaleToZeroEnabled: boolean;
+}
+
 

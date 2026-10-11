@@ -19,6 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { NeonBranchingSection } from "./neon-branching-section";
 
 export function SystemSettingsSection() {
   const [simSpeed, setSimSpeed] = useState<"1x" | "2x" | "5x" | "10x">("1x");
@@ -201,6 +202,9 @@ export function SystemSettingsSection() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Neon Cloud Database Branching & Disaster Recovery Suite */}
+      <NeonBranchingSection />
     </div>
   );
 }
