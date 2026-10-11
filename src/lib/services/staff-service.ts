@@ -185,11 +185,19 @@ export async function getEmployeeByIdentifier(identifier: string): Promise<Emplo
 
   if (shouldUseDatabase()) {
     try {
+      const lookupStartedAt = Date.now();
       const employee = await prisma.employee.findFirst({
         where: {
           OR: [{ employeeId: { equals: exactLookup, mode: "insensitive" } }, { id: normalized }, { email: normalized.toLowerCase() }],
         },
       });
+      if (process.env.AOCC_PERF_DIAGNOSTICS === "true") {
+        console.info("[AOCC_PERF]", JSON.stringify({
+          area: "staff_employee_lookup",
+          durationMs: Date.now() - lookupStartedAt,
+          found: Boolean(employee),
+        }));
+      }
 
       if (!employee) {
         return null;
