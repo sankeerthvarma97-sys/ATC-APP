@@ -48,11 +48,14 @@ describe("load and performance script target safety", () => {
         timeout: 5000,
         stdio: ["ignore", "pipe", "pipe"],
       });
-    } catch (error) {
-      output = [
-        error.stdout?.toString?.() ?? "",
-        error.stderr?.toString?.() ?? "",
-      ].join("\\n");
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const processError = error as { stdout?: unknown; stderr?: unknown };
+        output = [
+          String(processError.stdout ?? ""),
+          String(processError.stderr ?? ""),
+        ].join("\\n");
+      }
     }
 
     expect(output).toMatch(/Refusing to (load-test|benchmark) known production host/);
