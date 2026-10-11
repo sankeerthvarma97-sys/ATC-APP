@@ -49,25 +49,52 @@ const ReviseSalarySchema = z.object({
 export async function GET(request: Request) {
   try {
     const user = await getAuthenticatedUser();
+    if (!user) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const employeeId = searchParams.get("employeeId");
 
-    const authCheck = assertPermission(user, "VIEW_EMPLOYEE_ACCOUNTS");
-    if (!authCheck.ok) {
-      return NextResponse.json({ error: authCheck.message }, { status: authCheck.status });
-    }
+    const privateHeaders = {
+      "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate",
+    };
 
     if (!employeeId) {
+      const authCheck = assertPermission(user, "VIEW_EMPLOYEE_ACCOUNTS");
+      if (!authCheck.ok) {
+        return NextResponse.json({ error: authCheck.message }, { status: authCheck.status });
+      }
       const roster = await listEmployeeSalaryRoster();
-      return NextResponse.json({ roster, grades: Object.values(SALARY_GRADES) });
+      return NextResponse.json({ roster, grades: Object.values(SALARY_GRADES) }, { headers: privateHeaders });
+    }
+
+    // IDOR Protection: Standard staff can only view their own salary; elevated roles can view any
+    let isOwnProfile = user.id === employeeId;
+    if (!isOwnProfile) {
+      const { getEmployeeByIdentifier } = await import("@/lib/services/staff-service");
+      const emp = await getEmployeeByIdentifier(user.email);
+      if (emp?.id === employeeId || emp?.employeeId === employeeId) {
+        isOwnProfile = true;
+      }
+    }
+
+    if (!isOwnProfile) {
+      const authCheck = assertPermission(user, "VIEW_EMPLOYEE_ACCOUNTS");
+      if (!authCheck.ok) {
+        return NextResponse.json(
+          { error: "Access denied: Unauthorized access to external employee salary profile." },
+          { status: 403, headers: privateHeaders }
+        );
+      }
     }
 
     const profile = await getEmployeeSalaryProfile(employeeId);
     if (!profile) {
-      return NextResponse.json({ error: "Salary profile not found" }, { status: 404 });
+      return NextResponse.json({ error: "Salary profile not found" }, { status: 404, headers: privateHeaders });
     }
 
-    return NextResponse.json({ profile, grades: Object.values(SALARY_GRADES) });
+    return NextResponse.json({ profile, grades: Object.values(SALARY_GRADES) }, { headers: privateHeaders });
   } catch (error) {
     console.error("GET /api/finance/salary error:", error);
     return NextResponse.json(

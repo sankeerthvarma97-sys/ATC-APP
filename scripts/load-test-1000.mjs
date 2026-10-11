@@ -5,7 +5,12 @@
  * Simulates high-density concurrent staff usage across operational endpoints.
  */
 
-const BASE_URL = process.env.AOCC_BASE_URL || "http://localhost:3000";
+import { validateTestTarget } from "./load-test-safety-guard.mjs";
+
+const RAW_URL = process.env.AOCC_BASE_URL || "http://127.0.0.1:3005";
+const VALIDATED_TARGET = validateTestTarget(RAW_URL);
+const BASE_URL = VALIDATED_TARGET.origin;
+
 const TOTAL_STAFF_REQUESTS = 1000;
 
 const ENDPOINTS = [

@@ -32,22 +32,24 @@ export async function GET(request: Request) {
     const period = searchParams.get("period");
     const frequency = (searchParams.get("frequency") as PayrollFrequency) || "MONTHLY";
 
+    const privateHeaders = { "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate" };
+
     if (id) {
       const details = await getPayrollRunDetails(id);
       if (!details) {
-        return NextResponse.json({ error: "Payroll run not found" }, { status: 404 });
+        return NextResponse.json({ error: "Payroll run not found" }, { status: 404, headers: privateHeaders });
       }
-      return NextResponse.json({ payroll: details });
+      return NextResponse.json({ payroll: details }, { headers: privateHeaders });
     }
 
     if (preview) {
       const payrollPeriod = period || `PAYROLL-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
       const previewData = await previewPayroll(payrollPeriod);
-      return NextResponse.json({ preview: previewData });
+      return NextResponse.json({ preview: previewData }, { headers: privateHeaders });
     }
 
     const runs = await listPayrollRuns();
-    return NextResponse.json({ runs });
+    return NextResponse.json({ runs }, { headers: privateHeaders });
   } catch (error) {
     console.error("GET /api/finance/payroll error:", error);
     return NextResponse.json(

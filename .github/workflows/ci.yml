@@ -33,6 +33,9 @@ jobs:
       - name: Run Vitest Unit & RBAC Test Suite
         run: npx vitest run
 
+      - name: Dependency Security Audit
+        run: npm audit --audit-level=critical
+
       - name: Production Bundle Build Validation
         run: npm run build
         env:

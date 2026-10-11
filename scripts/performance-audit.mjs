@@ -1,6 +1,10 @@
 import http from "node:http";
 
-const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
+import { validateTestTarget } from "./load-test-safety-guard.mjs";
+
+const RAW_URL = process.env.BASE_URL || "http://127.0.0.1:3005";
+const VALIDATED_TARGET = validateTestTarget(RAW_URL);
+const BASE_URL = VALIDATED_TARGET.origin;
 
 async function measureHttpLatency(url, options = {}) {
   const start = performance.now();

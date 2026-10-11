@@ -8,7 +8,7 @@ const lifecycle = process.env.npm_lifecycle_event;
 const dev = process.env.NODE_ENV !== "production" && lifecycle !== "start";
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
-const tickMs = Number.parseInt(process.env.AOCC_SIMULATION_TICK_MS || "2500", 10);
+const tickMs = Number.parseInt(process.env.AOCC_SIMULATION_TICK_MS || process.env.SIMULATION_TICK_RATE_MS || "2500", 10);
 
 const airport = {
   iata: "HYD",

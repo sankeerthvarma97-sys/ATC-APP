@@ -31,7 +31,14 @@ export async function GET() {
     }
 
     const wallet = await getUserWallet(user.id);
-    return NextResponse.json({ wallet });
+    return NextResponse.json(
+      { wallet },
+      {
+        headers: {
+          "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate",
+        },
+      },
+    );
   } catch (error) {
     console.error("GET /api/wallet error:", error);
     return NextResponse.json(

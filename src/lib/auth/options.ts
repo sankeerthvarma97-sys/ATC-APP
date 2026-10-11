@@ -39,6 +39,39 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
+    redirect({ url, baseUrl }) {
+      // 1. Allow relative callback URLs (e.g. /admin, /staff, /passenger)
+      if (url.startsWith("/")) {
+        return `${baseUrl}${url}`;
+      }
+
+      try {
+        const candidateUrl = new URL(url);
+        const baseOrigin = new URL(baseUrl).origin;
+
+        // 2. Allow same-origin redirects
+        if (candidateUrl.origin === baseOrigin) {
+          return url;
+        }
+
+        // 3. Allow verified canonical deployment origins to prevent host mismatch drops
+        const hostname = candidateUrl.hostname.toLowerCase();
+        if (
+          hostname === "atc-app-one.vercel.app" ||
+          hostname === "atc-app.vercel.app" ||
+          hostname === "localhost" ||
+          hostname === "127.0.0.1" ||
+          (process.env.VERCEL_URL && hostname === process.env.VERCEL_URL.toLowerCase())
+        ) {
+          return url;
+        }
+      } catch {
+        // Fall back on malformed URL
+      }
+
+      // Safe default fallback to baseUrl
+      return baseUrl;
+    },
     jwt({ token, user }) {
       if (user) {
         token.role = (user as typeof user & { role?: string }).role;

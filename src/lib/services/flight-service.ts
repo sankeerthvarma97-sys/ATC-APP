@@ -808,12 +808,37 @@ export interface PagedFlightResult {
   totalPages: number;
 }
 
+// Bounded in-memory search cache for flight queries (30s TTL, max 200 entries)
+interface SearchCacheEntry {
+  result: PagedFlightResult;
+  timestamp: number;
+}
+const globalForFlightCache = globalThis as unknown as {
+  flightSearchCache?: Map<string, SearchCacheEntry>;
+};
+const flightSearchCache = globalForFlightCache.flightSearchCache ?? new Map<string, SearchCacheEntry>();
+globalForFlightCache.flightSearchCache = flightSearchCache;
+
+const SEARCH_CACHE_TTL_MS = 30000;
+const SEARCH_CACHE_MAX_ENTRIES = 200;
+
+export function invalidateFlightSearchCache(): void {
+  flightSearchCache.clear();
+}
+
 export async function listFlightsPaged(
   criteria?: FlightSearchCriteria & { page?: number; pageSize?: number }
 ): Promise<PagedFlightResult> {
   const page = Math.max(1, criteria?.page || 1);
   const pageSize = Math.min(100, Math.max(1, criteria?.pageSize || 20));
   const skip = (page - 1) * pageSize;
+
+  const normalizedKey = `${criteria?.origin?.toUpperCase() || "ALL"}:${criteria?.destination?.toUpperCase() || "ALL"}:${criteria?.status || "ALL"}:${criteria?.query?.trim().toLowerCase() || ""}:${page}:${pageSize}`;
+
+  const cached = flightSearchCache.get(normalizedKey);
+  if (cached && Date.now() - cached.timestamp < SEARCH_CACHE_TTL_MS) {
+    return cached.result;
+  }
 
   if (shouldUseDatabase()) {
     try {
@@ -884,13 +909,21 @@ export async function listFlightsPaged(
         updatedAt: f.updatedAt.toISOString(),
       }));
 
-      return {
+      const searchResult: PagedFlightResult = {
         flights,
         total,
         page,
         pageSize,
         totalPages: Math.ceil(total / pageSize) || 1,
       };
+
+      if (flightSearchCache.size >= SEARCH_CACHE_MAX_ENTRIES) {
+        const oldestKey = flightSearchCache.keys().next().value;
+        if (oldestKey) flightSearchCache.delete(oldestKey);
+      }
+      flightSearchCache.set(normalizedKey, { result: searchResult, timestamp: Date.now() });
+
+      return searchResult;
     } catch (error) {
       console.warn("Database flight query failed; falling back to memory.", error);
     }
@@ -918,13 +951,21 @@ export async function listFlightsPaged(
 
   const total = result.length;
   const paged = result.slice(skip, skip + pageSize);
-  return {
+  const searchResult: PagedFlightResult = {
     flights: paged,
     total,
     page,
     pageSize,
     totalPages: Math.ceil(total / pageSize) || 1,
   };
+
+  if (flightSearchCache.size >= SEARCH_CACHE_MAX_ENTRIES) {
+    const oldestKey = flightSearchCache.keys().next().value;
+    if (oldestKey) flightSearchCache.delete(oldestKey);
+  }
+  flightSearchCache.set(normalizedKey, { result: searchResult, timestamp: Date.now() });
+
+  return searchResult;
 }
 
 export async function listFlights(criteria?: FlightSearchCriteria): Promise<FlightDTO[]> {

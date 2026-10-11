@@ -32,13 +32,20 @@ export async function GET(request: Request) {
     pageSize,
     airportCode: scope.global ? undefined : scope.airportCode,
   });
-  return Response.json({
-    bookings: paged.bookings,
-    total: paged.total,
-    page: paged.page,
-    pageSize: paged.pageSize,
-    totalPages: paged.totalPages,
-  });
+  return Response.json(
+    {
+      bookings: paged.bookings,
+      total: paged.total,
+      page: paged.page,
+      pageSize: paged.pageSize,
+      totalPages: paged.totalPages,
+    },
+    {
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate",
+      },
+    },
+  );
 }
 
 export async function POST(request: Request) {

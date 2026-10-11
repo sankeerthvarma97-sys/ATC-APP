@@ -20,12 +20,16 @@ export async function POST(request: Request) {
       actorName: user.name,
     });
 
+    const privateHeaders = { "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate" };
     if (!result.ok) {
-      return Response.json({ message: result.message }, { status: 400 });
+      return Response.json({ message: result.message }, { status: 400, headers: privateHeaders });
     }
 
-    return Response.json({ message: result.message }, { status: 200 });
+    return Response.json({ message: result.message }, { status: 200, headers: privateHeaders });
   } catch {
-    return Response.json({ message: "Unable to change password at this time." }, { status: 500 });
+    return Response.json(
+      { message: "Unable to change password at this time." },
+      { status: 500, headers: { "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate" } },
+    );
   }
 }
