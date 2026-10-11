@@ -3,10 +3,57 @@
 /**
  * AOCC 1,000 Staff Concurrency & High-Load Stress Test
  * Simulates high-density concurrent staff usage across operational endpoints.
+ *
+ * Safety: remote targets require an explicit host allowlist and opt-in.
+ * Known production hosts are always blocked.
  */
 
 const BASE_URL = process.env.AOCC_BASE_URL || "http://localhost:3000";
 const TOTAL_STAFF_REQUESTS = 1000;
+const BLOCKED_PRODUCTION_HOSTS = new Set([
+  "atc-app-one.vercel.app",
+  "atc-app.vercel.app",
+]);
+
+function assertSafeTarget(rawUrl) {
+  let target;
+  try {
+    target = new URL(rawUrl);
+  } catch {
+    throw new Error("Unsafe load-test target: AOCC_BASE_URL must be a valid absolute URL.");
+  }
+
+  if (!["http:", "https:"].includes(target.protocol) || target.username || target.password) {
+    throw new Error("Unsafe load-test target: only HTTP(S) URLs without embedded credentials are allowed.");
+  }
+
+  const host = target.hostname.toLowerCase();
+  if (BLOCKED_PRODUCTION_HOSTS.has(host)) {
+    throw new Error(`Refusing to load-test known production host: ${host}`);
+  }
+
+  const isLocal = ["localhost", "127.0.0.1", "::1"].includes(host);
+  if (!isLocal) {
+    if (process.env.AOCC_ALLOW_REMOTE_TEST_TARGET !== "true") {
+      throw new Error("Remote load-test targets are disabled. Use localhost or explicitly opt in for an approved staging host.");
+    }
+    const allowlist = (process.env.AOCC_ALLOWED_TEST_HOSTS || "")
+      .split(",")
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean);
+    if (!allowlist.includes(host)) {
+      throw new Error(`Remote target host "${host}" is not in AOCC_ALLOWED_TEST_HOSTS; refusing to run.`);
+    }
+  }
+
+  if (target.pathname !== "/" || target.search || target.hash) {
+    // A base URL may include a path, but it is easy to unintentionally target a proxy or production route.
+    // Keep the base URL origin-only and put endpoint paths in ENDPOINTS.
+    throw new Error("AOCC_BASE_URL must be an origin only (for example http://localhost:3000), without a path, query, or fragment.");
+  }
+}
+
+assertSafeTarget(BASE_URL);
 
 const ENDPOINTS = [
   { path: "/api/health", name: "System Health" },
