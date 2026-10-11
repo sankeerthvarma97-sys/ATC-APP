@@ -174,7 +174,7 @@ export function TicketingSection({
               onChange={(e) => setFromAirport(e.target.value)}
               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-mono text-sky-300 outline-none"
             >
-              <option value="HYD">Hyderabad (HYD)</option>
+              <option value="HYD">Hyderabad (HYD) — Default</option>
               <option value="BOM">Mumbai (BOM)</option>
               <option value="DEL">Delhi (DEL)</option>
               <option value="BLR">Bengaluru (BLR)</option>
@@ -183,6 +183,12 @@ export function TicketingSection({
               <option value="COK">Kochi (COK)</option>
               <option value="GOI">Goa (GOI)</option>
               <option value="PNQ">Pune (PNQ)</option>
+              <option value="AMD">Ahmedabad (AMD)</option>
+              <option value="JAI">Jaipur (JAI)</option>
+              <option value="LKO">Lucknow (LKO)</option>
+              <option value="BBI">Bhubaneswar (BBI)</option>
+              <option value="VTZ">Visakhapatnam (VTZ)</option>
+              <option value="TIR">Tirupati (TIR)</option>
             </select>
           </div>
 
@@ -199,8 +205,15 @@ export function TicketingSection({
               <option value="BLR">Bengaluru (BLR)</option>
               <option value="MAA">Chennai (MAA)</option>
               <option value="CCU">Kolkata (CCU)</option>
-              <option value="DXB">Dubai (DXB)</option>
-              <option value="SIN">Singapore (SIN)</option>
+              <option value="COK">Kochi (COK)</option>
+              <option value="GOI">Goa (GOI)</option>
+              <option value="PNQ">Pune (PNQ)</option>
+              <option value="AMD">Ahmedabad (AMD)</option>
+              <option value="JAI">Jaipur (JAI)</option>
+              <option value="LKO">Lucknow (LKO)</option>
+              <option value="BBI">Bhubaneswar (BBI)</option>
+              <option value="VTZ">Visakhapatnam (VTZ)</option>
+              <option value="TIR">Tirupati (TIR)</option>
             </select>
           </div>
 

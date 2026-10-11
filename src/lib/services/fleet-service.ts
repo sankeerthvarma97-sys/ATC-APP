@@ -108,7 +108,12 @@ export async function listAirports(): Promise<AirportDTO[]> {
       await ensureDomesticAirports();
       const dbAirports = await prisma.airport.findMany({ orderBy: { iata: "asc" } });
       if (dbAirports.length > 0) {
-        return dbAirports.map((a) => ({
+        const sorted = [...dbAirports].sort((a, b) => {
+          if (a.iata === "HYD") return -1;
+          if (b.iata === "HYD") return 1;
+          return a.iata.localeCompare(b.iata);
+        });
+        return sorted.map((a) => ({
           id: a.id,
           iata: a.iata,
           icao: a.icao,
@@ -157,6 +162,78 @@ export async function createAirport(input: Omit<AirportDTO, "id">, actor?: { id?
   });
 
   return airport;
+}
+
+export async function deleteAirport(
+  iata: string,
+  actor?: { id?: string; name?: string }
+): Promise<{ ok: boolean; message: string }> {
+  const normIata = iata.trim().toUpperCase();
+
+  if (normIata === "HYD") {
+    throw new Error("Default simulation airport (HYD) cannot be deleted.");
+  }
+
+  if (shouldUseDatabase()) {
+    const activeFlight = await prisma.flight.findFirst({
+      where: {
+        OR: [{ origin: normIata }, { destination: normIata }],
+        status: { notIn: ["CANCELLED", "ARRIVED"] },
+      },
+    });
+    if (activeFlight) {
+      throw new Error(
+        `Cannot delete airport ${normIata}: Active flight ${activeFlight.flightNumber || activeFlight.callsign} depends on it. Archive instead or cancel flights first.`
+      );
+    }
+
+    await prisma.airport.delete({ where: { iata: normIata } });
+  }
+
+  const idx = memoryAirports.findIndex((a) => a.iata === normIata);
+  if (idx !== -1) {
+    memoryAirports.splice(idx, 1);
+  }
+
+  await logAuditEvent({
+    actorId: actor?.id,
+    actorName: actor?.name,
+    action: "ADMIN_DELETED_AIRPORT",
+    entity: "AIRPORT",
+    entityId: normIata,
+  });
+
+  return { ok: true, message: `Airport ${normIata} deleted successfully.` };
+}
+
+export async function archiveAirport(
+  iata: string,
+  actor?: { id?: string; name?: string }
+): Promise<{ ok: boolean; message: string }> {
+  const normIata = iata.trim().toUpperCase();
+  if (normIata === "HYD") {
+    throw new Error("Default simulation airport (HYD) cannot be archived.");
+  }
+
+  if (shouldUseDatabase()) {
+    await prisma.airport.update({
+      where: { iata: normIata },
+      data: { status: "ARCHIVED" },
+    });
+  }
+
+  const apt = memoryAirports.find((a) => a.iata === normIata);
+  if (apt) apt.status = "ARCHIVED";
+
+  await logAuditEvent({
+    actorId: actor?.id,
+    actorName: actor?.name,
+    action: "ADMIN_ARCHIVED_AIRPORT",
+    entity: "AIRPORT",
+    entityId: normIata,
+  });
+
+  return { ok: true, message: `Airport ${normIata} archived successfully.` };
 }
 
 export async function listAirlines(): Promise<AirlineDTO[]> {

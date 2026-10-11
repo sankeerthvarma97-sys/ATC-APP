@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   AlertCircle,
@@ -79,12 +80,12 @@ export function StaffSection() {
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
-    phone: "+1 555-0199",
+    phone: "+91 90000 00000",
     department: "AIRPORT_OPERATIONS" as DepartmentType,
     jobTitle: "Operations Officer",
     role: "OPERATIONS_MANAGER" as Role,
-    airportCode: "JFK",
-    terminal: "T4",
+    airportCode: "HYD",
+    terminal: "T1",
     shift: "MORNING",
   });
 
@@ -188,6 +189,12 @@ export function StaffSection() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/admin/employees/directory">
+            <Button variant="outline" size="sm" className="border-cyan-500/40 text-cyan-300 bg-cyan-950/20 hover:bg-cyan-900/30">
+              <Key className="h-3.5 w-3.5 mr-1.5 text-amber-400" />
+              Credentials & Directory
+            </Button>
+          </Link>
           <Button variant="outline" size="sm" onClick={fetchEmployees}>
             <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} />
             Refresh

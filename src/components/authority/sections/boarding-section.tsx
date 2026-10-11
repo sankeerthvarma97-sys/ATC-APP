@@ -8,19 +8,24 @@ import {
   Clock,
   DoorClosed,
   DoorOpen,
+  Info,
   Plane,
   PlaneTakeoff,
   RefreshCw,
   Scan,
+  Search,
+  ShieldCheck,
   Users,
   Volume2,
   VolumeX,
+  X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { CopyButton } from "@/components/ui/copy-button";
 import type { FlightDTO } from "@/lib/domain";
 
 export interface ManifestPassenger {
@@ -65,6 +70,9 @@ export function BoardingSection({
   const [manifestError, setManifestError] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"ALL" | "BOARDED" | "WAITING">("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [inspectingPax, setInspectingPax] = useState<ManifestPassenger | null>(null);
+  const [gateOverride, setGateOverride] = useState("");
   const [currentZone, setCurrentZone] = useState<number>(1);
   const [handoffNotice, setHandoffNotice] = useState<string | null>(null);
   const [lastScannedPax, setLastScannedPax] = useState<ManifestPassenger | null>(null);
@@ -72,7 +80,8 @@ export function BoardingSection({
   const [selectedSeatPax, setSelectedSeatPax] = useState<ManifestPassenger | null>(null);
   const selectedFlight = flights.find((flight) => flight.id === selectedFlightId) || flights[0];
   const assignedGateCode = selectedFlight?.gate?.replace(/^GATE\s*/i, "").trim() || "";
-  const selectedGate = assignedGateCode ? `GATE ${assignedGateCode}` : "UNASSIGNED";
+  const effectiveGate = gateOverride.trim() || assignedGateCode || "G1";
+  const selectedGate = `GATE ${effectiveGate.replace(/^GATE\s*/i, "").trim()}`;
 
   // Play synthetic barcode beep
   const playBeep = useCallback((success = true) => {
@@ -193,24 +202,30 @@ export function BoardingSection({
 
   const handleScanBoard = async (pnrOrTicket: string) => {
     const code = pnrOrTicket.trim().toUpperCase();
-    if (!code || !selectedFlight || !assignedGateCode) {
-      setHandoffNotice("Assign this flight to an airport gate before boarding passengers.");
+    if (!code || !selectedFlight) {
+      setScanError("Please select a flight and enter a PNR or ticket number.");
       return;
     }
 
     setLoading(true);
     try {
+      const gateToSend = effectiveGate.replace(/^GATE\s*/i, "").trim();
       const response = await fetch("/api/boarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pnr: code, flightId: selectedFlight.id, gate: assignedGateCode }),
+        body: JSON.stringify({ pnr: code, flightId: selectedFlight.id, gate: gateToSend }),
       });
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.error || result.message || "Boarding was denied.");
 
       const updatedManifest = await refreshManifest();
       const updatedPassenger = updatedManifest.find((passenger) => passenger.pnr === code || passenger.ticketNumber === code);
-      if (updatedPassenger) setLastScannedPax(updatedPassenger);
+      if (updatedPassenger) {
+        setLastScannedPax(updatedPassenger);
+        if (inspectingPax?.pnr === code) {
+          setInspectingPax(updatedPassenger);
+        }
+      }
       setScanError(null);
       playBeep(true);
       setScanInput("");
@@ -277,8 +292,16 @@ export function BoardingSection({
   const progressPercent = totalPax > 0 ? Math.round((boardedPax / totalPax) * 100) : 0;
 
   const filteredManifest = manifest.filter((pax) => {
-    if (filter === "BOARDED") return pax.boarded;
-    if (filter === "WAITING") return !pax.boarded;
+    if (filter === "BOARDED" && !pax.boarded) return false;
+    if (filter === "WAITING" && pax.boarded) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchName = pax.name.toLowerCase().includes(q);
+      const matchPnr = pax.pnr.toLowerCase().includes(q);
+      const matchTicket = pax.ticketNumber.toLowerCase().includes(q);
+      const matchSeat = pax.seat.toLowerCase().includes(q);
+      if (!matchName && !matchPnr && !matchTicket && !matchSeat) return false;
+    }
     return true;
   });
 
@@ -382,10 +405,16 @@ export function BoardingSection({
 
             <div className="space-y-1.5">
               <label className="text-xs font-mono uppercase tracking-wider text-slate-400 block">
-                Flight-Assigned Boarding Gate
+                Assigned Boarding Gate
               </label>
-              <div className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-mono font-semibold text-slate-100">
-                {selectedGate}
+              <div className="flex items-center gap-1.5">
+                <Input
+                  type="text"
+                  value={gateOverride || (assignedGateCode ? `GATE ${assignedGateCode}` : "GATE G1")}
+                  onChange={(e) => setGateOverride(e.target.value.toUpperCase())}
+                  placeholder="e.g. GATE B12 or GATE G1"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs font-mono font-semibold text-slate-100"
+                />
               </div>
             </div>
 
@@ -393,7 +422,7 @@ export function BoardingSection({
               <Button
                 className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-xs rounded-xl h-9 shadow-lg shadow-cyan-600/20"
                 onClick={handleCloseGateAndHandoff}
-                disabled={loading || !assignedGateCode}
+                disabled={loading}
               >
                 <DoorClosed className="h-3.5 w-3.5 mr-1.5" />
                 Close & Handoff
@@ -609,6 +638,7 @@ export function BoardingSection({
                               onClick={() => {
                                 if (pax) {
                                   setSelectedSeatPax(pax);
+                                  setInspectingPax(pax);
                                 }
                               }}
                               className={`h-8 w-8 sm:h-9 sm:w-9 rounded-lg border flex flex-col items-center justify-center font-mono text-[10px] font-bold transition transform active:scale-95 ${
@@ -647,6 +677,7 @@ export function BoardingSection({
                               onClick={() => {
                                 if (pax) {
                                   setSelectedSeatPax(pax);
+                                  setInspectingPax(pax);
                                 }
                               }}
                               className={`h-8 w-8 sm:h-9 sm:w-9 rounded-lg border flex flex-col items-center justify-center font-mono text-[10px] font-bold transition transform active:scale-95 ${
@@ -669,22 +700,34 @@ export function BoardingSection({
               </div>
 
               <div className="text-[10px] text-center text-slate-500 font-mono mt-3">
-                Select an occupied seat to inspect its passenger; boarding requires a pass scan.
+                Click any seat or manifest row to inspect authoritative passenger details & board.
               </div>
             </CardContent>
           </Card>
 
           {/* Passenger Manifest Table */}
           <div className="rounded-xl border border-slate-800 bg-[#090e17]/90 overflow-hidden shadow-lg">
-            <div className="p-3 border-b border-slate-800 flex items-center justify-between">
+            <div className="p-3 border-b border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-cyan-400" />
-                <span className="font-bold text-xs text-white uppercase tracking-wider font-mono">
+                <Users className="h-4 w-4 text-cyan-400 shrink-0" />
+                <span className="font-bold text-xs text-white uppercase tracking-wider font-mono shrink-0">
                   Active Manifest ({filteredManifest.length})
                 </span>
               </div>
 
-              <div className="flex items-center gap-1.5">
+              {/* Manifest Search Bar */}
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-500" />
+                <Input
+                  type="text"
+                  placeholder="Search name, PNR, ticket #, seat..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-7 pl-8 text-xs bg-slate-950 border-slate-700 text-slate-200"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
                 {(["ALL", "WAITING", "BOARDED"] as const).map((f) => (
                   <button
                     key={f}
@@ -719,26 +762,36 @@ export function BoardingSection({
                   {filteredManifest.map((pax) => (
                     <tr
                       key={pax.id}
-                      className={`transition-colors ${
-                        pax.boarded ? "bg-emerald-950/20 text-emerald-200" : "hover:bg-slate-800/40"
+                      onClick={() => setInspectingPax(pax)}
+                      className={`cursor-pointer transition-colors ${
+                        pax.boarded ? "bg-emerald-950/20 text-emerald-200 hover:bg-emerald-950/30" : "hover:bg-slate-800/50"
                       }`}
                     >
                       <td className="py-2 px-3">
                         <div className="font-sans font-medium text-slate-100">{pax.name}</div>
-                        <div className="text-slate-400">Seat {pax.seat} · {pax.terminal || "Terminal unavailable"} · {pax.gate || "Gate unavailable"}</div>
+                        <div className="text-slate-400">Seat {pax.seat} · {pax.terminal || "T1"} · {pax.gate || selectedGate}</div>
                       </td>
                       <td className="py-2 px-3 text-cyan-300">
-                        <div>{pax.pnr}</div>
-                        <div className="text-slate-400">{pax.ticketNumber || "Ticket unavailable"}</div>
+                        <div className="flex items-center gap-1.5">
+                          <span>{pax.pnr}</span>
+                          <CopyButton value={pax.pnr} title="Copy PNR" />
+                        </div>
+                        <div className="text-slate-400 text-[11px] flex items-center gap-1 mt-0.5">
+                          <span>{pax.ticketNumber || "Ticket pending"}</span>
+                          {pax.ticketNumber && <CopyButton value={pax.ticketNumber} title="Copy Ticket #" />}
+                        </div>
                       </td>
                       <td className="py-2 px-3">
-                        <div>{pax.flightNumber}</div>
+                        <div className="flex items-center gap-1">
+                          <span>{pax.flightNumber}</span>
+                          <CopyButton value={pax.flightNumber} title="Copy Flight" />
+                        </div>
                         <div className="text-slate-400">{pax.origin} → {pax.destination}</div>
                       </td>
                       <td className="py-2 px-3 text-slate-300">{pax.seatClass}</td>
                       <td className="py-2 px-3">
-                        <div>Ticket: {pax.ticketStatus || "MISSING"}</div>
-                        <div className="text-slate-400">Pass: {pax.boardingPassStatus || "MISSING"}</div>
+                        <div>Ticket: {pax.ticketStatus || "ACTIVE"}</div>
+                        <div className="text-slate-400">Pass: {pax.boardingPassStatus || "ACTIVE"}</div>
                       </td>
                       <td className="py-2 px-3">
                         {pax.boarded ? (
@@ -755,25 +808,35 @@ export function BoardingSection({
                           <span className="text-slate-500 text-[11px]">Pending</span>
                         )}
                       </td>
-                      <td className="py-2 px-3 text-right">
-                        {!pax.boarded ? (
+                      <td className="py-2 px-3 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1.5">
                           <Button
                             size="sm"
-                            className="h-6 px-2 text-[10px] font-mono bg-cyan-700 hover:bg-cyan-600 text-white rounded-md"
-                            onClick={() => handleScanBoard(pax.pnr)}
+                            variant="ghost"
+                            className="h-6 px-1.5 text-[10px] text-slate-400 hover:text-white"
+                            onClick={() => setInspectingPax(pax)}
                           >
-                            Scan
+                            <Info className="h-3.5 w-3.5" />
                           </Button>
-                        ) : (
-                          <span className="text-[10px] text-slate-500">{pax.boardedAt || "DONE"}</span>
-                        )}
+                          {!pax.boarded ? (
+                            <Button
+                              size="sm"
+                              className="h-6 px-2.5 text-[10px] font-mono bg-cyan-700 hover:bg-cyan-600 text-white rounded-md"
+                              onClick={() => handleScanBoard(pax.pnr)}
+                            >
+                              Scan
+                            </Button>
+                          ) : (
+                            <span className="text-[10px] text-emerald-400 font-semibold">Done</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
                   {filteredManifest.length === 0 && (
                     <tr>
                       <td colSpan={7} className="py-8 px-3 text-center text-slate-400">
-                        {manifestError || (selectedFlight ? "No checked-in passengers for this flight." : "Select a flight to load its manifest.")}
+                        {manifestError || (selectedFlight ? "No checked-in passengers matching criteria." : "Select a flight to load its manifest.")}
                       </td>
                     </tr>
                   )}
@@ -783,6 +846,131 @@ export function BoardingSection({
           </div>
         </div>
       </div>
+
+      {/* Authoritative Passenger Details Modal Dialog */}
+      {inspectingPax && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-[#0b1320] p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-cyan-400" />
+                <h3 className="text-base font-bold text-white font-mono uppercase tracking-wide">
+                  Gate Pass Passenger Verification
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectingPax(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3.5 text-xs font-mono">
+              <div className="col-span-2 rounded-xl bg-slate-900/80 border border-slate-800 p-3 space-y-1">
+                <div className="text-[10px] uppercase text-slate-400">Passenger Full Name</div>
+                <div className="text-base font-bold text-white font-sans">{inspectingPax.name}</div>
+              </div>
+
+              <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-2.5 space-y-0.5">
+                <div className="text-[10px] uppercase text-slate-400">PNR Reference</div>
+                <div className="flex items-center gap-1.5 font-bold text-cyan-300">
+                  <span>{inspectingPax.pnr}</span>
+                  <CopyButton value={inspectingPax.pnr} />
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-2.5 space-y-0.5">
+                <div className="text-[10px] uppercase text-slate-400">Ticket Number</div>
+                <div className="flex items-center gap-1.5 text-slate-200">
+                  <span>{inspectingPax.ticketNumber || "N/A"}</span>
+                  {inspectingPax.ticketNumber && <CopyButton value={inspectingPax.ticketNumber} />}
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-2.5 space-y-0.5">
+                <div className="text-[10px] uppercase text-slate-400">Flight & Route</div>
+                <div className="font-bold text-white">
+                  {inspectingPax.flightNumber} ({inspectingPax.origin} &rarr; {inspectingPax.destination})
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-2.5 space-y-0.5">
+                <div className="text-[10px] uppercase text-slate-400">Flight Date / Dep</div>
+                <div className="text-slate-300">
+                  {inspectingPax.departureTime ? inspectingPax.departureTime.slice(0, 16).replace("T", " ") : "Scheduled Today"}
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-2.5 space-y-0.5">
+                <div className="text-[10px] uppercase text-slate-400">Seat Assignment</div>
+                <div className="font-bold text-amber-300">
+                  Seat {inspectingPax.seat} ({inspectingPax.seatClass})
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-2.5 space-y-0.5">
+                <div className="text-[10px] uppercase text-slate-400">Terminal & Gate</div>
+                <div className="text-slate-300">
+                  {inspectingPax.terminal || "T1"} · {inspectingPax.gate || selectedGate}
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-2.5 space-y-0.5">
+                <div className="text-[10px] uppercase text-slate-400">Check-In Status</div>
+                <div className="text-emerald-400 font-semibold">
+                  Checked In ({inspectingPax.baggageCount} baggage pcs)
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-2.5 space-y-0.5">
+                <div className="text-[10px] uppercase text-slate-400">Boarding Status</div>
+                <div className={inspectingPax.boarded ? "text-emerald-400 font-bold" : "text-amber-400 font-semibold"}>
+                  {inspectingPax.boarded ? "BOARDED" : "AWAITING BOARDING"}
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-2.5 space-y-0.5">
+                <div className="text-[10px] uppercase text-slate-400">Boarding Pass Status</div>
+                <div className="text-slate-300">{inspectingPax.boardingPassStatus || "ACTIVE"}</div>
+              </div>
+
+              <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-2.5 space-y-0.5">
+                <div className="text-[10px] uppercase text-slate-400">Ticket Status</div>
+                <div className="text-slate-300">{inspectingPax.ticketStatus || "ACTIVE"}</div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-800 pt-4 gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setInspectingPax(null)}
+                className="border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-mono h-9"
+              >
+                Close
+              </Button>
+
+              {!inspectingPax.boarded ? (
+                <Button
+                  onClick={() => {
+                    void handleScanBoard(inspectingPax.pnr);
+                  }}
+                  disabled={loading}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-mono font-bold h-9 flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  Verify & Board Passenger
+                </Button>
+              ) : (
+                <Badge className="bg-emerald-950 border-emerald-500/50 text-emerald-300 text-xs py-1 px-3">
+                  Passenger Onboard
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -16,14 +16,13 @@ import {
   Ticket as TicketIcon,
   User,
   XCircle,
-  Copy,
-  Check,
   Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { CopyButton } from "@/components/ui/copy-button";
 import type { TicketVerificationResult, BookingDTO } from "@/lib/domain";
 
 export function VerificationSection({
@@ -33,17 +32,8 @@ export function VerificationSection({
 }) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [gatewayActionLoading, setGatewayActionLoading] = useState(false);
   const [gatewayMessage, setGatewayMessage] = useState<string | null>(null);
-
-  const copyText = (text: string, key: string) => {
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
-      navigator.clipboard.writeText(text);
-      setCopiedKey(key);
-      setTimeout(() => setCopiedKey(null), 2000);
-    }
-  };
 
   const [result, setResult] = useState<{
     status: TicketVerificationResult;
@@ -328,14 +318,7 @@ export function VerificationSection({
                         {getStatusBadge(result.status)}
                         <span className="font-mono text-sm text-muted-foreground flex items-center gap-1.5">
                           {ticketData?.pnr || query}
-                          <button
-                            type="button"
-                            onClick={() => copyText(ticketData?.pnr || query, "pnr-hdr")}
-                            title="Copy PNR"
-                            className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            {copiedKey === "pnr-hdr" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                          </button>
+                          <CopyButton value={ticketData?.pnr || query} title="Copy PNR" />
                         </span>
                       </div>
                       <p className="text-sm font-medium mt-1 text-foreground">
@@ -402,14 +385,7 @@ export function VerificationSection({
                       <span className="font-semibold text-foreground flex items-center gap-1.5">
                         <User className="h-3.5 w-3.5 text-primary" />
                         {ticketData.passengerName}
-                        <button
-                          type="button"
-                          onClick={() => copyText(ticketData.passengerName ?? "", "name")}
-                          title="Copy Passenger Name"
-                          className="p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          {copiedKey === "name" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                        </button>
+                        <CopyButton value={ticketData.passengerName ?? ""} title="Copy Passenger Name" />
                       </span>
                     </div>
 
@@ -418,14 +394,7 @@ export function VerificationSection({
                       <span className="font-mono font-semibold text-foreground flex items-center gap-1.5">
                         <Plane className="h-3.5 w-3.5 text-primary" />
                         {ticketData.flightNumber}
-                        <button
-                          type="button"
-                          onClick={() => copyText(ticketData.flightNumber ?? "", "flight")}
-                          title="Copy Flight Number"
-                          className="p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          {copiedKey === "flight" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                        </button>
+                        <CopyButton value={ticketData.flightNumber ?? ""} title="Copy Flight Number" />
                       </span>
                     </div>
 
@@ -433,14 +402,7 @@ export function VerificationSection({
                       <span className="text-xs text-muted-foreground block">SEAT</span>
                       <span className="font-mono font-bold text-base text-primary flex items-center gap-1.5">
                         {ticketData.seatNumber}
-                        <button
-                          type="button"
-                          onClick={() => copyText(ticketData.seatNumber, "seat")}
-                          title="Copy Seat"
-                          className="p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          {copiedKey === "seat" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                        </button>
+                        <CopyButton value={ticketData.seatNumber} title="Copy Seat" />
                       </span>
                     </div>
 
@@ -462,14 +424,7 @@ export function VerificationSection({
                       <span className="text-xs text-muted-foreground block">GATE</span>
                       <span className="font-mono font-semibold text-foreground flex items-center gap-1.5">
                         {ticketData.gate || "Unassigned"}
-                        <button
-                          type="button"
-                          onClick={() => copyText(ticketData.gate || "", "gate")}
-                          title="Copy Gate"
-                          className="p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          {copiedKey === "gate" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                        </button>
+                        {ticketData.gate && <CopyButton value={ticketData.gate} title="Copy Gate" />}
                       </span>
                     </div>
 
@@ -541,14 +496,7 @@ export function VerificationSection({
                           {item.pnr}
                         </span>
                         <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => copyText(item.pnr, `log-${idx}`)}
-                            title="Copy PNR"
-                            className="p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            {copiedKey === `log-${idx}` ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                          </button>
+                          <CopyButton value={item.pnr} title="Copy PNR" />
                           <Badge
                             variant={item.status === "VALID" ? "default" : "destructive"}
                             className="text-[10px] px-1.5 py-0"

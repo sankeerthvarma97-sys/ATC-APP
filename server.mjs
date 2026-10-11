@@ -11,12 +11,14 @@ const handle = app.getRequestHandler();
 const tickMs = Number.parseInt(process.env.AOCC_SIMULATION_TICK_MS || "2500", 10);
 
 const airport = {
-  iata: "JFK",
-  icao: "KJFK",
-  name: "Kennedy International Simulation Field",
-  latitude: 40.6413,
-  longitude: -73.7781,
-  fieldElevationFt: 13,
+  iata: "HYD",
+  icao: "VOHS",
+  name: "Rajiv Gandhi International Airport",
+  city: "Hyderabad",
+  country: "India",
+  latitude: 17.2403,
+  longitude: 78.4294,
+  fieldElevationFt: 2024,
 };
 
 const disclaimer =

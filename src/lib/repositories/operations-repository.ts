@@ -118,7 +118,7 @@ export function invalidateSnapshotCache() {
 }
 
 async function fetchRawSnapshotData(): Promise<Omit<OperationsSnapshot, "currentUser">> {
-  const [flights, resources, events, messages] = await Promise.all([
+  const [flights, resources, events, messages, dbAirport] = await Promise.all([
     prisma.flight.findMany({
       include: { assignedController: { select: { id: true, name: true, role: true } } },
       orderBy: [{ riskScore: "desc" }, { eta: "asc" }],
@@ -133,14 +133,28 @@ async function fetchRawSnapshotData(): Promise<Omit<OperationsSnapshot, "current
       orderBy: { createdAt: "desc" },
       take: 28,
     }),
+    prisma.airport.findFirst({
+      where: { iata: "HYD", status: "ACTIVE" },
+    }),
   ]);
 
   const flightDtos = flights.map((flight) => toFlightDTO(flight as unknown as Record<string, unknown>));
   const resourceDtos = resources.map((resource) => toResourceDTO(resource as unknown as Record<string, unknown>));
 
+  const resolvedAirport = dbAirport
+    ? {
+        iata: dbAirport.iata,
+        icao: dbAirport.icao,
+        name: dbAirport.name,
+        latitude: dbAirport.latitude,
+        longitude: dbAirport.longitude,
+        fieldElevationFt: dbAirport.elevationFt,
+      }
+    : airport;
+
   return {
     generatedAt: new Date().toISOString(),
-    airport,
+    airport: resolvedAirport,
     flights: flightDtos,
     resources: resourceDtos,
     events: events.map((event) => toEventDTO(event as unknown as Record<string, unknown>)),

@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CopyButton } from "@/components/ui/copy-button";
 import type { GateDTO } from "@/lib/domain";
 
 interface GateWithDetails extends GateDTO {
@@ -23,18 +24,17 @@ interface GateWithDetails extends GateDTO {
 }
 
 const INITIAL_GATES: GateWithDetails[] = [
-  { id: "gate-a1-jfk", code: "A1", terminalId: "T4", airportCode: "JFK", terminal: "Terminal 4", status: "OCCUPIED", turnMinutes: 38, assignedFlight: "SKY-402", airline: "SkyConnect", hasJetBridge: true },
-  { id: "gate-a2-jfk", code: "A2", terminalId: "T4", airportCode: "JFK", terminal: "Terminal 4", status: "AVAILABLE", turnMinutes: 45, hasJetBridge: true },
-  { id: "gate-b1-jfk", code: "B1", terminalId: "T4", airportCode: "JFK", terminal: "Terminal 4", status: "RESERVED", turnMinutes: 50, assignedFlight: "OEA-842", airline: "Oceanic Air", hasJetBridge: true },
-  { id: "gate-b3-jfk", code: "B3", terminalId: "T4", airportCode: "JFK", terminal: "Terminal 4", status: "OCCUPIED", turnMinutes: 22, assignedFlight: "BHA-101", airline: "Blue Horizon", hasJetBridge: false },
-  { id: "gate-c1-jfk", code: "C1", terminalId: "T1", airportCode: "JFK", terminal: "Terminal 1", status: "AVAILABLE", turnMinutes: 40, hasJetBridge: true },
-  { id: "gate-c2-jfk", code: "C2", terminalId: "T1", airportCode: "JFK", terminal: "Terminal 1", status: "OCCUPIED", turnMinutes: 15, assignedFlight: "AVS-205", airline: "AeroVista", hasJetBridge: true },
-  { id: "gate-b12-hyd", code: "B12", terminalId: "T1", airportCode: "HYD", terminal: "Terminal 1", status: "OCCUPIED", turnMinutes: 40, assignedFlight: "ISK-303", airline: "IndianSky", hasJetBridge: true },
-  { id: "gate-a4-hyd", code: "A4", terminalId: "T1", airportCode: "HYD", terminal: "Terminal 1", status: "AVAILABLE", turnMinutes: 45, hasJetBridge: true },
-  { id: "gate-a10-hyd", code: "A10", terminalId: "T1", airportCode: "HYD", terminal: "Terminal 1", status: "AVAILABLE", turnMinutes: 50, hasJetBridge: false },
+  { id: "gate-b12-hyd", code: "B12", terminalId: "T1", airportCode: "HYD", terminal: "Terminal 1 (RGIA)", status: "OCCUPIED", turnMinutes: 40, assignedFlight: "6E-604", airline: "IndiGo", hasJetBridge: true },
+  { id: "gate-a4-hyd", code: "A4", terminalId: "T1", airportCode: "HYD", terminal: "Terminal 1 (RGIA)", status: "AVAILABLE", turnMinutes: 45, hasJetBridge: true },
+  { id: "gate-a10-hyd", code: "A10", terminalId: "T1", airportCode: "HYD", terminal: "Terminal 1 (RGIA)", status: "AVAILABLE", turnMinutes: 50, hasJetBridge: false },
+  { id: "gate-b14-hyd", code: "B14", terminalId: "T1", airportCode: "HYD", terminal: "Terminal 1 (RGIA)", status: "RESERVED", turnMinutes: 30, assignedFlight: "AI-542", airline: "Air India", hasJetBridge: true },
+  { id: "gate-c1-hyd", code: "C1", terminalId: "T1", airportCode: "HYD", terminal: "Terminal 1 (RGIA)", status: "AVAILABLE", turnMinutes: 40, hasJetBridge: true },
+  { id: "gate-c2-hyd", code: "C2", terminalId: "T1", airportCode: "HYD", terminal: "Terminal 1 (RGIA)", status: "OCCUPIED", turnMinutes: 15, assignedFlight: "UK-821", airline: "Vistara", hasJetBridge: true },
+  { id: "gate-a1-hyd", code: "A1", terminalId: "T1", airportCode: "HYD", terminal: "Terminal 1 (RGIA)", status: "AVAILABLE", turnMinutes: 45, hasJetBridge: true },
+  { id: "gate-b1-hyd", code: "B1", terminalId: "T1", airportCode: "HYD", terminal: "Terminal 1 (RGIA)", status: "AVAILABLE", turnMinutes: 55, hasJetBridge: true },
 ];
 
-export function GatesSection({ activeStation = "JFK" }: { activeStation?: string }) {
+export function GatesSection({ activeStation = "HYD" }: { activeStation?: string }) {
   const [gates, setGates] = useState<GateWithDetails[]>(INITIAL_GATES);
   const [terminalFilter, setTerminalFilter] = useState("ALL");
 
@@ -101,6 +101,7 @@ export function GatesSection({ activeStation = "JFK" }: { activeStation?: string
                     <span className="text-xl font-mono font-bold text-foreground">
                       GATE {gate.code}
                     </span>
+                    <CopyButton value={gate.code} title="Copy Gate Code" />
                     <Badge variant="outline" className="text-xs">
                       {gate.terminal}
                     </Badge>
@@ -120,9 +121,10 @@ export function GatesSection({ activeStation = "JFK" }: { activeStation?: string
                 {gate.assignedFlight ? (
                   <div className="p-2.5 rounded bg-muted/50 border border-border/50 flex items-center justify-between">
                     <div>
-                      <span className="font-mono font-bold text-primary flex items-center gap-1">
+                      <span className="font-mono font-bold text-primary flex items-center gap-1.5">
                         <Plane className="h-3 w-3" />
                         {gate.assignedFlight}
+                        <CopyButton value={gate.assignedFlight} title="Copy Assigned Flight" />
                       </span>
                       <span className="text-[11px] text-muted-foreground">{gate.airline}</span>
                     </div>

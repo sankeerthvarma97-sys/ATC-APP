@@ -773,13 +773,40 @@ export interface FinancialTransactionDTO {
 }
 
 export type SalaryType = "MONTHLY" | "HOURLY" | "CONTRACT";
-export type SalaryChangeType = "INITIAL" | "HIKE_PERCENTAGE" | "HIKE_FIXED" | "REDUCTION" | "CORRECTION";
+export type SalaryChangeType = "INITIAL" | "HIKE_PERCENTAGE" | "HIKE_FIXED" | "REDUCTION" | "CORRECTION" | "GRADE_CHANGE";
 export type BonusType = "PERFORMANCE" | "ATTENDANCE" | "EMERGENCY" | "OPERATIONAL" | "SIMULATOR" | "MANUAL";
 export type DeductionType = "ABSENCE" | "PENALTY" | "ADVANCE_RECOVERY" | "OTHER";
+
+export type SalaryGradeCode =
+  | "EXECUTIVE"
+  | "SENIOR_MANAGEMENT"
+  | "MANAGEMENT"
+  | "SENIOR_SPECIALIST"
+  | "SPECIALIST"
+  | "SUPERVISOR"
+  | "EXPERIENCED_STAFF"
+  | "ENTRY_LEVEL"
+  | "TRAINEE";
+
+export interface SalaryGradeDTO {
+  gradeCode: SalaryGradeCode;
+  gradeName: string;
+  minMonthlyBase: number;
+  midMonthlyBase: number;
+  maxMonthlyBase: number;
+  currency: string;
+  effectiveDate: string;
+  isActive: boolean;
+  allowedRoles: Role[];
+  approvalRequired: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface SalaryProfileDTO {
   id: string;
   employeeId: string;
+  gradeCode?: SalaryGradeCode;
   baseSalary: number;
   allowances: number;
   overtime: number;
@@ -805,6 +832,8 @@ export interface SalaryRevisionDTO {
   changeType: SalaryChangeType;
   percentageChange?: number;
   fixedChange?: number;
+  previousGrade?: SalaryGradeCode;
+  newGrade?: SalaryGradeCode;
   reason: string;
   effectiveDate: string;
   createdBy?: string;

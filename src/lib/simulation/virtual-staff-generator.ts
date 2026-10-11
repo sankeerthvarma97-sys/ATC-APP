@@ -1,4 +1,5 @@
 import type { DepartmentType, Role } from "@/lib/domain";
+import { formatEmployeeId } from "@/server/employees/employee-id-service";
 
 const FIRST_NAMES = [
   "Aarav", "Aditi", "Rohan", "Priya", "Vikram", "Ananya", "Rahul", "Sneha", "Karan", "Pooja",
@@ -208,8 +209,8 @@ export function generateStaffBatch(count: number, airportCode = "HYD"): Array<{
     const firstName = getRandomElement(FIRST_NAMES);
     const lastName = getRandomElement(LAST_NAMES);
     const fullName = `${firstName} ${lastName}`;
-    const idNum = String(i).padStart(4, "0");
-    const employeeId = `VS-${idNum}`;
+    const idNum = String(i).padStart(5, "0");
+    const employeeId = formatEmployeeId(i, true);
     const email = `vs.${firstName.toLowerCase()}.${lastName.toLowerCase()}.${idNum}@sim.aocc.test`;
     const phone = `+91 ${Math.floor(7000000000 + Math.random() * 2999999999)}`;
     const terminal = getRandomElement(terminals);

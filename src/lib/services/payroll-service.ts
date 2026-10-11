@@ -3,6 +3,8 @@ import { prisma, shouldUseDatabase } from "@/lib/prisma";
 import type {
   SalaryProfileDTO,
   SalaryRevisionDTO,
+  SalaryGradeCode,
+  SalaryGradeDTO,
   EmployeeBonusDTO,
   EmployeeDeductionDTO,
   PayrollDTO,
@@ -18,20 +20,190 @@ import type {
 import { logAuditEvent } from "./audit-service";
 import { initializeCompanyTreasury, listFinancialAccounts } from "./company-finance-service";
 
-// Default benchmark salaries by department (in ₹ INR monthly)
-export const DEPARTMENT_SALARY_BENCHMARKS: Record<string, number> = {
-  AIR_TRAFFIC_CONTROL: 120_000,
-  AIRPORT_OPERATIONS: 85_000,
-  GROUND_OPERATIONS: 55_000,
-  AIRLINE_OPERATIONS: 90_000,
-  TICKETING: 45_000,
-  PASSENGER_SERVICES: 48_000,
-  SECURITY: 52_000,
-  BAGGAGE: 42_000,
-  MAINTENANCE: 75_000,
-  EMERGENCY_RESPONSE: 80_000,
-  ADMINISTRATION: 95_000,
+// Configurable Salary Grades by Job Level (in ₹ INR monthly base salary)
+export const SALARY_GRADES: Record<SalaryGradeCode, SalaryGradeDTO> = {
+  EXECUTIVE: {
+    gradeCode: "EXECUTIVE",
+    gradeName: "Airport Director / Executive",
+    minMonthlyBase: 200_000,
+    midMonthlyBase: 250_000,
+    maxMonthlyBase: 300_000,
+    currency: "INR",
+    effectiveDate: "2026-01-01T00:00:00.000Z",
+    isActive: true,
+    allowedRoles: ["SUPER_ADMIN", "AIRPORT_ADMIN"],
+    approvalRequired: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  SENIOR_MANAGEMENT: {
+    gradeCode: "SENIOR_MANAGEMENT",
+    gradeName: "Department Head / Senior Manager",
+    minMonthlyBase: 150_000,
+    midMonthlyBase: 175_000,
+    maxMonthlyBase: 200_000,
+    currency: "INR",
+    effectiveDate: "2026-01-01T00:00:00.000Z",
+    isActive: true,
+    allowedRoles: ["OPERATIONS_MANAGER", "ADMIN"],
+    approvalRequired: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  MANAGEMENT: {
+    gradeCode: "MANAGEMENT",
+    gradeName: "Operations Manager / Shift Lead",
+    minMonthlyBase: 100_000,
+    midMonthlyBase: 125_000,
+    maxMonthlyBase: 150_000,
+    currency: "INR",
+    effectiveDate: "2026-01-01T00:00:00.000Z",
+    isActive: true,
+    allowedRoles: ["OPERATIONS_MANAGER", "SUPERVISOR"],
+    approvalRequired: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  SENIOR_SPECIALIST: {
+    gradeCode: "SENIOR_SPECIALIST",
+    gradeName: "Senior ATC Controller / Senior Specialist",
+    minMonthlyBase: 70_000,
+    midMonthlyBase: 90_000,
+    maxMonthlyBase: 110_000,
+    currency: "INR",
+    effectiveDate: "2026-01-01T00:00:00.000Z",
+    isActive: true,
+    allowedRoles: ["SENIOR_ATC_CONTROLLER", "PILOT"],
+    approvalRequired: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  SUPERVISOR: {
+    gradeCode: "SUPERVISOR",
+    gradeName: "Operations Supervisor / Ground Lead",
+    minMonthlyBase: 60_000,
+    midMonthlyBase: 75_000,
+    maxMonthlyBase: 90_000,
+    currency: "INR",
+    effectiveDate: "2026-01-01T00:00:00.000Z",
+    isActive: true,
+    allowedRoles: ["SUPERVISOR", "GROUND_OPERATOR"],
+    approvalRequired: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  SPECIALIST: {
+    gradeCode: "SPECIALIST",
+    gradeName: "ATC Specialist / Flight Dispatcher",
+    minMonthlyBase: 50_000,
+    midMonthlyBase: 65_000,
+    maxMonthlyBase: 80_000,
+    currency: "INR",
+    effectiveDate: "2026-01-01T00:00:00.000Z",
+    isActive: true,
+    allowedRoles: ["ATC_CONTROLLER", "ATC", "FLIGHT_DISPATCHER", "SIMULATOR_OPERATOR"],
+    approvalRequired: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  EXPERIENCED_STAFF: {
+    gradeCode: "EXPERIENCED_STAFF",
+    gradeName: "Gate Agent / Ticketing Agent / Technician",
+    minMonthlyBase: 25_000,
+    midMonthlyBase: 35_000,
+    maxMonthlyBase: 45_000,
+    currency: "INR",
+    effectiveDate: "2026-01-01T00:00:00.000Z",
+    isActive: true,
+    allowedRoles: ["GATE_AGENT", "TICKETING_AGENT", "AIRLINE_OPERATOR", "MAINTENANCE_STAFF"],
+    approvalRequired: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  ENTRY_LEVEL: {
+    gradeCode: "ENTRY_LEVEL",
+    gradeName: "Ground Staff / Baggage / Security Assistant",
+    minMonthlyBase: 20_000,
+    midMonthlyBase: 30_000,
+    maxMonthlyBase: 40_000,
+    currency: "INR",
+    effectiveDate: "2026-01-01T00:00:00.000Z",
+    isActive: true,
+    allowedRoles: ["SECURITY_OFFICER", "BAGGAGE_STAFF", "GROUND"],
+    approvalRequired: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  TRAINEE: {
+    gradeCode: "TRAINEE",
+    gradeName: "Trainee / Operations Intern",
+    minMonthlyBase: 10_000,
+    midMonthlyBase: 15_000,
+    maxMonthlyBase: 20_000,
+    currency: "INR",
+    effectiveDate: "2026-01-01T00:00:00.000Z",
+    isActive: true,
+    allowedRoles: ["PASSENGER", "ANALYST"],
+    approvalRequired: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
 };
+
+export function resolveSalaryGrade(role?: string, jobTitle?: string): SalaryGradeDTO {
+  const r = (role || "").toUpperCase();
+  const t = (jobTitle || "").toLowerCase();
+
+  if (r === "SUPER_ADMIN" || r === "AIRPORT_ADMIN" || t.includes("director") || t.includes("executive")) {
+    return SALARY_GRADES.EXECUTIVE;
+  }
+  if (t.includes("head") || t.includes("senior manager")) {
+    return SALARY_GRADES.SENIOR_MANAGEMENT;
+  }
+  if (r === "OPERATIONS_MANAGER" || t.includes("manager")) {
+    return SALARY_GRADES.MANAGEMENT;
+  }
+  if (r === "SENIOR_ATC_CONTROLLER" || t.includes("senior specialist") || t.includes("senior controller")) {
+    return SALARY_GRADES.SENIOR_SPECIALIST;
+  }
+  if (r === "SUPERVISOR" || t.includes("supervisor") || t.includes("lead")) {
+    return SALARY_GRADES.SUPERVISOR;
+  }
+  if (
+    r === "ATC_CONTROLLER" ||
+    r === "ATC" ||
+    r === "FLIGHT_DISPATCHER" ||
+    r === "SIMULATOR_OPERATOR" ||
+    t.includes("specialist") ||
+    t.includes("dispatcher")
+  ) {
+    return SALARY_GRADES.SPECIALIST;
+  }
+  if (
+    r === "GATE_AGENT" ||
+    r === "TICKETING_AGENT" ||
+    r === "AIRLINE_OPERATOR" ||
+    r === "MAINTENANCE_STAFF" ||
+    t.includes("agent") ||
+    t.includes("technician")
+  ) {
+    return SALARY_GRADES.EXPERIENCED_STAFF;
+  }
+  if (
+    r === "SECURITY_OFFICER" ||
+    r === "BAGGAGE_STAFF" ||
+    r === "GROUND" ||
+    r === "GROUND_OPERATOR" ||
+    t.includes("assistant") ||
+    t.includes("staff")
+  ) {
+    return SALARY_GRADES.ENTRY_LEVEL;
+  }
+  if (t.includes("trainee") || t.includes("intern")) {
+    return SALARY_GRADES.TRAINEE;
+  }
+  return SALARY_GRADES.EXPERIENCED_STAFF;
+}
 
 // Memory fallback stores
 const memorySalaryProfiles: Map<string, SalaryProfileDTO> = new Map();
@@ -72,13 +244,14 @@ export async function getOrCreateSalaryProfile(employeeId: string): Promise<Sala
         };
       }
 
-      // Benchmark fallback based on department
+      // Resolve grade and base salary based on employee profile
       const employee = await prisma.employee.findUnique({
         where: { id: employeeId },
-        select: { department: true },
+        select: { role: true, jobTitle: true, department: true },
       });
 
-      const base = DEPARTMENT_SALARY_BENCHMARKS[employee?.department || "ADMINISTRATION"] || 65_000;
+      const grade = resolveSalaryGrade(employee?.role, employee?.jobTitle);
+      const base = grade.midMonthlyBase;
       const allowances = Math.round(base * 0.15);
       const deductions = Math.round(base * 0.10);
       const gross = base + allowances;
@@ -101,6 +274,7 @@ export async function getOrCreateSalaryProfile(employeeId: string): Promise<Sala
       return {
         id: created.id,
         employeeId: created.employeeId,
+        gradeCode: grade.gradeCode,
         baseSalary: Number(created.baseSalary),
         allowances: Number(created.allowances),
         overtime: Number(created.overtime),
@@ -121,7 +295,8 @@ export async function getOrCreateSalaryProfile(employeeId: string): Promise<Sala
   // Memory fallback
   let profile = memorySalaryProfiles.get(employeeId);
   if (!profile) {
-    const base = 65_000;
+    const grade = resolveSalaryGrade();
+    const base = grade.midMonthlyBase;
     const allowances = Math.round(base * 0.15);
     const deductions = Math.round(base * 0.10);
     const gross = base + allowances;
@@ -130,6 +305,7 @@ export async function getOrCreateSalaryProfile(employeeId: string): Promise<Sala
     profile = {
       id: `sal-${employeeId}`,
       employeeId,
+      gradeCode: grade.gradeCode,
       baseSalary: base,
       allowances,
       overtime: 0,
@@ -156,10 +332,12 @@ export async function applySalaryHike(input: {
   hikeType: "PERCENTAGE" | "FIXED";
   value: number;
   reason: string;
+  newGrade?: SalaryGradeCode;
+  effectiveDate?: string | Date;
   adminId?: string;
   adminName?: string;
 }): Promise<SalaryProfileDTO> {
-  const { employeeId, hikeType, value, reason, adminId, adminName } = input;
+  const { employeeId, hikeType, value, reason, newGrade, effectiveDate, adminId, adminName } = input;
   if (value <= 0) throw new Error("Hike value must be positive.");
 
   const current = await getOrCreateSalaryProfile(employeeId);
@@ -175,6 +353,8 @@ export async function applySalaryHike(input: {
   const deductions = Math.round(newBase * 0.10);
   const newGross = newBase + allowances + current.overtime + current.bonus;
   const newNet = newGross - deductions;
+  const gradeToAssign = newGrade || current.gradeCode || resolveSalaryGrade().gradeCode;
+  const parsedEffectiveDate = effectiveDate ? new Date(effectiveDate) : new Date();
 
   if (shouldUseDatabase()) {
     try {
@@ -187,7 +367,7 @@ export async function applySalaryHike(input: {
             deductions: new Prisma.Decimal(deductions),
             grossSalary: new Prisma.Decimal(newGross),
             netSalary: new Prisma.Decimal(newNet),
-            effectiveDate: new Date(),
+            effectiveDate: parsedEffectiveDate,
           },
         });
 
@@ -204,7 +384,7 @@ export async function applySalaryHike(input: {
             percentageChange: hikeType === "PERCENTAGE" ? value : undefined,
             fixedChange: hikeType === "FIXED" ? new Prisma.Decimal(value) : undefined,
             reason,
-            effectiveDate: new Date(),
+            effectiveDate: parsedEffectiveDate,
             createdBy: adminName || adminId || "ADMIN",
           },
         });
@@ -215,8 +395,8 @@ export async function applySalaryHike(input: {
           action: "SALARY_HIKE",
           entity: "SALARY_PROFILE",
           entityId: employeeId,
-          before: { baseSalary: current.baseSalary, netSalary: current.netSalary },
-          after: { baseSalary: newBase, netSalary: newNet, hikeType, value, reason },
+          before: { baseSalary: current.baseSalary, netSalary: current.netSalary, grade: current.gradeCode },
+          after: { baseSalary: newBase, netSalary: newNet, grade: gradeToAssign, hikeType, value, reason },
         });
 
         return up;
@@ -225,6 +405,7 @@ export async function applySalaryHike(input: {
       return {
         id: updated.id,
         employeeId: updated.employeeId,
+        gradeCode: gradeToAssign,
         baseSalary: Number(updated.baseSalary),
         allowances: Number(updated.allowances),
         overtime: Number(updated.overtime),
@@ -249,10 +430,12 @@ export async function applySalaryHike(input: {
 
   const profile = memorySalaryProfiles.get(employeeId) || current;
   profile.baseSalary = newBase;
+  profile.gradeCode = gradeToAssign;
   profile.allowances = allowances;
   profile.deductions = deductions;
   profile.grossSalary = newGross;
   profile.netSalary = newNet;
+  profile.effectiveDate = parsedEffectiveDate.toISOString();
   profile.updatedAt = new Date().toISOString();
   memorySalaryProfiles.set(employeeId, profile);
 
@@ -268,13 +451,165 @@ export async function applySalaryHike(input: {
     changeType: hikeType === "PERCENTAGE" ? "HIKE_PERCENTAGE" : "HIKE_FIXED",
     percentageChange: hikeType === "PERCENTAGE" ? value : undefined,
     fixedChange: hikeType === "FIXED" ? value : undefined,
+    previousGrade: current.gradeCode,
+    newGrade: gradeToAssign,
     reason,
-    effectiveDate: new Date().toISOString(),
+    effectiveDate: parsedEffectiveDate.toISOString(),
     createdBy: adminName || "Admin",
     createdAt: new Date().toISOString(),
   });
 
   return { ...profile };
+}
+
+export interface EmployeeSalaryRosterItem {
+  employeeId: string;
+  fullName: string;
+  email: string;
+  department: string;
+  role: string;
+  jobTitle: string;
+  gradeCode: SalaryGradeCode;
+  gradeName: string;
+  baseSalary: number;
+  allowances: number;
+  overtime: number;
+  bonus: number;
+  deductions: number;
+  grossSalary: number;
+  netSalary: number;
+  salaryType: SalaryType;
+  effectiveDate: string;
+  revisionCount: number;
+  lastRevision?: SalaryRevisionDTO;
+}
+
+export async function listEmployeeSalaryRoster(): Promise<EmployeeSalaryRosterItem[]> {
+  if (shouldUseDatabase()) {
+    try {
+      const employees = await prisma.employee.findMany({
+        orderBy: { createdAt: "asc" },
+        include: {
+          salaryProfile: {
+            include: {
+              revisions: {
+                orderBy: { createdAt: "desc" },
+                take: 1,
+              },
+            },
+          },
+        },
+      });
+
+      if (employees.length > 0) {
+        return Promise.all(
+          employees.map(async (emp) => {
+            const profile = emp.salaryProfile || (await getOrCreateSalaryProfile(emp.id));
+            const grade = resolveSalaryGrade(emp.role, emp.jobTitle);
+            const lastRev = emp.salaryProfile?.revisions?.[0];
+
+            return {
+              employeeId: emp.id,
+              fullName: emp.fullName,
+              email: emp.email,
+              department: emp.department,
+              role: emp.role,
+              jobTitle: emp.jobTitle,
+              gradeCode: grade.gradeCode,
+              gradeName: grade.gradeName,
+              baseSalary: Number(profile.baseSalary),
+              allowances: Number(profile.allowances),
+              overtime: Number(profile.overtime),
+              bonus: Number(profile.bonus),
+              deductions: Number(profile.deductions),
+              grossSalary: Number(profile.grossSalary),
+              netSalary: Number(profile.netSalary),
+              salaryType: profile.salaryType as SalaryType,
+              effectiveDate:
+                (profile.effectiveDate instanceof Date ? profile.effectiveDate.toISOString() : profile.effectiveDate) ||
+                new Date().toISOString(),
+              revisionCount: emp.salaryProfile?.revisions?.length ?? 0,
+              lastRevision: lastRev
+                ? {
+                    id: lastRev.id,
+                    salaryProfileId: lastRev.salaryProfileId,
+                    previousBaseSalary: Number(lastRev.previousBaseSalary),
+                    newBaseSalary: Number(lastRev.newBaseSalary),
+                    previousGrossSalary: Number(lastRev.previousGrossSalary),
+                    newGrossSalary: Number(lastRev.newGrossSalary),
+                    previousNetSalary: Number(lastRev.previousNetSalary),
+                    newNetSalary: Number(lastRev.newNetSalary),
+                    changeType: lastRev.changeType,
+                    percentageChange: lastRev.percentageChange ?? undefined,
+                    fixedChange: lastRev.fixedChange ? Number(lastRev.fixedChange) : undefined,
+                    reason: lastRev.reason,
+                    effectiveDate: lastRev.effectiveDate.toISOString(),
+                    createdBy: lastRev.createdBy ?? undefined,
+                    createdAt: lastRev.createdAt.toISOString(),
+                  }
+                : undefined,
+            };
+          }),
+        );
+      }
+    } catch (err) {
+      console.warn("Database listEmployeeSalaryRoster failed; falling back to memory", err);
+    }
+  }
+
+  // Memory fallback using memoryEmployees from staff-service
+  const { memoryEmployees } = await import("./staff-service");
+  return (memoryEmployees as any[]).map((emp) => {
+    let profile = memorySalaryProfiles.get(emp.id);
+    const grade = resolveSalaryGrade(emp.role, emp.jobTitle);
+    if (!profile) {
+      const base = grade.midMonthlyBase;
+      const allowances = Math.round(base * 0.15);
+      const deductions = Math.round(base * 0.10);
+      profile = {
+        id: `sal-${emp.id}`,
+        employeeId: emp.id,
+        gradeCode: grade.gradeCode,
+        baseSalary: base,
+        allowances,
+        overtime: 0,
+        bonus: 0,
+        deductions,
+        grossSalary: base + allowances,
+        netSalary: base + allowances - deductions,
+        salaryType: "MONTHLY",
+        effectiveDate: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      memorySalaryProfiles.set(emp.id, profile);
+    }
+
+    const revisions = memorySalaryRevisions.filter((r) => r.salaryProfileId === profile!.id);
+    const lastRev = revisions[revisions.length - 1];
+
+    return {
+      employeeId: emp.id,
+      fullName: emp.fullName,
+      email: emp.email,
+      department: emp.department,
+      role: emp.role,
+      jobTitle: emp.jobTitle,
+      gradeCode: grade.gradeCode,
+      gradeName: grade.gradeName,
+      baseSalary: profile.baseSalary,
+      allowances: profile.allowances,
+      overtime: profile.overtime,
+      bonus: profile.bonus,
+      deductions: profile.deductions,
+      grossSalary: profile.grossSalary,
+      netSalary: profile.netSalary,
+      salaryType: profile.salaryType,
+      effectiveDate: profile.effectiveDate,
+      revisionCount: revisions.length,
+      lastRevision: lastRev,
+    };
+  });
 }
 
 /**
@@ -413,7 +748,7 @@ export async function previewPayroll(payrollPeriod: string): Promise<{
     try {
       const activeStaff = await prisma.employee.findMany({
         where: { status: "ACTIVE" },
-        select: { id: true, department: true, salaryProfile: true },
+        select: { id: true, department: true, role: true, jobTitle: true, salaryProfile: true },
       });
 
       totalEmployees = activeStaff.length;
@@ -424,7 +759,8 @@ export async function previewPayroll(payrollPeriod: string): Promise<{
           totalDeductions += Number(s.salaryProfile.deductions);
           netAmount += Number(s.salaryProfile.netSalary);
         } else {
-          const base = DEPARTMENT_SALARY_BENCHMARKS[s.department] || 65_000;
+          const grade = resolveSalaryGrade(s.role, s.jobTitle);
+          const base = grade.midMonthlyBase;
           const allowances = Math.round(base * 0.15);
           const deductions = Math.round(base * 0.10);
           const gross = base + allowances;
@@ -572,6 +908,7 @@ export async function processPayroll(input: {
             fullName: true,
             department: true,
             role: true,
+            jobTitle: true,
             salaryProfile: true,
           },
         });
@@ -603,7 +940,8 @@ export async function processPayroll(input: {
             gross = Number(emp.salaryProfile.grossSalary);
             net = Number(emp.salaryProfile.netSalary);
           } else {
-            base = DEPARTMENT_SALARY_BENCHMARKS[emp.department] || 65_000;
+            const grade = resolveSalaryGrade(emp.role, emp.jobTitle);
+            base = grade.midMonthlyBase;
             allowances = Math.round(base * 0.15);
             deductions = Math.round(base * 0.10);
             gross = base + allowances;

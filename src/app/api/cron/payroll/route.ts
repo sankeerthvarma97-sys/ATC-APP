@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
-import { processPayroll, getPayrollCalendar } from "@/lib/services/payroll-service";
+import { executeScheduledPayrollRun, getSchedulerStatus } from "@/lib/services/payroll-scheduler";
 import { getAuthenticatedUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  if (searchParams.get("status") === "true") {
+    const status = await getSchedulerStatus();
+    return NextResponse.json({ status });
+  }
   return handlePayrollCron(request);
 }
 
@@ -41,30 +46,13 @@ async function handlePayrollCron(request: Request) {
       return NextResponse.json({ error: "Unauthorized cron request" }, { status: 401 });
     }
 
-    // Determine current payroll period (e.g. PAYROLL-2026-09)
-    const now = new Date();
-    const currentPeriod = `PAYROLL-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-
-    // Inspect calendar to see if today is the scheduled payment date or if past due
-    const calendar = await getPayrollCalendar();
-    const scheduledRun = calendar.find(
-      (c) => c.period === currentPeriod || c.status === "SCHEDULED"
-    );
-
-    const periodToRun = scheduledRun ? scheduledRun.period : currentPeriod;
-
-    // Run payroll with automatic flag
-    const result = await processPayroll({
-      payrollPeriod: periodToRun,
-      approvedBy: "SYSTEM_AUTOMATIC_CRON",
-      forceRun: false,
-    });
+    const result = await executeScheduledPayrollRun();
 
     return NextResponse.json({
       success: result.success,
       message: result.message,
-      payrollId: result.payroll.id,
-      period: periodToRun,
+      payrollId: result.payrollId,
+      period: result.period,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

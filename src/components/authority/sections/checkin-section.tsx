@@ -22,7 +22,7 @@ export function CheckinSection({
   onNavigateTo,
 }: {
   initialPnr?: string;
-  onNavigateTo?: (section: string) => void;
+  onNavigateTo?: (section: string, params?: Record<string, string>) => void;
 }) {
   const [pnr, setPnr] = useState(initialPnr || "SC7K92P");
   const [booking, setBooking] = useState<BookingDTO | null>(null);
@@ -233,7 +233,12 @@ export function CheckinSection({
             {boardingPass ? (
               <DigitalBoardingPass
                 pass={boardingPass}
-                onSimulateGateScan={() => onNavigateTo?.("boarding")}
+                onSimulateGateScan={() =>
+                  onNavigateTo?.("boarding", {
+                    flight: booking?.flightId || "",
+                    pnr: booking?.pnr || "",
+                  })
+                }
               />
             ) : (
               <div className="grid min-h-[300px] place-items-center rounded-2xl border border-dashed border-slate-800 p-8 text-center text-xs text-slate-500 font-mono">

@@ -23,6 +23,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PasswordChangeCard } from "@/components/employee/password-change-card";
 import type { Role } from "@/lib/domain";
 
+import { getEmployeeByIdentifier } from "@/lib/services/staff-service";
+import { CopyButton } from "@/components/ui/copy-button";
+import { EmployeeIdLookupCard } from "@/components/employee/employee-id-lookup-card";
+
 export const dynamic = "force-dynamic";
 
 export default async function StaffOverviewPage() {
@@ -35,32 +39,59 @@ export default async function StaffOverviewPage() {
   const isSuperAdmin = role === "SUPER_ADMIN";
   const isAdmin = role === "ADMIN" || role === "AIRPORT_ADMIN" || isSuperAdmin;
 
+  // Resolve authoritative employee record
+  const employee = await getEmployeeByIdentifier(user.email);
+  const employeeId = employee?.employeeId || "AOCC-EMP-000001";
+  const station = employee?.airportCode || "HYD";
+  const terminal = employee?.terminal || "T1";
+  const shift = employee?.shift || user.shift || "MORNING";
+  const status = employee?.status || "ACTIVE";
+  const verificationStatus = employee?.verificationStatus || "VERIFIED";
+
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Welcome Banner */}
       <div className="rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900 via-[#0c1424] to-slate-900 p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="border-cyan-500/40 bg-cyan-950/30 text-cyan-300 font-mono text-xs">
               AIRPORT OPERATIONAL CLEARANCE
             </Badge>
-            <Badge variant="outline" className="border-emerald-500/40 bg-emerald-950/30 text-emerald-300 font-mono text-xs">
-              ON DUTY
+            <Badge
+              className={
+                status === "ACTIVE" || status === "ON_DUTY"
+                  ? "bg-emerald-950 border-emerald-500/40 text-emerald-300 font-mono text-xs"
+                  : "bg-rose-950 border-rose-500/40 text-rose-300 font-mono text-xs"
+              }
+            >
+              {status}
+            </Badge>
+            <Badge variant="outline" className="border-emerald-500/40 bg-emerald-950/20 text-emerald-300 font-mono text-xs">
+              {verificationStatus}
             </Badge>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
             Welcome, {user.name}
           </h1>
-          <p className="text-sm text-slate-400 font-mono">
-            Role: <span className="text-cyan-300 font-semibold">{user.role}</span> | Account: <span className="text-slate-300">{user.email}</span> | Shift: <span className="text-slate-300">{user.shift || "ALL"}</span>
-          </p>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 font-mono">
+            <div className="flex items-center gap-1.5 text-cyan-300 font-bold bg-slate-950/80 px-2 py-0.5 rounded border border-cyan-500/30">
+              <span>ID: {employeeId}</span>
+              <CopyButton value={employeeId} title="Copy My Employee ID" />
+            </div>
+            <span>·</span>
+            <span>Role: <strong className="text-slate-200">{user.role}</strong></span>
+            <span>·</span>
+            <span>Station: <strong className="text-emerald-400">{station} ({terminal})</strong></span>
+            <span>·</span>
+            <span>Shift: <strong className="text-slate-200">{shift}</strong></span>
+          </div>
         </div>
 
         {isAdmin && (
           <div className="shrink-0">
             <Link
               href="/admin"
-              className="inline-flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-950/30 hover:bg-amber-900/40 px-4 py-3 text-sm font-semibold text-amber-300 transition shadow-lg shadow-amber-950/30"
+              className="inline-flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-950/30 hover:bg-amber-900/40 px-4 py-3 text-sm font-semibold text-amber-300 transition shadow-lg shadow-amber-950/30 font-mono text-xs"
             >
               <Shield className="h-4 w-4" />
               Access Authority Control Center
@@ -70,7 +101,9 @@ export default async function StaffOverviewPage() {
         )}
       </div>
 
-      <div className="space-y-6">
+      {/* Directory Lookup & Account Security */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <EmployeeIdLookupCard />
         <PasswordChangeCard />
       </div>
 

@@ -48,7 +48,7 @@ export function airportScopeAllowsFlight(scope: AirportScope, flight: {
   gate?: string | null;
 }): boolean {
   if (scope.global) return true;
-  if (scope.airportCode !== flight.origin.toUpperCase()) return false;
+  if (scope.airportCode && scope.airportCode !== flight.origin.toUpperCase()) return false;
 
   if (scope.terminal && scope.terminal !== "ALL" && flight.terminal && scope.terminal !== flight.terminal) {
     return false;
@@ -56,8 +56,9 @@ export function airportScopeAllowsFlight(scope: AirportScope, flight: {
 
   if (scope.role === "GATE_AGENT" && scope.gateArea) {
     const assignedGate = scope.gateArea.replace(/^GATE\s*/i, "").trim().toUpperCase();
-    const actualGate = flight.gate?.replace(/^GATE\s*/i, "").trim().toUpperCase();
-    if (assignedGate !== "ALL" && assignedGate !== "MAIN CONCOURSE" && assignedGate !== actualGate) {
+    const actualGate = flight.gate ? flight.gate.replace(/^GATE\s*/i, "").trim().toUpperCase() : "";
+    if (assignedGate !== "ALL" && assignedGate !== "MAIN CONCOURSE" && actualGate && assignedGate !== actualGate) {
+      // If flight has a specific gate that differs from agent's non-wildcard assigned gate
       return false;
     }
   }

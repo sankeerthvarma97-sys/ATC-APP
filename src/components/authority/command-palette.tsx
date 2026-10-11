@@ -65,6 +65,15 @@ export const navItems: NavItem[] = [
   { id: "verification", label: "Ticket Verification", category: "Ticketing & Passenger", icon: QrCode },
   { id: "boarding", label: "Boarding", category: "Ticketing & Passenger", icon: Key },
 
+  // Accounts & Finance
+  { id: "finance", label: "Finance & Treasury", category: "Accounts & Finance", icon: Activity, badge: "₹1,000B", badgeVariant: "success" },
+  { id: "finance-salaries", label: "Salary Grades & Hikes", category: "Accounts & Finance", icon: Shield, badge: "INR", badgeVariant: "secondary" },
+  { id: "finance-payroll", label: "Payroll Processing (24/7)", category: "Accounts & Finance", icon: Users, badge: "24/7", badgeVariant: "secondary" },
+  { id: "finance-calendar", label: "Payroll Calendar", category: "Accounts & Finance", icon: Calendar },
+  { id: "finance-ledger", label: "Financial Ledger", category: "Accounts & Finance", icon: FileText },
+  { id: "finance-expenses", label: "Company Expenses", category: "Accounts & Finance", icon: FileText },
+  { id: "finance-accounts", label: "Company Accounts", category: "Accounts & Finance", icon: Building },
+
   // Governance & Admin
   { id: "staff", label: "Staff", category: "Administration", icon: Users },
   { id: "departments", label: "Departments", category: "Administration", icon: Building },

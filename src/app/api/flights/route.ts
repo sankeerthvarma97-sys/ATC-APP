@@ -63,7 +63,14 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to create flight";
     const isConflict = message.includes("Conflict") || message.includes("already scheduled") || message.includes("already allocated");
-    const isBadRequest = message.includes("Invalid") || message.includes("short");
+    const isBadRequest =
+      message.includes("Invalid") ||
+      message.includes("short") ||
+      message.includes("disabled") ||
+      message.includes("International") ||
+      message.includes("registered") ||
+      message.includes("domestic") ||
+      message.includes("active");
     const statusCode = isConflict ? 409 : isBadRequest ? 400 : 500;
 
     return Response.json(

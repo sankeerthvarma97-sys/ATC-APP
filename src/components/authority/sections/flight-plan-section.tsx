@@ -30,22 +30,22 @@ export function FlightPlanSection() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
 
-  // Form State
+  // Form State - Default: Hyderabad (VOHS) to Mumbai (VABB)
   const [callsign, setCallsign] = useState("SC101");
   const [flightRules, setFlightRules] = useState<"I" | "V">("I");
   const [flightType, setFlightType] = useState<"S" | "N" | "G">("S");
-  const [aircraftType, setAircraftType] = useState("B789");
-  const [wakeTurbulence, setWakeTurbulence] = useState<"L" | "M" | "H" | "J">("H");
+  const [aircraftType, setAircraftType] = useState("A320");
+  const [wakeTurbulence, setWakeTurbulence] = useState<"L" | "M" | "H" | "J">("M");
   const [equipment, setEquipment] = useState("SDFGHIJ1RVW/LB1");
-  const [depAirport, setDepAirport] = useState("KJFK");
-  const [eobt, setEobt] = useState("1430Z");
-  const [cruisingSpeed, setCruisingSpeed] = useState("N0485");
-  const [cruisingLevel, setCruisingLevel] = useState("F370");
-  const [route, setRoute] = useState("MERIT DCT PUT DCT BOSTN N124B COLOR");
-  const [destAirport, setDestAirport] = useState("EGLL");
-  const [totalEet, setTotalEet] = useState("0615");
-  const [altAirport, setAltAirport] = useState("EGKK");
-  const [remarks, setRemarks] = useState("PBN/A1B1C1D1 DOF/260921 REG/VT-AOC");
+  const [depAirport, setDepAirport] = useState("VOHS");
+  const [eobt, setEobt] = useState("0930Z");
+  const [cruisingSpeed, setCruisingSpeed] = useState("N0440");
+  const [cruisingLevel, setCruisingLevel] = useState("F320");
+  const [route, setRoute] = useState("OPAMO W20 BADGR SURAT");
+  const [destAirport, setDestAirport] = useState("VABB");
+  const [totalEet, setTotalEet] = useState("0130");
+  const [altAirport, setAltAirport] = useState("VOBL");
+  const [remarks, setRemarks] = useState("PBN/A1B1C1D1 DOF/260921 REG/VT-SC1");
 
   const refetchPlans = async () => {
     setLoading(true);
@@ -75,41 +75,41 @@ export function FlightPlanSection() {
     };
   }, []);
 
-  // Quick Preset Handlers
-  const applyPreset = (preset: "JFK_LHR" | "JFK_MCO" | "HYD_BOM") => {
-    if (preset === "JFK_LHR") {
+  // Quick Preset Handlers (Domestic Routes)
+  const applyPreset = (preset: "HYD_BOM" | "HYD_DEL" | "HYD_BLR") => {
+    if (preset === "HYD_BOM") {
       setCallsign("SC101");
-      setAircraftType("B789");
-      setWakeTurbulence("H");
-      setDepAirport("KJFK");
-      setDestAirport("EGLL");
-      setAltAirport("EGKK");
-      setCruisingLevel("F370");
-      setCruisingSpeed("N0485");
-      setTotalEet("0615");
-      setRoute("MERIT DCT PUT DCT BOSTN N124B COLOR NATZ EINN UL9");
-    } else if (preset === "JFK_MCO") {
-      setCallsign("AA1204");
-      setAircraftType("A321");
-      setWakeTurbulence("M");
-      setDepAirport("KJFK");
-      setDestAirport("KMCO");
-      setAltAirport("KTPA");
-      setCruisingLevel("F330");
-      setCruisingSpeed("N0450");
-      setTotalEet("0225");
-      setRoute("WAVEY J75 ZIZZI AR21 DIW J79 CHS BITTY");
-    } else if (preset === "HYD_BOM") {
-      setCallsign("AIC630");
       setAircraftType("A320");
       setWakeTurbulence("M");
       setDepAirport("VOHS");
       setDestAirport("VABB");
-      setAltAirport("VAJJ");
+      setAltAirport("VOBL");
       setCruisingLevel("F320");
       setCruisingSpeed("N0440");
       setTotalEet("0115");
       setRoute("OPAMO W20 BADGR SURAT");
+    } else if (preset === "HYD_DEL") {
+      setCallsign("AV202");
+      setAircraftType("B738");
+      setWakeTurbulence("M");
+      setDepAirport("VOHS");
+      setDestAirport("VIDP");
+      setAltAirport("VIJP");
+      setCruisingLevel("F340");
+      setCruisingSpeed("N0450");
+      setTotalEet("0210");
+      setRoute("NNP J12 BBB J13 DPN");
+    } else if (preset === "HYD_BLR") {
+      setCallsign("BH305");
+      setAircraftType("A320");
+      setWakeTurbulence("M");
+      setDepAirport("VOHS");
+      setDestAirport("VOBL");
+      setAltAirport("VOMM");
+      setCruisingLevel("F280");
+      setCruisingSpeed("N0430");
+      setTotalEet("0100");
+      setRoute("DEDSA W13 KAGDO");
     }
   };
 
@@ -204,26 +204,26 @@ export function FlightPlanSection() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => applyPreset("JFK_LHR")}
-              className="h-6 text-[10px] border-slate-700 text-slate-300"
-            >
-              JFK &rarr; LHR (Transatlantic)
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => applyPreset("JFK_MCO")}
-              className="h-6 text-[10px] border-slate-700 text-slate-300"
-            >
-              JFK &rarr; MCO (East Coast)
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
               onClick={() => applyPreset("HYD_BOM")}
               className="h-6 text-[10px] border-slate-700 text-slate-300"
             >
-              HYD &rarr; BOM (Domestic)
+              HYD &rarr; BOM (Mumbai)
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => applyPreset("HYD_DEL")}
+              className="h-6 text-[10px] border-slate-700 text-slate-300"
+            >
+              HYD &rarr; DEL (Delhi)
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => applyPreset("HYD_BLR")}
+              className="h-6 text-[10px] border-slate-700 text-slate-300"
+            >
+              HYD &rarr; BLR (Bengaluru)
             </Button>
           </div>
         </CardHeader>

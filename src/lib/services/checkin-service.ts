@@ -42,11 +42,26 @@ export interface BoardingManifestEntry {
 // In-memory Boarding Passes storage
 export const memoryBoardingPasses: Map<string, BoardingPassDTO> = new Map();
 
+function normalizeGate(gate?: string | null): string {
+  if (!gate) return "";
+  return gate.toUpperCase().replace(/^GATE\s*/i, "").trim();
+}
+
 export async function getBoardingManifest(flightId: string): Promise<BoardingManifestEntry[]> {
+  const flightData = await getFlightById(flightId);
+  const canonicalFlightId = flightData?.flight.id ?? flightId;
+  const flightNumber = flightData?.flight.flightNumber;
+  const callsign = flightData?.flight.callsign;
+
   if (shouldUseDatabase()) {
     const bookings = await prisma.booking.findMany({
       where: {
-        flightId,
+        OR: [
+          { flightId: canonicalFlightId },
+          { flightId },
+          ...(flightNumber ? [{ flight: { flightNumber } }] : []),
+          ...(callsign ? [{ flight: { callsign } }] : []),
+        ],
         bookingStatus: "CONFIRMED",
         checkInStatus: "CHECKED_IN",
       },
@@ -102,7 +117,15 @@ export async function getBoardingManifest(flightId: string): Promise<BoardingMan
   }
 
   return memoryBookings
-    .filter((booking) => booking.flightId === flightId && booking.bookingStatus === "CONFIRMED" && booking.checkInStatus === "CHECKED_IN")
+    .filter(
+      (booking) =>
+        (booking.flightId === canonicalFlightId ||
+          booking.flightId === flightId ||
+          (flightNumber && booking.flightNumber === flightNumber) ||
+          (callsign && booking.flightCallsign === callsign)) &&
+        booking.bookingStatus === "CONFIRMED" &&
+        booking.checkInStatus === "CHECKED_IN",
+    )
     .map((booking) => {
       const boardingPass = memoryBoardingPasses.get(booking.pnr);
       return {
@@ -469,11 +492,21 @@ export async function boardPassenger(input: {
     return { ok: false, message: `Booking for PNR ${input.pnr} not found.` };
   }
 
-  if (input.flightId && booking.flightId !== input.flightId) {
+  let canonicalFlightId = input.flightId;
+  if (input.flightId) {
+    const targetFlight = await getFlightById(input.flightId);
+    if (targetFlight) {
+      canonicalFlightId = targetFlight.flight.id;
+    }
+  }
+
+  if (canonicalFlightId && booking.flightId !== canonicalFlightId && booking.flightId !== input.flightId) {
     return { ok: false, message: "This boarding pass is not valid for the selected flight." };
   }
 
-  if (input.gate && booking.gate && input.gate !== booking.gate) {
+  const inputGate = normalizeGate(input.gate);
+  const bookingGate = normalizeGate(booking.gate);
+  if (inputGate && bookingGate && inputGate !== bookingGate) {
     return { ok: false, message: "This boarding pass is assigned to a different gate." };
   }
 
@@ -517,10 +550,11 @@ export async function boardPassenger(input: {
       if (record.ticket?.status !== "ACTIVE" || !record.boardingPass || record.boardingPass.status !== "NOT_BOARDED") {
         throw new Error("An active ticket and unused boarding pass are required.");
       }
-      if (input.flightId && record.flightId !== input.flightId) {
+      if (canonicalFlightId && record.flightId !== canonicalFlightId && record.flightId !== input.flightId) {
         throw new Error("This boarding pass is not valid for the selected flight.");
       }
-      if (input.gate && record.flight.gate && input.gate !== record.flight.gate) {
+      const recordFlightGate = normalizeGate(record.flight.gate);
+      if (inputGate && recordFlightGate && inputGate !== recordFlightGate) {
         throw new Error("This boarding pass is assigned to a different gate.");
       }
 

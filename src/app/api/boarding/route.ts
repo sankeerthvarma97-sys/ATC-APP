@@ -30,7 +30,7 @@ export async function GET(request: Request) {
   if (!access.allowed) return Response.json({ error: "You are not assigned to this airport, terminal, or gate." }, { status: 403 });
 
   try {
-    const manifest = await getBoardingManifest(flightId);
+    const manifest = await getBoardingManifest(access.flight.id);
     return Response.json({ flight: access.flight, manifest });
   } catch {
     return Response.json({ error: "Could not load the flight manifest." }, { status: 500 });
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
     const result = await boardPassenger({
       pnr: parsed.data.pnr,
-      flightId: parsed.data.flightId,
+      flightId: access.flight.id,
       gate: parsed.data.gate,
       actor: { id: user?.id, name: user?.name },
     });

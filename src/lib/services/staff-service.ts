@@ -12,31 +12,8 @@ import { logAuditEvent } from "./audit-service";
 import { assertSuperAdminNotTargeted, isProtectedSuperAdmin } from "@/lib/auth/protection";
 
 export const DEFAULT_STAFF_PASSWORD = "Admin@123";
-export const EMPLOYEE_ID_PREFIX = "AOCC-EMP-";
-
-export function formatEmployeeId(sequence: number): string {
-  return `${EMPLOYEE_ID_PREFIX}${String(sequence).padStart(6, "0")}`;
-}
-
-function parseEmployeeSequence(value?: string | null): number | null {
-  if (!value) return null;
-  const normalized = value.trim().toUpperCase();
-  const match = normalized.match(/(?:AOCC-EMP-|EMP-)(\d+)/i);
-  if (!match) return null;
-  return Number.parseInt(match[1], 10);
-}
-
-function getNextMemoryEmployeeSequence(): number {
-  const sequenceNumbers = memoryEmployees
-    .map((employee) => parseEmployeeSequence(employee.employeeId))
-    .filter((value): value is number => typeof value === "number");
-
-  if (sequenceNumbers.length === 0) {
-    return 1;
-  }
-
-  return Math.max(...sequenceNumbers) + 1;
-}
+export { EMPLOYEE_ID_PREFIX, formatEmployeeId } from "@/server/employees/employee-id-service";
+import { generateNextEmployeeId } from "@/server/employees/employee-id-service";
 
 export interface CreateEmployeeInput {
   fullName: string;
@@ -74,7 +51,7 @@ export interface UpdateEmployeeInput {
 }
 
 // In-memory demo staff storage
-const memoryEmployees: EmployeeDTO[] = [
+export const memoryEmployees: EmployeeDTO[] = [
   {
     id: "emp-0001",
     employeeId: "EMP-0001",
@@ -374,9 +351,7 @@ export async function getEmployeeById(id: string): Promise<EmployeeDTO | null> {
 }
 
 export async function createEmployee(input: CreateEmployeeInput): Promise<EmployeeDTO> {
-  const generatedSequence = getNextMemoryEmployeeSequence();
-  const employeeId = formatEmployeeId(generatedSequence);
-  nextEmpSeq = Math.max(nextEmpSeq, generatedSequence + 1);
+  const employeeId = await generateNextEmployeeId(false);
 
   const id = `emp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const userId = `usr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -477,7 +452,7 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
       fullName: dto.fullName,
       role: dto.role,
       department: dto.department,
-      defaultPassword: DEFAULT_STAFF_PASSWORD,
+      accountProvisioned: true,
     },
   });
 

@@ -1,6 +1,6 @@
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { assertPermission } from "@/lib/auth/permissions";
-import { createAirport, listAirports } from "@/lib/services/fleet-service";
+import { createAirport, listAirports, deleteAirport, archiveAirport } from "@/lib/services/fleet-service";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +46,55 @@ export async function POST(request: Request) {
     return Response.json(
       { error: error instanceof Error ? error.message : "Failed to create airport" },
       { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  const user = await getAuthenticatedUser();
+  const auth = assertPermission(user, "MANAGE_RUNWAYS");
+  if (!auth.ok) {
+    return Response.json({ error: auth.message }, { status: auth.status });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const iata = searchParams.get("iata");
+  if (!iata) {
+    return Response.json({ error: "iata parameter is required." }, { status: 400 });
+  }
+
+  try {
+    const result = await deleteAirport(iata, { id: user?.id, name: user?.name });
+    return Response.json(result);
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to delete airport" },
+      { status: 400 },
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  const user = await getAuthenticatedUser();
+  const auth = assertPermission(user, "MANAGE_RUNWAYS");
+  if (!auth.ok) {
+    return Response.json({ error: auth.message }, { status: auth.status });
+  }
+
+  try {
+    const body = await request.json();
+    const { iata, action } = body;
+    if (!iata) return Response.json({ error: "iata is required." }, { status: 400 });
+
+    if (action === "ARCHIVE") {
+      const result = await archiveAirport(iata, { id: user?.id, name: user?.name });
+      return Response.json(result);
+    }
+    return Response.json({ error: "Unknown action" }, { status: 400 });
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Airport operation failed" },
+      { status: 400 },
     );
   }
 }

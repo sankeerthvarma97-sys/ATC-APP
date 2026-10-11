@@ -155,10 +155,19 @@ export default async function EmployeeSalaryPage() {
         {/* Salary Breakdown Card */}
         <Card className="border-slate-800 bg-slate-900/60 shadow">
           <CardHeader>
-            <CardTitle className="text-sm font-bold text-slate-200">Current Salary Structure & Breakdown</CardTitle>
-            <CardDescription className="text-xs text-slate-400">
-              Department benchmarks, operational allowances, overtime, and statutory deductions
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-bold text-slate-200">Current Salary Structure & Breakdown</CardTitle>
+                <CardDescription className="text-xs text-slate-400">
+                  Standardized pay grade benchmarks, operational allowances, and statutory deductions
+                </CardDescription>
+              </div>
+              {salaryProfile.gradeCode && (
+                <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-300 font-mono text-xs">
+                  Pay Grade: {salaryProfile.gradeCode}
+                </Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-3 text-xs">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

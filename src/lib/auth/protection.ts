@@ -58,8 +58,8 @@ export function assertSuperAdminNotTargeted(
     };
   }
 
-  // Deactivation / Suspension / Demotion is prohibited
-  if (action === "SUSPEND" || action === "DEACTIVATE" || action === "DEMOTE") {
+  // Deactivation / Suspension / Demotion / Administrative Reset is prohibited
+  if (action === "SUSPEND" || action === "DEACTIVATE" || action === "DEMOTE" || action === "RESET") {
     return {
       ok: false,
       status: 403,

@@ -1,6 +1,7 @@
 import type { DepartmentType, EmployeeDTO, EmployeeStatus, Role } from "@/lib/domain";
 import { prisma, shouldUseDatabase } from "@/lib/prisma";
 import { generateStaffBatch, DEPARTMENT_CONFIGS, getRandomElement } from "./virtual-staff-generator";
+import { formatEmployeeId } from "@/server/employees/employee-id-service";
 
 // In-memory virtual staff cache
 let memoryVirtualStaff: EmployeeDTO[] = [];
@@ -35,7 +36,7 @@ export async function syncVirtualStaffPool(targetCount: number, airportCode = "H
           const chunk = newStaff.slice(i, i + chunkSize);
           await prisma.employee.createMany({
             data: chunk.map((s, idx) => ({
-              employeeId: `VS-${String(existingCount + i + idx + 1).padStart(4, "0")}`,
+              employeeId: formatEmployeeId(existingCount + i + idx + 1, true),
               fullName: s.fullName,
               email: `vs${existingCount + i + idx + 1}@sim.aocc.test`,
               phone: s.phone,
@@ -74,7 +75,7 @@ export async function syncVirtualStaffPool(targetCount: number, airportCode = "H
 
     const mapped: EmployeeDTO[] = generated.map((s, idx) => ({
       id: `emp-vs-${existingLen + idx + 1}`,
-      employeeId: `VS-${String(existingLen + idx + 1).padStart(4, "0")}`,
+      employeeId: formatEmployeeId(existingLen + idx + 1, true),
       fullName: s.fullName,
       email: s.email,
       phone: s.phone,

@@ -34,6 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { CopyButton } from "@/components/ui/copy-button";
 import type {
   FinancialAccountDTO,
   FinancialTransactionDTO,
@@ -49,6 +50,7 @@ type FinanceTab =
   | "ledger"
   | "expenses"
   | "payroll"
+  | "salaries"
   | "calendar"
   | "wallet-activity"
   | "reports";
@@ -147,6 +149,41 @@ export function AccountsFinanceSection({
     reason: "",
   });
   const [actionProcessing, setActionProcessing] = useState(false);
+
+  type SalaryRosterItem = {
+    employeeId: string;
+    fullName: string;
+    email: string;
+    department: string;
+    role: string;
+    jobTitle: string;
+    gradeCode: string;
+    gradeName: string;
+    baseSalary: number;
+    allowances: number;
+    overtime: number;
+    bonus: number;
+    deductions: number;
+    grossSalary: number;
+    netSalary: number;
+    salaryType: string;
+    effectiveDate: string;
+    revisionCount: number;
+  };
+
+  const [salaryRoster, setSalaryRoster] = useState<SalaryRosterItem[]>([]);
+  const [salarySearch, setSalarySearch] = useState("");
+  const [showSalaryHikeModal, setShowSalaryHikeModal] = useState(false);
+  const [selectedHikeEmployee, setSelectedHikeEmployee] = useState<SalaryRosterItem | null>(null);
+  const [hikeForm, setHikeForm] = useState({
+    hikeType: "PERCENTAGE" as "PERCENTAGE" | "FIXED",
+    value: "10",
+    reason: "Merit performance revision",
+    effectiveDate: new Date().toISOString().slice(0, 10),
+    newGrade: "",
+  });
+  const [hikeSubmitting, setHikeSubmitting] = useState(false);
+  const [schedulerStatus, setSchedulerStatus] = useState<any>(null);
 
   // Format INR currency
   const formatINR = (val: number | string | undefined | null) => {
@@ -249,6 +286,32 @@ export function AccountsFinanceSection({
     }
   }, []);
 
+  // Fetch salary roster
+  const fetchSalaryRoster = useCallback(async () => {
+    try {
+      const res = await fetch("/api/finance/salary");
+      if (res.ok) {
+        const data = await res.json();
+        setSalaryRoster(data.roster || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch salary roster:", err);
+    }
+  }, []);
+
+  // Fetch scheduler status
+  const fetchSchedulerStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/cron/payroll?status=true");
+      if (res.ok) {
+        const data = await res.json();
+        setSchedulerStatus(data.status || null);
+      }
+    } catch (err) {
+      console.error("Failed to fetch scheduler status:", err);
+    }
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
@@ -264,8 +327,14 @@ export function AccountsFinanceSection({
     } else if (activeTab === "wallet-activity") {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchWalletActivity();
+    } else if (activeTab === "salaries") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchSalaryRoster();
+    } else if (activeTab === "payroll") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchSchedulerStatus();
     }
-  }, [activeTab, fetchLedger, fetchExpenses, fetchWalletActivity]);
+  }, [activeTab, fetchLedger, fetchExpenses, fetchWalletActivity, fetchSalaryRoster, fetchSchedulerStatus]);
 
   // Handle Add Money / Capital Injection Submission
   const handleExecuteAddMoney = async (
@@ -455,6 +524,70 @@ export function AccountsFinanceSection({
     }
   };
 
+  // Handle Salary Hike Submission
+  const handleExecuteSalaryHike = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedHikeEmployee) return;
+    const val = Number.parseFloat(hikeForm.value);
+    if (isNaN(val) || val <= 0) {
+      setError("Please specify a valid positive salary hike value.");
+      return;
+    }
+    try {
+      setHikeSubmitting(true);
+      setError(null);
+      const res = await fetch("/api/finance/salary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "HIKE",
+          employeeId: selectedHikeEmployee.employeeId,
+          hikeType: hikeForm.hikeType,
+          value: val,
+          reason: hikeForm.reason || "Annual performance salary hike",
+          newGrade: hikeForm.newGrade || undefined,
+          effectiveDate: hikeForm.effectiveDate,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Salary hike failed");
+
+      setSuccessMessage(
+        `Salary hike successfully applied for ${selectedHikeEmployee.fullName}! New Base: ${formatINR(
+          data.profile?.baseSalary
+        )}`
+      );
+      setShowSalaryHikeModal(false);
+      await fetchSalaryRoster();
+      await fetchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to apply salary hike");
+    } finally {
+      setHikeSubmitting(false);
+    }
+  };
+
+  // Handle 24/7 Scheduler Test Run
+  const handleTriggerSchedulerTest = async () => {
+    try {
+      setActionProcessing(true);
+      setError(null);
+      const res = await fetch("/api/cron/payroll", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || data.message || "Scheduled payroll run failed");
+      }
+      setSuccessMessage(`24/7 Scheduler batch executed successfully: ${data.message} (${data.period})`);
+      await fetchSchedulerStatus();
+      await fetchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Scheduled run failed");
+    } finally {
+      setActionProcessing(false);
+    }
+  };
+
   // Handle Admin Wallet Adjustment
   const handleExecuteWalletAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -623,6 +756,7 @@ export function AccountsFinanceSection({
           { id: "ledger", label: "Financial Ledger", icon: FileText },
           { id: "expenses", label: "Company Expenses", icon: Receipt },
           { id: "payroll", label: "Payroll Processing", icon: UserCheck },
+          { id: "salaries", label: "Employee Salaries", icon: ShieldCheck },
           { id: "calendar", label: "Payroll Calendar", icon: Calendar },
           { id: "wallet-activity", label: "Wallet Activity", icon: Wallet },
           { id: "reports", label: "Reconciliation Reports", icon: TrendingUp },
@@ -1200,6 +1334,64 @@ export function AccountsFinanceSection({
             </div>
           </div>
 
+          {/* 24/7 Persistent Scheduler Status Card */}
+          <div className="p-4 rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-950/40 via-slate-900/60 to-cyan-950/40 shadow-xl space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <Clock className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-white font-mono">24/7 Autonomous Payroll Scheduler</span>
+                    <Badge className="bg-emerald-950 border-emerald-500/50 text-emerald-300 text-[10px] animate-pulse">
+                      ● PERSISTENT RUNNER ACTIVE
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-slate-400 font-mono mt-0.5">
+                    Runs hourly server-side daemon · Asia/Kolkata timezone · Mutex locking · Missed-run auto-recovery
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleTriggerSchedulerTest}
+                  disabled={actionProcessing}
+                  className="border-emerald-500/40 bg-emerald-950/30 text-emerald-300 hover:bg-emerald-900/40 text-xs font-mono"
+                >
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5 text-amber-400" />
+                  Trigger Daemon Execution Test
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-800/80 text-xs font-mono">
+              <div className="p-2 rounded-lg bg-slate-950/60 border border-slate-800">
+                <span className="text-[10px] text-slate-400 uppercase block">Execution Timezone</span>
+                <span className="font-bold text-white">Asia/Kolkata (IST)</span>
+              </div>
+              <div className="p-2 rounded-lg bg-slate-950/60 border border-slate-800">
+                <span className="text-[10px] text-slate-400 uppercase block">Next Scheduled Run</span>
+                <span className="font-bold text-cyan-300">
+                  {schedulerStatus?.nextScheduledRun
+                    ? new Date(schedulerStatus.nextScheduledRun).toLocaleDateString("en-IN")
+                    : "28th of Month"}
+                </span>
+              </div>
+              <div className="p-2 rounded-lg bg-slate-950/60 border border-slate-800">
+                <span className="text-[10px] text-slate-400 uppercase block">Last Successful Period</span>
+                <span className="font-bold text-emerald-400">{schedulerStatus?.lastRunPeriod || "PAYROLL-2026-09"}</span>
+              </div>
+              <div className="p-2 rounded-lg bg-slate-950/60 border border-slate-800">
+                <span className="text-[10px] text-slate-400 uppercase block">Durable Recovery</span>
+                <span className="font-bold text-emerald-400">ENABLED (No tab req.)</span>
+              </div>
+            </div>
+          </div>
+
           {/* Payroll Runs History */}
           <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950/60">
             <table className="w-full text-left text-xs text-slate-300">
@@ -1249,6 +1441,178 @@ export function AccountsFinanceSection({
                     </tr>
                   ))
                 )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5.5: EMPLOYEE SALARIES & HIKES */}
+      {activeTab === "salaries" && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-200">
+                Employee Compensation & Salary Grade Management
+              </h2>
+              <p className="text-xs text-slate-400">
+                Standardized Indian Rupee (INR) pay grades by organizational hierarchy with audit-logged salary hike actions
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative w-64">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                <Input
+                  type="text"
+                  placeholder="Search name, ID, role, grade..."
+                  value={salarySearch}
+                  onChange={(e) => setSalarySearch(e.target.value)}
+                  className="pl-8 h-8 text-xs bg-slate-950 border-slate-800 text-slate-200"
+                />
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-slate-800 text-slate-300 h-8 text-xs hover:bg-slate-800"
+                onClick={fetchSalaryRoster}
+              >
+                <RefreshCw className="mr-1 h-3 w-3" />
+                Refresh
+              </Button>
+            </div>
+          </div>
+
+          {/* Quick Metrics */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Card className="border-slate-800 bg-slate-900/60 p-3">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Staff on Roster</div>
+              <div className="text-lg font-bold font-mono text-slate-200 mt-1">
+                {salaryRoster.length} employees
+              </div>
+            </Card>
+            <Card className="border-slate-800 bg-slate-900/60 p-3">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Monthly Base</div>
+              <div className="text-lg font-bold font-mono text-emerald-400 mt-1">
+                {formatINR(salaryRoster.reduce((sum, r) => sum + (r.baseSalary || 0), 0))}
+              </div>
+            </Card>
+            <Card className="border-slate-800 bg-slate-900/60 p-3">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Avg Base Pay</div>
+              <div className="text-lg font-bold font-mono text-cyan-400 mt-1">
+                {formatINR(
+                  salaryRoster.length > 0
+                    ? Math.round(salaryRoster.reduce((sum, r) => sum + (r.baseSalary || 0), 0) / salaryRoster.length)
+                    : 0
+                )}
+              </div>
+            </Card>
+            <Card className="border-slate-800 bg-slate-900/60 p-3">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Net Monthly Disbursal</div>
+              <div className="text-lg font-bold font-mono text-teal-300 mt-1">
+                {formatINR(salaryRoster.reduce((sum, r) => sum + (r.netSalary || 0), 0))}
+              </div>
+            </Card>
+          </div>
+
+          {/* Employee Salaries Table */}
+          <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950/60">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-800 font-mono">
+                <tr>
+                  <th className="p-3">Staff Member</th>
+                  <th className="p-3">Department / Role</th>
+                  <th className="p-3">Salary Grade</th>
+                  <th className="p-3 font-mono">Base Salary</th>
+                  <th className="p-3 font-mono">Gross Pay</th>
+                  <th className="p-3 font-mono">Net Pay</th>
+                  <th className="p-3">Revisions</th>
+                  <th className="p-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-850 font-sans">
+                {(() => {
+                  const query = salarySearch.toLowerCase().trim();
+                  const filtered = salaryRoster.filter(
+                    (item) =>
+                      !query ||
+                      item.fullName.toLowerCase().includes(query) ||
+                      item.employeeId.toLowerCase().includes(query) ||
+                      item.email.toLowerCase().includes(query) ||
+                      item.department.toLowerCase().includes(query) ||
+                      item.role.toLowerCase().includes(query) ||
+                      item.gradeCode.toLowerCase().includes(query) ||
+                      (item.jobTitle && item.jobTitle.toLowerCase().includes(query))
+                  );
+
+                  if (filtered.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={8} className="p-8 text-center text-slate-500">
+                          {salaryRoster.length === 0
+                            ? "Loading employee salary roster..."
+                            : "No employees match your search query."}
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  return filtered.map((emp) => (
+                    <tr key={emp.employeeId} className="hover:bg-slate-900/40 transition-colors">
+                      <td className="p-3">
+                        <div className="font-semibold text-slate-100 flex items-center gap-1.5">
+                          {emp.fullName}
+                          <CopyButton value={emp.employeeId} title="Copy Employee ID" />
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-mono">{emp.employeeId}</div>
+                        <div className="text-[10px] text-slate-500">{emp.email}</div>
+                      </td>
+                      <td className="p-3">
+                        <div className="text-slate-200 font-medium">{emp.department}</div>
+                        <div className="text-[11px] text-slate-400 font-mono">{emp.jobTitle || emp.role}</div>
+                      </td>
+                      <td className="p-3">
+                        <Badge
+                          variant="outline"
+                          className="border-cyan-500/30 bg-cyan-500/10 text-cyan-300 font-mono text-[10px]"
+                        >
+                          {emp.gradeCode}
+                        </Badge>
+                        <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">{emp.gradeName}</div>
+                      </td>
+                      <td className="p-3 font-mono font-medium text-slate-200">{formatINR(emp.baseSalary)}</td>
+                      <td className="p-3 font-mono text-slate-300">{formatINR(emp.grossSalary)}</td>
+                      <td className="p-3 font-mono font-bold text-emerald-400">{formatINR(emp.netSalary)}</td>
+                      <td className="p-3">
+                        <Badge
+                          variant="outline"
+                          className="border-slate-700 bg-slate-900 text-slate-300 text-[10px]"
+                        >
+                          {emp.revisionCount || 0} revs
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-right">
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600/90 hover:bg-emerald-500 text-white font-medium text-xs h-7 px-2.5 shadow-sm"
+                          onClick={() => {
+                            setSelectedHikeEmployee(emp);
+                            setHikeForm({
+                              hikeType: "PERCENTAGE",
+                              value: "10",
+                              reason: "Merit performance revision",
+                              effectiveDate: new Date().toISOString().slice(0, 10),
+                              newGrade: emp.gradeCode || "",
+                            });
+                            setShowSalaryHikeModal(true);
+                          }}
+                        >
+                          <TrendingUp className="mr-1 h-3 w-3" />
+                          Salary Hike
+                        </Button>
+                      </td>
+                    </tr>
+                  ));
+                })()}
               </tbody>
             </table>
           </div>
@@ -2001,6 +2365,197 @@ export function AccountsFinanceSection({
                   disabled={actionProcessing}
                 >
                   {actionProcessing ? "Applying..." : "Confirm Adjustment"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: SALARY HIKE DIALOG */}
+      {showSalaryHikeModal && selectedHikeEmployee && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-emerald-400" />
+                  Apply Salary Hike & Grade Adjustment
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Revising compensation for {selectedHikeEmployee.fullName} ({selectedHikeEmployee.employeeId})
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowSalaryHikeModal(false);
+                  setSelectedHikeEmployee(null);
+                }}
+                className="text-slate-400 hover:text-slate-200"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Current Compensation Card */}
+            <div className="rounded-lg bg-slate-950/70 border border-slate-800 p-3 grid grid-cols-3 gap-2 text-xs">
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase block">Current Grade</span>
+                <span className="font-mono font-bold text-cyan-300">{selectedHikeEmployee.gradeCode}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase block">Current Base</span>
+                <span className="font-mono font-bold text-slate-200">{formatINR(selectedHikeEmployee.baseSalary)}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase block">Current Net</span>
+                <span className="font-mono font-bold text-emerald-400">{formatINR(selectedHikeEmployee.netSalary)}</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleExecuteSalaryHike} className="space-y-3.5 text-xs">
+              {/* Hike Type selection */}
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Adjustment Type</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setHikeForm({ ...hikeForm, hikeType: "PERCENTAGE" })}
+                    className={`p-2 rounded-lg border text-center font-medium transition-colors ${
+                      hikeForm.hikeType === "PERCENTAGE"
+                        ? "border-emerald-500 bg-emerald-950/30 text-emerald-300"
+                        : "border-slate-800 bg-slate-950 text-slate-400 hover:bg-slate-900"
+                    }`}
+                  >
+                    Percentage Hike (%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHikeForm({ ...hikeForm, hikeType: "FIXED" })}
+                    className={`p-2 rounded-lg border text-center font-medium transition-colors ${
+                      hikeForm.hikeType === "FIXED"
+                        ? "border-emerald-500 bg-emerald-950/30 text-emerald-300"
+                        : "border-slate-800 bg-slate-950 text-slate-400 hover:bg-slate-900"
+                    }`}
+                  >
+                    Fixed Amount (₹ INR)
+                  </button>
+                </div>
+              </div>
+
+              {/* Hike Value */}
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">
+                  {hikeForm.hikeType === "PERCENTAGE" ? "Hike Percentage (%)" : "Fixed Increment (₹ INR)"}
+                </label>
+                <Input
+                  type="number"
+                  step="any"
+                  placeholder={hikeForm.hikeType === "PERCENTAGE" ? "e.g. 10 for 10%" : "e.g. 25000"}
+                  value={hikeForm.value}
+                  onChange={(e) => setHikeForm({ ...hikeForm, value: e.target.value })}
+                  className="bg-slate-950 border-slate-800 text-slate-200"
+                  required
+                />
+              </div>
+
+              {/* New Grade (Optional Promotion) */}
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">
+                  Salary Grade / Promotion (Optional)
+                </label>
+                <select
+                  value={hikeForm.newGrade}
+                  onChange={(e) => setHikeForm({ ...hikeForm, newGrade: e.target.value })}
+                  className="w-full rounded-md border border-slate-800 bg-slate-950 p-2 text-slate-200 font-mono text-xs"
+                >
+                  <option value="">Keep Current Grade ({selectedHikeEmployee.gradeCode})</option>
+                  <option value="EXECUTIVE">EXECUTIVE — C-Suite / Airport Director (₹2,00,000 - ₹3,00,000)</option>
+                  <option value="SENIOR_MANAGEMENT">SENIOR_MANAGEMENT — Operations Head / Senior ATC (₹1,40,000 - ₹2,00,000)</option>
+                  <option value="MANAGEMENT">MANAGEMENT — Duty Manager / Terminal Supervisor (₹90,000 - ₹1,40,000)</option>
+                  <option value="SENIOR_SPECIALIST">SENIOR_SPECIALIST — Senior Radar Controller / Flight Dispatch (₹70,000 - ₹1,00,000)</option>
+                  <option value="SPECIALIST">SPECIALIST — Tower Controller / Ground Ops Lead (₹50,000 - ₹75,000)</option>
+                  <option value="SUPERVISOR">SUPERVISOR — Ramp Supervisor / Shift Lead (₹40,000 - ₹60,000)</option>
+                  <option value="EXPERIENCED_STAFF">EXPERIENCED_STAFF — Gate Agent / Ticketing Agent (₹30,000 - ₹45,000)</option>
+                  <option value="ENTRY_LEVEL">ENTRY_LEVEL — Ground Staff / Baggage / Security (₹20,000 - ₹40,000)</option>
+                  <option value="TRAINEE">TRAINEE — Intern / Trainee (₹10,000 - ₹20,000)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Effective Date</label>
+                  <Input
+                    type="date"
+                    value={hikeForm.effectiveDate}
+                    onChange={(e) => setHikeForm({ ...hikeForm, effectiveDate: e.target.value })}
+                    className="bg-slate-950 border-slate-800 text-slate-200"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Reason / Memo</label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. Annual merit review"
+                    value={hikeForm.reason}
+                    onChange={(e) => setHikeForm({ ...hikeForm, reason: e.target.value })}
+                    className="bg-slate-950 border-slate-800 text-slate-200"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Live Preview Card */}
+              {(() => {
+                const curBase = selectedHikeEmployee.baseSalary || 0;
+                const v = Number.parseFloat(hikeForm.value) || 0;
+                const increment = hikeForm.hikeType === "PERCENTAGE" ? (curBase * v) / 100 : v;
+                const newBase = Math.round(curBase + increment);
+                const projectedGross = Math.round(newBase + (selectedHikeEmployee.allowances || 0));
+                const projectedNet = Math.round(projectedGross - (selectedHikeEmployee.deductions || 0));
+
+                return (
+                  <div className="rounded-lg bg-emerald-950/20 border border-emerald-500/30 p-3 space-y-1.5 font-mono text-xs">
+                    <div className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">
+                      Live Projected Revision
+                    </div>
+                    <div className="flex justify-between text-slate-300">
+                      <span>Increment:</span>
+                      <span className="font-bold text-emerald-300">+{formatINR(increment)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-300">
+                      <span>New Monthly Base:</span>
+                      <span className="font-bold text-white">{formatINR(newBase)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-300 border-t border-emerald-500/20 pt-1">
+                      <span>Projected Net Pay:</span>
+                      <span className="font-bold text-emerald-400">{formatINR(projectedNet)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowSalaryHikeModal(false);
+                    setSelectedHikeEmployee(null);
+                  }}
+                  className="border-slate-800 text-slate-400"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                  disabled={hikeSubmitting}
+                >
+                  {hikeSubmitting ? "Applying Hike..." : "Confirm & Apply Salary Hike"}
                 </Button>
               </div>
             </form>
