@@ -176,7 +176,6 @@ function useAdminDashboardPerformanceDiagnostics() {
 }
 
 export function AuthorityControlCenter({
-  useAdminDashboardPerformanceDiagnostics();
   currentUser,
   initialAirports = DEFAULT_AIRPORTS,
   initialSnapshot,
@@ -187,6 +186,7 @@ export function AuthorityControlCenter({
   initialSnapshot?: OperationsSnapshot;
   onOpenConsole?: () => void;
 }) {
+  useAdminDashboardPerformanceDiagnostics();
   const [activeSection, setActiveSection] = useState<string>("overview");
   const [airports, setAirports] = useState<AirportDTO[]>(
     initialAirports && initialAirports.length > 0 ? initialAirports : DEFAULT_AIRPORTS
