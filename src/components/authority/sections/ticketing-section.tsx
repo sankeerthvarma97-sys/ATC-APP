@@ -31,26 +31,13 @@ export function TicketingSection({
   onBookingSuccess?: (booking: BookingDTO) => void;
 }) {
   const [fetchedFlights, setFetchedFlights] = useState<FlightDTO[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-    if (!initialFlights || initialFlights.length === 0) {
-      fetch("/api/flights")
-        .then((r) => r.json())
-        .then((d) => {
-          if (active && d.flights) setFetchedFlights(d.flights);
-        })
-        .catch(() => {});
-    }
-    return () => {
-      active = false;
-    };
-  }, [initialFlights]);
-
-  const flights = (initialFlights && initialFlights.length > 0) ? initialFlights : fetchedFlights;
   // Search state
   const [fromAirport, setFromAirport] = useState("HYD");
   const [toAirport, setToAirport] = useState("BOM");
+  const [travelDate, setTravelDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [travelClass, setTravelClass] = useState<"ECONOMY" | "BUSINESS">("ECONOMY");
 
   // Selection states
@@ -74,10 +61,46 @@ export function TicketingSection({
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [confirmedBooking, setConfirmedBooking] = useState<BookingDTO | null>(null);
 
+  // Dynamic search function querying backend database/memory
+  const searchFlights = async (orig = fromAirport, dest = toAirport) => {
+    setIsSearching(true);
+    setBookingError(null);
+    try {
+      const params = new URLSearchParams();
+      if (orig && orig !== "ALL") params.set("from", orig);
+      if (dest && dest !== "ALL") params.set("to", dest);
+      params.set("pageSize", "50");
+      params.set("status", "ALL");
+
+      const res = await fetch(`/api/flights?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.flights) {
+          setFetchedFlights(data.flights);
+        }
+      }
+    } catch (err) {
+      console.warn("Flight search error:", err);
+    } finally {
+      setIsSearching(false);
+      setHasSearched(true);
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+    searchFlights(fromAirport, toAirport);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const flights = (initialFlights && initialFlights.length > 0) ? initialFlights : fetchedFlights;
+
   // Filter flights by search criteria
   const matchingFlights = flights.filter((f) => {
-    const matchOrigin = !fromAirport || f.origin.toUpperCase() === fromAirport.toUpperCase();
-    const matchDest = !toAirport || f.destination.toUpperCase() === toAirport.toUpperCase();
+    const matchOrigin = !fromAirport || fromAirport === "ALL" || f.origin.toUpperCase() === fromAirport.toUpperCase();
+    const matchDest = !toAirport || toAirport === "ALL" || f.destination.toUpperCase() === toAirport.toUpperCase();
     return matchOrigin && matchDest;
   });
 
@@ -139,6 +162,14 @@ export function TicketingSection({
       }
 
       setConfirmedBooking(data.booking);
+      // Decrement available seat count dynamically in local state
+      setFetchedFlights((prev) =>
+        prev.map((f) =>
+          f.id === selectedFlight.id
+            ? { ...f, availableSeats: Math.max(0, (f.availableSeats ?? 10) - 1) }
+            : f
+        )
+      );
       if (onBookingSuccess) onBookingSuccess(data.booking);
     } catch (err) {
       setBookingError(err instanceof Error ? err.message : "Booking transaction failed");
@@ -156,39 +187,35 @@ export function TicketingSection({
     <div className="space-y-6">
       {/* 1. FLIGHT SEARCH BAR */}
       <div className="rounded-xl border border-slate-800 bg-[#090e17]/90 p-5 shadow-xl">
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-4">
-          <Search className="h-4 w-4 text-sky-400" />
-          <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">
-            Simulated Flight Booking Engine
-          </h2>
-          <Badge variant="outline" className="text-[10px] text-amber-300 border-amber-500/30">
-            Database Flights Only
-          </Badge>
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+          <div className="flex items-center gap-2">
+            <Search className="h-4 w-4 text-sky-400" />
+            <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">
+              Simulated Flight Booking Engine
+            </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-500/30">
+              Hub Policy: HYD Locked
+            </Badge>
+            <Badge variant="outline" className="text-[10px] text-sky-300 border-sky-500/30">
+              Live Database Active
+            </Badge>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
           <div>
             <label className="text-[11px] font-mono text-slate-400 uppercase">From (Origin)</label>
             <select
               value={fromAirport}
-              onChange={(e) => setFromAirport(e.target.value)}
+              onChange={(e) => {
+                setFromAirport(e.target.value);
+                searchFlights(e.target.value, toAirport);
+              }}
               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-mono text-sky-300 outline-none"
             >
-              <option value="HYD">Hyderabad (HYD) — Default</option>
-              <option value="BOM">Mumbai (BOM)</option>
-              <option value="DEL">Delhi (DEL)</option>
-              <option value="BLR">Bengaluru (BLR)</option>
-              <option value="MAA">Chennai (MAA)</option>
-              <option value="CCU">Kolkata (CCU)</option>
-              <option value="COK">Kochi (COK)</option>
-              <option value="GOI">Goa (GOI)</option>
-              <option value="PNQ">Pune (PNQ)</option>
-              <option value="AMD">Ahmedabad (AMD)</option>
-              <option value="JAI">Jaipur (JAI)</option>
-              <option value="LKO">Lucknow (LKO)</option>
-              <option value="BBI">Bhubaneswar (BBI)</option>
-              <option value="VTZ">Visakhapatnam (VTZ)</option>
-              <option value="TIR">Tirupati (TIR)</option>
+              <option value="HYD">Hyderabad (HYD) — AOCC Hub</option>
             </select>
           </div>
 
@@ -196,25 +223,50 @@ export function TicketingSection({
             <label className="text-[11px] font-mono text-slate-400 uppercase">To (Destination)</label>
             <select
               value={toAirport}
-              onChange={(e) => setToAirport(e.target.value)}
+              onChange={(e) => {
+                setToAirport(e.target.value);
+                searchFlights(fromAirport, e.target.value);
+              }}
               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-mono text-emerald-300 outline-none"
             >
-              <option value="BOM">Mumbai (BOM)</option>
-              <option value="HYD">Hyderabad (HYD)</option>
-              <option value="DEL">Delhi (DEL)</option>
-              <option value="BLR">Bengaluru (BLR)</option>
-              <option value="MAA">Chennai (MAA)</option>
-              <option value="CCU">Kolkata (CCU)</option>
-              <option value="COK">Kochi (COK)</option>
-              <option value="GOI">Goa (GOI)</option>
-              <option value="PNQ">Pune (PNQ)</option>
-              <option value="AMD">Ahmedabad (AMD)</option>
-              <option value="JAI">Jaipur (JAI)</option>
-              <option value="LKO">Lucknow (LKO)</option>
-              <option value="BBI">Bhubaneswar (BBI)</option>
-              <option value="VTZ">Visakhapatnam (VTZ)</option>
-              <option value="TIR">Tirupati (TIR)</option>
+              <option value="ALL">All Domestic Destinations</option>
+              <option value="BOM">Mumbai (BOM) — CSMIA</option>
+              <option value="DEL">Delhi (DEL) — IGI Airport</option>
+              <option value="BLR">Bengaluru (BLR) — Kempegowda</option>
+              <option value="MAA">Chennai (MAA) — Chennai Int'l</option>
+              <option value="CCU">Kolkata (CCU) — NSCBI Airport</option>
+              <option value="COK">Kochi (COK) — Cochin Int'l</option>
+              <option value="GOI">Goa (GOI) — Dabolim Int'l</option>
+              <option value="PNQ">Pune (PNQ) — Pune Airport</option>
+              <option value="AMD">Ahmedabad (AMD) — SVPIA</option>
+              <option value="JAI">Jaipur (JAI) — Jaipur Int'l</option>
+              <option value="VTZ">Visakhapatnam (VTZ) — Vizag Int'l</option>
+              <option value="TIR">Tirupati (TIR) — Tirupati Int'l</option>
+              <option value="LKO">Lucknow (LKO) — CCSIA</option>
+              <option value="BBI">Bhubaneswar (BBI) — BPIA</option>
+              <option value="GAU">Guwahati (GAU) — LGBI Airport</option>
+              <option value="PAT">Patna (PAT) — Jayprakash Narayan</option>
+              <option value="IXC">Chandigarh (IXC) — SBS Airport</option>
+              <option value="TRV">Thiruvananthapuram (TRV)</option>
+              <option value="NAG">Nagpur (NAG) — Dr. Ambedkar</option>
+              <option value="SXR">Srinagar (SXR) — Sheikh ul-Alam</option>
+              <option value="IXB">Bagdogra (IXB) — Siliguri</option>
+              <option value="IDR">Indore (IDR) — Devi Ahilya</option>
+              <option value="VNS">Varanasi (VNS) — Lal Bahadur</option>
+              <option value="ATQ">Amritsar (ATQ) — Guru Ram Dass</option>
+              <option value="IXR">Ranchi (IXR) — Birsa Munda</option>
+              <option value="BDQ">Vadodara (BDQ) — Vadodara</option>
             </select>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-mono text-slate-400 uppercase">Departure Date</label>
+            <Input
+              type="date"
+              value={travelDate}
+              onChange={(e) => setTravelDate(e.target.value)}
+              className="mt-1 bg-slate-900 border-slate-700 text-xs font-mono h-[38px] text-slate-200"
+            />
           </div>
 
           <div>
@@ -222,7 +274,7 @@ export function TicketingSection({
             <select
               value={travelClass}
               onChange={(e) => setTravelClass(e.target.value as "ECONOMY" | "BUSINESS")}
-              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100 outline-none"
+              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100 outline-none h-[38px]"
             >
               <option value="ECONOMY">Economy Class</option>
               <option value="BUSINESS">Business Class</option>
@@ -232,9 +284,21 @@ export function TicketingSection({
           <div className="flex items-end">
             <Button
               type="button"
-              className="w-full bg-sky-500 hover:bg-sky-400 text-black font-semibold text-xs h-9"
+              disabled={isSearching}
+              onClick={() => searchFlights(fromAirport, toAirport)}
+              className="w-full bg-sky-500 hover:bg-sky-400 text-black font-semibold text-xs h-[38px] flex items-center justify-center gap-1.5"
             >
-              Search Database Flights
+              {isSearching ? (
+                <>
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-black border-t-transparent" />
+                  <span>Searching...</span>
+                </>
+              ) : (
+                <>
+                  <Search className="h-3.5 w-3.5" />
+                  <span>Search Flights</span>
+                </>
+              )}
             </Button>
           </div>
         </div>
@@ -339,61 +403,97 @@ export function TicketingSection({
             <span>Select a flight to view live seat map</span>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {matchingFlights.map((f) => {
-              const isSelected = selectedFlight?.id === f.id;
-              return (
-                <div
-                  key={f.id}
-                  onClick={() => handleSelectFlight(f)}
-                  className={cn(
-                    "cursor-pointer rounded-xl border p-4 transition-all",
-                    isSelected
-                      ? "border-sky-500 bg-sky-950/20 shadow-[0_0_16px_rgba(56,189,248,0.2)]"
-                      : "border-slate-800 bg-[#090e17]/80 hover:border-slate-700 hover:bg-[#0c1422]",
-                  )}
+          {matchingFlights.length === 0 ? (
+            <div className="rounded-xl border border-slate-800 bg-[#090e17]/90 p-8 text-center animate-in fade-in">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-800/80 text-sky-400 mb-3 border border-slate-700">
+                <Plane className="h-6 w-6" />
+              </div>
+              <h3 className="text-sm font-semibold text-white">No Scheduled Flights Found</h3>
+              <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto">
+                No active flights currently match the route from {fromAirport} to {toAirport === "ALL" ? "the selected destinations" : toAirport}.
+              </p>
+              <div className="mt-4 flex items-center justify-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setToAirport("ALL");
+                    searchFlights(fromAirport, "ALL");
+                  }}
+                  className="text-xs border-slate-700 bg-slate-900 text-sky-300 hover:bg-slate-800 hover:text-white"
                 >
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-                    <div>
-                      <div className="text-xs text-sky-400 font-medium">{f.airline}</div>
-                      <div className="text-base font-bold font-mono text-white">{f.flightNumber || f.callsign}</div>
+                  View All Departures from Hyderabad
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setToAirport("BOM");
+                    searchFlights(fromAirport, "BOM");
+                  }}
+                  className="text-xs border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
+                >
+                  Reset Route (HYD → BOM)
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {matchingFlights.map((f) => {
+                const isSelected = selectedFlight?.id === f.id;
+                return (
+                  <div
+                    key={f.id}
+                    onClick={() => handleSelectFlight(f)}
+                    className={cn(
+                      "cursor-pointer rounded-xl border p-4 transition-all",
+                      isSelected
+                        ? "border-sky-500 bg-sky-950/20 shadow-[0_0_16px_rgba(56,189,248,0.2)]"
+                        : "border-slate-800 bg-[#090e17]/80 hover:border-slate-700 hover:bg-[#0c1422]",
+                    )}
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                      <div>
+                        <div className="text-xs text-sky-400 font-medium">{f.airline}</div>
+                        <div className="text-base font-bold font-mono text-white">{f.flightNumber || f.callsign}</div>
+                      </div>
+                      <Badge variant="outline" className="font-mono text-xs">
+                        {f.aircraftType}
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className="font-mono text-xs">
-                      {f.aircraftType}
-                    </Badge>
-                  </div>
 
-                  <div className="flex items-center justify-between py-3 font-mono">
-                    <div>
-                      <div className="text-lg font-bold text-sky-300">{f.origin}</div>
-                      <div className="text-[10px] text-slate-400">Gate {f.gate || "B12"}</div>
+                    <div className="flex items-center justify-between py-3 font-mono">
+                      <div>
+                        <div className="text-lg font-bold text-sky-300">{f.origin}</div>
+                        <div className="text-[10px] text-slate-400">Gate {f.gate || "B12"}</div>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <span className="text-[10px] text-slate-400">1h 40m</span>
+                        <ArrowRight className="h-4 w-4 text-slate-500 my-0.5" />
+                        <span className="text-[10px] text-emerald-400">Non-stop</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-emerald-300">{f.destination}</div>
+                        <div className="text-[10px] text-slate-400">Term {f.terminal || "T1"}</div>
+                      </div>
                     </div>
-                    <div className="flex flex-col items-center">
-                      <span className="text-[10px] text-slate-400">1h 40m</span>
-                      <ArrowRight className="h-4 w-4 text-slate-500 my-0.5" />
-                      <span className="text-[10px] text-emerald-400">Non-stop</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-emerald-300">{f.destination}</div>
-                      <div className="text-[10px] text-slate-400">Term {f.terminal || "T1"}</div>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center justify-between border-t border-slate-800 pt-2.5 text-xs font-mono">
-                    <div>
-                      <span className="text-slate-400">Economy: </span>
-                      <span className="font-bold text-emerald-400">₹{f.economyFare?.toLocaleString() || "4,500"}</span>
-                      <span className="text-slate-500 text-[10px] ml-1.5">({f.availableSeats ?? 168} left)</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400">Business: </span>
-                      <span className="font-bold text-sky-400">₹{f.businessFare?.toLocaleString() || "8,500"}</span>
+                    <div className="flex items-center justify-between border-t border-slate-800 pt-2.5 text-xs font-mono">
+                      <div>
+                        <span className="text-slate-400">Economy: </span>
+                        <span className="font-bold text-emerald-400">₹{f.economyFare?.toLocaleString() || "4,500"}</span>
+                        <span className="text-slate-500 text-[10px] ml-1.5">({f.availableSeats ?? 168} left)</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Business: </span>
+                        <span className="font-bold text-sky-400">₹{f.businessFare?.toLocaleString() || "8,500"}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

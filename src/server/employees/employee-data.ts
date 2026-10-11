@@ -11,6 +11,7 @@ import { hash } from "bcryptjs";
 import { logAuditEvent } from "@/lib/services/audit-service";
 import { generateNextEmployeeId } from "@/server/employees/employee-id-service";
 import {
+  DEFAULT_DEMO_TEMP_PASSWORD,
   generateSecureTemporaryPassword,
   isPasswordChangeRequired,
   setPasswordChangeRequired,
@@ -367,7 +368,9 @@ export async function provisionEmployeeAccount(input: {
   terminal?: string;
   gateArea?: string;
   shift?: string;
+  customEmployeeId?: string;
   initialPassword?: string;
+  isTemporaryCredential?: boolean;
   actor?: { id?: string; name?: string };
 }): Promise<{
   ok: boolean;
@@ -382,11 +385,10 @@ export async function provisionEmployeeAccount(input: {
     return { ok: false, message: "Full name and email are required." };
   }
 
-  // Server-side unique ID generation (AOCC-EMP-000001 format)
-  const employeeId = await generateNextEmployeeId(false);
-  const passwordPlain = input.initialPassword || generateSecureTemporaryPassword();
-  const hashedPassword = await hash(passwordPlain, 12);
-  const isTemporary = !input.initialPassword;
+  // Server-side unique ID generation (AOCC-EMP-000001 format or custom isolated test namespace)
+  const employeeId = input.customEmployeeId || (await generateNextEmployeeId(false));
+  const isTemporary = input.isTemporaryCredential ?? !input.initialPassword;
+  const passwordPlain = input.initialPassword || DEFAULT_DEMO_TEMP_PASSWORD;
 
   if (shouldUseDatabase()) {
     try {
@@ -396,6 +398,8 @@ export async function provisionEmployeeAccount(input: {
       if (existing) {
         return { ok: false, message: "An employee with this email or ID already exists." };
       }
+
+      const hashedPassword = await hash(passwordPlain, 12);
 
       const created = await prisma.$transaction(async (tx) => {
         // 1. Create User account with role
@@ -508,6 +512,7 @@ export async function provisionEmployeeAccount(input: {
   // Memory fallback
   const { createEmployee } = await import("@/lib/services/staff-service");
   const createdEmp = await createEmployee({
+    employeeId: input.customEmployeeId,
     fullName: input.fullName,
     email: normEmail,
     phone: input.phone || "+91 90000 00000",
@@ -566,4 +571,103 @@ export async function provisionEmployeeAccount(input: {
       updatedAt: createdEmp.joinDate,
     },
   };
+}
+
+/**
+ * Purge synthetic test employees created during isolated verification suites.
+ * Safely removes records matching the synthetic namespace in both memory and database stores.
+ */
+export async function purgeSyntheticTestEmployees(prefix = "TEST-AOCC-"): Promise<number> {
+  let purgedCount = 0;
+
+  // 1. Purge from Memory Store
+  try {
+    const { memoryEmployees } = await import("@/lib/services/staff-service");
+    const { demoUsers } = await import("@/lib/data/mock");
+
+    const removedUserIds = new Set<string>();
+
+    for (let i = memoryEmployees.length - 1; i >= 0; i--) {
+      const emp = memoryEmployees[i];
+      if (
+        emp.employeeId.startsWith(prefix) ||
+        emp.email.includes("test.aocc.") ||
+        emp.email.endsWith("@sim.test")
+      ) {
+        if (emp.userId) removedUserIds.add(emp.userId);
+        memoryEmployees.splice(i, 1);
+        purgedCount++;
+      }
+    }
+
+    // Purge corresponding demoUsers and security flags
+    for (let i = demoUsers.length - 1; i >= 0; i--) {
+      const u = demoUsers[i];
+      if (
+        removedUserIds.has(u.id) ||
+        u.email.includes("test.aocc.") ||
+        u.email.endsWith("@sim.test")
+      ) {
+        setPasswordChangeRequired(u.id, false);
+        demoUsers.splice(i, 1);
+      }
+    }
+  } catch (err) {
+    console.warn("Memory purgeSyntheticTestEmployees failed:", err);
+  }
+
+  // 2. Purge from Database if configured
+  if (shouldUseDatabase()) {
+    try {
+      const dbEmployees = await prisma.employee.findMany({
+        where: {
+          OR: [
+            { employeeId: { startsWith: prefix } },
+            { email: { contains: "test.aocc." } },
+            { email: { endsWith: "@sim.test" } },
+          ],
+        },
+        select: { id: true, userId: true },
+      });
+
+      const empIds = dbEmployees.map((e) => e.id);
+      const userIds = dbEmployees.map((e) => e.userId).filter(Boolean) as string[];
+
+      if (empIds.length > 0) {
+        await prisma.salaryProfile.deleteMany({
+          where: { employeeId: { in: empIds } },
+        });
+
+        await prisma.simulationTask.deleteMany({
+          where: { staffId: { in: empIds } },
+        });
+
+        await prisma.payrollItem.deleteMany({
+          where: { employeeId: { in: empIds } },
+        });
+
+        await prisma.employee.deleteMany({
+          where: { id: { in: empIds } },
+        });
+      }
+
+      if (userIds.length > 0) {
+        await prisma.session.deleteMany({
+          where: { userId: { in: userIds } },
+        });
+        await prisma.account.deleteMany({
+          where: { userId: { in: userIds } },
+        });
+        await prisma.user.deleteMany({
+          where: { id: { in: userIds } },
+        });
+      }
+
+      purgedCount = Math.max(purgedCount, dbEmployees.length);
+    } catch (err) {
+      console.warn("Database purgeSyntheticTestEmployees failed:", err);
+    }
+  }
+
+  return purgedCount;
 }

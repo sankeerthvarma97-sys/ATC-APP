@@ -17,6 +17,7 @@ export const getCurrentUserOrDemo = cache(async (): Promise<UserDTO> => {
     email: session.user.email,
     role: (session.user.role as UserDTO["role"]) ?? "VIEWER",
     shift: session.user.shift,
+    mustChangePassword: session.user.mustChangePassword,
   };
 });
 
@@ -33,5 +34,6 @@ export const getAuthenticatedUser = cache(async (): Promise<UserDTO | null> => {
     email: session.user.email,
     role: (session.user.role as UserDTO["role"]) ?? "VIEWER",
     shift: session.user.shift,
+    mustChangePassword: session.user.mustChangePassword,
   };
 });

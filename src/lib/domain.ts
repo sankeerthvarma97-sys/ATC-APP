@@ -248,6 +248,7 @@ export interface UserDTO {
   airportCode?: string;
   creditBalance?: number;
   permissions?: Permission[];
+  mustChangePassword?: boolean;
 }
 
 export interface EmployeeDTO {
@@ -284,6 +285,7 @@ export interface AirportDTO {
   icao: string;
   name: string;
   city: string;
+  state?: string;
   country: string;
   latitude: number;
   longitude: number;

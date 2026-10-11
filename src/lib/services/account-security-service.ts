@@ -30,6 +30,8 @@ export function setPasswordChangeRequired(userId: string, required: boolean): vo
   }
 }
 
+export const DEFAULT_DEMO_TEMP_PASSWORD = "Atc@1234";
+
 /**
  * Generate a high-entropy, random temporary password that strictly meets AOCC security criteria.
  * Format: Temp#<6 chars alnum>A1!
@@ -138,8 +140,9 @@ export async function changeUserPassword(input: {
 export async function adminResetEmployeePassword(input: {
   employeeId: string;
   actor: { id?: string; name?: string; role?: string };
+  customTemporaryPassword?: string;
 }): Promise<{ ok: boolean; message: string; temporaryPassword?: string }> {
-  const { employeeId, actor } = input;
+  const { employeeId, actor, customTemporaryPassword } = input;
 
   if (!employeeId) {
     return { ok: false, message: "Employee ID is required." };
@@ -156,7 +159,7 @@ export async function adminResetEmployeePassword(input: {
     return { ok: false, message: protection.error || PROTECTED_ERROR_MESSAGE };
   }
 
-  const temporaryPassword = generateSecureTemporaryPassword();
+  const temporaryPassword = customTemporaryPassword || generateSecureTemporaryPassword();
   const hashedPassword = await hash(temporaryPassword, 12);
 
   if (shouldUseDatabase() && employee.userId) {

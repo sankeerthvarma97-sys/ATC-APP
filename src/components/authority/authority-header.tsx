@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Bell,
   Clock,
+  KeyRound,
   LogOut,
   Plane,
   Radio,
@@ -17,6 +18,7 @@ import type { AirportDTO, UserDTO } from "@/lib/domain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AoccLogo } from "@/components/brand/aocc-logo";
+import { PasswordChangeModal } from "@/components/employee/password-change-modal";
 
 export function AuthorityHeader({
   currentUser,
@@ -34,6 +36,7 @@ export function AuthorityHeader({
   emergencyCount?: number;
 }) {
   const [time, setTime] = useState({ zulu: "", local: "" });
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   useEffect(() => {
     function updateClock() {
@@ -124,12 +127,21 @@ export function AuthorityHeader({
           </div>
         )}
 
-        {/* User Info */}
+        {/* User Info & Controls */}
         <div className="flex items-center gap-2 border-l border-slate-800 pl-3">
           <div className="text-right hidden sm:block">
             <div className="text-xs font-medium text-slate-200">{currentUser.name}</div>
             <div className="text-[10px] font-mono text-sky-400">{currentUser.role}</div>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsPasswordModalOpen(true)}
+            className="h-8 px-2 text-xs border-slate-700 hover:bg-slate-800 text-sky-400 hover:text-sky-300"
+            title="Change Account Password"
+          >
+            <KeyRound className="h-3.5 w-3.5" />
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -141,6 +153,11 @@ export function AuthorityHeader({
           </Button>
         </div>
       </div>
+
+      <PasswordChangeModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+      />
     </header>
   );
 }

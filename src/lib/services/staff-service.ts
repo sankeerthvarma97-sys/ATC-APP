@@ -16,6 +16,7 @@ export { EMPLOYEE_ID_PREFIX, formatEmployeeId } from "@/server/employees/employe
 import { generateNextEmployeeId } from "@/server/employees/employee-id-service";
 
 export interface CreateEmployeeInput {
+  employeeId?: string;
   fullName: string;
   email: string;
   phone: string;
@@ -351,7 +352,7 @@ export async function getEmployeeById(id: string): Promise<EmployeeDTO | null> {
 }
 
 export async function createEmployee(input: CreateEmployeeInput): Promise<EmployeeDTO> {
-  const employeeId = await generateNextEmployeeId(false);
+  const employeeId = input.employeeId || (await generateNextEmployeeId(false));
 
   const id = `emp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const userId = `usr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;

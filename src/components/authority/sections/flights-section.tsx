@@ -14,7 +14,7 @@ import type { AirportDTO, FlightDTO, FlightStatus } from "@/lib/domain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { titleCase } from "@/lib/utils";
+import { cn, titleCase } from "@/lib/utils";
 
 function StatusBadge({ status }: { status: string }) {
   const variant: Record<string, "destructive" | "warning" | "info" | "success" | "secondary" | "outline"> = {
@@ -96,6 +96,7 @@ export function FlightsSection({
   const [aircraftType, setAircraftType] = useState("Airbus A320neo");
   const [origin, setOrigin] = useState("HYD");
   const [destination, setDestination] = useState("BOM");
+  const [unlockOrigin, setUnlockOrigin] = useState(false);
   const [depTime, setDepTime] = useState(() => new Date(Date.now() + 60 * 60_000).toISOString().slice(0, 16));
   const [arrTime, setArrTime] = useState(() => new Date(Date.now() + 160 * 60_000).toISOString().slice(0, 16));
   const [terminal, setTerminal] = useState("T1");
@@ -146,6 +147,7 @@ export function FlightsSection({
           businessFare,
           firstFare: 15000,
           status: "SCHEDULED",
+          bypassHydLock: unlockOrigin,
         }),
       });
 
@@ -396,16 +398,37 @@ export function FlightsSection({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[11px] font-mono text-slate-400 uppercase">Origin (IATA)</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-mono text-slate-400 uppercase">Origin (IATA)</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !unlockOrigin;
+                        setUnlockOrigin(next);
+                        if (!next) setOrigin("HYD");
+                      }}
+                      className="text-[10px] font-mono text-sky-400 hover:text-sky-300 underline"
+                    >
+                      {unlockOrigin ? "Lock Hub (HYD)" : "Override Hub Policy"}
+                    </button>
+                  </div>
                   <select
                     value={origin}
+                    disabled={!unlockOrigin}
                     onChange={(e) => setOrigin(e.target.value)}
                     required
-                    className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-mono text-white"
+                    className={cn(
+                      "mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-mono text-white",
+                      !unlockOrigin && "opacity-90 cursor-not-allowed bg-slate-950 text-sky-300 border-sky-500/30"
+                    )}
                   >
-                    {domesticAirports.map((airport) => (
-                      <option key={airport.id} value={airport.iata}>{airport.city} ({airport.iata})</option>
-                    ))}
+                    {!unlockOrigin ? (
+                      <option value="HYD">Hyderabad (HYD) — Locked Hub</option>
+                    ) : (
+                      domesticAirports.map((airport) => (
+                        <option key={airport.id} value={airport.iata}>{airport.city} ({airport.iata})</option>
+                      ))
+                    )}
                   </select>
                 </div>
                 <div>

@@ -4,6 +4,7 @@ import { demoUsers } from "@/lib/data/mock";
 import { prisma, shouldUseDatabase } from "@/lib/prisma";
 import { loginSchema } from "@/lib/validations/operations";
 import { BOOTSTRAP_ADMIN_EMAIL, ensurePermanentSuperAdmin } from "@/lib/auth/bootstrap";
+import { isPasswordChangeRequired } from "@/lib/services/account-security-service";
 
 export async function validateCredentials(input: unknown): Promise<UserDTO | null> {
   const parsed = loginSchema.safeParse(input);
@@ -60,6 +61,7 @@ export async function validateCredentials(input: unknown): Promise<UserDTO | nul
           email: user.email,
           role: user.role as UserDTO["role"],
           shift: user.shift ?? undefined,
+          mustChangePassword: isPasswordChangeRequired(user.id),
         };
       }
 
@@ -105,5 +107,6 @@ export async function validateCredentials(input: unknown): Promise<UserDTO | nul
     email: demoUser.email,
     role: demoUser.role,
     shift: demoUser.shift,
+    mustChangePassword: isPasswordChangeRequired(demoUser.id),
   };
 }

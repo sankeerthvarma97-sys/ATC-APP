@@ -23,6 +23,7 @@ export const createFlightSchema = z.object({
   status: z.enum(flightStatuses).optional().default("SCHEDULED"),
   boardingTime: z.string().optional(),
   checkInCloseTime: z.string().optional(),
+  bypassHydLock: z.boolean().optional().default(false),
 });
 
 export const createBookingSchema = z.object({
