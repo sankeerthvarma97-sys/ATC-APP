@@ -135,3 +135,14 @@ docker compose up --build
 ```
 
 Set strong production values for `NEXTAUTH_SECRET`, `DATABASE_URL`, and AI credentials before exposing the app outside a local demo environment.
+
+
+## Production Safety Checklist
+
+- Set `NEXTAUTH_URL` to the exact canonical origin users open in the browser (for example, `https://atc-app-one.vercel.app`). Do not use a different Vercel project alias. After changing it in the hosting dashboard, redeploy the relevant environment and verify the CSRF callback URL, credentials sign-in, session persistence, and sign-out.
+- Keep `NEXTAUTH_SECRET` configured as a strong, unique secret in the runtime environment. Never commit secret values or paste them into audit reports.
+- Do not set a bootstrap password to a published/demo value. Review `src/lib/auth/bootstrap.ts` and use a unique secret provisioned through the hosting dashboard only if bootstrap behavior actually requires it. Prefer creating or rotating privileged accounts through a controlled administrative workflow.
+- `server.mjs` reads `AOCC_SIMULATION_TICK_MS` for its simulation interval. Keep deployment configuration aligned with that exact name.
+- The custom `server.mjs` process hosts Socket.IO and the in-memory simulation loop. A Vercel deployment that runs only Next.js route handlers does not keep this process alive; the UI may use the documented polling fallback. For persistent real-time operation, deploy the custom server to a long-lived Node/container service and configure allowed origins deliberately.
+- Load/performance scripts are for localhost or explicitly approved staging hosts only. The scripts block known production hostnames. Do not bypass those checks or run load tests against production.
+- Before release, run `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, and the relevant end-to-end tests against an isolated staging environment. Record actual output; do not infer passing tests from previous runs.
