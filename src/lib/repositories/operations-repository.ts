@@ -118,25 +118,55 @@ export function invalidateSnapshotCache() {
 }
 
 async function fetchRawSnapshotData(): Promise<Omit<OperationsSnapshot, "currentUser">> {
+  const diagnosticsEnabled = process.env.AOCC_PERF_DIAGNOSTICS === "true";
+  const totalStartedAt = Date.now();
+  const timedQuery = async <T,>(label: string, query: () => Promise<T>): Promise<T> => {
+    const startedAt = Date.now();
+    try {
+      return await query();
+    } finally {
+      if (diagnosticsEnabled) {
+        console.info("[AOCC_PERF]", JSON.stringify({
+          area: "operations_snapshot_query",
+          query: label,
+          durationMs: Date.now() - startedAt,
+        }));
+      }
+    }
+  };
+
   const [flights, resources, events, messages, dbAirport] = await Promise.all([
-    prisma.flight.findMany({
+    timedQuery("flights", () => prisma.flight.findMany({
       include: { assignedController: { select: { id: true, name: true, role: true } } },
       orderBy: [{ riskScore: "desc" }, { eta: "asc" }],
-    }),
-    prisma.airportResource.findMany({ orderBy: [{ resourceType: "asc" }, { code: "asc" }] }),
-    prisma.operationalEvent.findMany({ orderBy: { createdAt: "desc" }, take: 32 }),
-    prisma.radioMessage.findMany({
+    })),
+    timedQuery("resources", () => prisma.airportResource.findMany({
+      orderBy: [{ resourceType: "asc" }, { code: "asc" }],
+    })),
+    timedQuery("recent_events", () => prisma.operationalEvent.findMany({
+      orderBy: { createdAt: "desc" }, take: 32,
+    })),
+    timedQuery("recent_radio_messages", () => prisma.radioMessage.findMany({
       include: {
         fromUser: { select: { id: true, name: true, role: true } },
         flight: { select: { callsign: true } },
       },
       orderBy: { createdAt: "desc" },
       take: 28,
-    }),
-    prisma.airport.findFirst({
+    })),
+    timedQuery("airport", () => prisma.airport.findFirst({
       where: { iata: "HYD", status: "ACTIVE" },
-    }),
+    })),
   ]);
+
+  if (diagnosticsEnabled) {
+    console.info("[AOCC_PERF]", JSON.stringify({
+      area: "operations_snapshot",
+      durationMs: Date.now() - totalStartedAt,
+      flightCount: flights.length,
+      resourceCount: resources.length,
+    }));
+  }
 
   const flightDtos = flights.map((flight) => toFlightDTO(flight as unknown as Record<string, unknown>));
   const resourceDtos = resources.map((resource) => toResourceDTO(resource as unknown as Record<string, unknown>));
