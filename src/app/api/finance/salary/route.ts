@@ -59,7 +59,10 @@ export async function GET(request: Request) {
 
     if (!employeeId) {
       const roster = await listEmployeeSalaryRoster();
-      return NextResponse.json({ roster, grades: Object.values(SALARY_GRADES) });
+      return NextResponse.json(
+        { roster, grades: Object.values(SALARY_GRADES) },
+        { headers: { "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate" } }
+      );
     }
 
     const profile = await getEmployeeSalaryProfile(employeeId);
@@ -67,7 +70,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Salary profile not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ profile, grades: Object.values(SALARY_GRADES) });
+    return NextResponse.json(
+      { profile, grades: Object.values(SALARY_GRADES) },
+      { headers: { "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate" } }
+    );
   } catch (error) {
     console.error("GET /api/finance/salary error:", error);
     return NextResponse.json(

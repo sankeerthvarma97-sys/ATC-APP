@@ -7,7 +7,10 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const airlines = await listAirlines();
-  return Response.json({ airlines });
+  return Response.json(
+    { airlines },
+    { headers: { "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=86400" } }
+  );
 }
 
 export async function POST(request: Request) {

@@ -36,7 +36,9 @@ export async function GET(request: Request) {
     const search = searchParams.get("search") || undefined;
 
     const activity = await getAdminWalletActivity({ page, pageSize, search });
-    return NextResponse.json(activity);
+    return NextResponse.json(activity, {
+      headers: { "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate" },
+    });
   } catch (error) {
     console.error("GET /api/wallet/activity error:", error);
     return NextResponse.json(
