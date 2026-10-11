@@ -8,7 +8,7 @@ import {
   resetVirtualStaffSimulation,
 } from "../src/lib/simulation/staff-engine";
 
-describe("Virtual Staff Simulation Engine (Up to 2,000 Staff)", () => {
+describe("Virtual Staff Simulation Engine (Up to 10,000 Staff)", () => {
   it("should generate realistic staff batches with appropriate department distribution", () => {
     const batch = generateStaffBatch(50, "HYD");
     expect(batch.length).toBe(50);
@@ -45,12 +45,15 @@ describe("Virtual Staff Simulation Engine (Up to 2,000 Staff)", () => {
     expect(getShiftForHour(23)).toBe("SHIFT_C");
   });
 
-  it("should scale virtual staff pool up to target count (e.g. 100, 500, up to 2,000)", async () => {
+  it("should scale virtual staff pool up to target count (e.g. 100, 500, up to 10,000)", async () => {
     const count100 = await syncVirtualStaffPool(100, "HYD");
     expect(count100).toBeGreaterThanOrEqual(100);
 
     const count250 = await syncVirtualStaffPool(250, "HYD");
     expect(count250).toBeGreaterThanOrEqual(250);
+
+    const count1000 = await syncVirtualStaffPool(1000, "HYD");
+    expect(count1000).toBeGreaterThanOrEqual(1000);
   });
 
   it("should execute virtual staff ticks rotating shifts and tasks", async () => {

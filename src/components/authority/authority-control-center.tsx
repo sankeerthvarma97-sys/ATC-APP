@@ -115,7 +115,7 @@ const SimulationControlSection = dynamic(() => import("./sections/simulation-con
   loading: () => <SectionSkeleton name="24/7 Operations & Simulation Control" />,
 });
 const VirtualStaffSection = dynamic(() => import("./sections/virtual-staff-section").then((m) => m.VirtualStaffSection), {
-  loading: () => <SectionSkeleton name="2,000 Virtual Staff Operations Roster" />,
+  loading: () => <SectionSkeleton name="10,000 Virtual Staff Operations Roster" />,
 });
 const AccountsFinanceSection = dynamic(() => import("./sections/accounts-finance-section").then((m) => m.AccountsFinanceSection), {
   loading: () => <SectionSkeleton name="Accounts, Finance & Treasury Control" />,

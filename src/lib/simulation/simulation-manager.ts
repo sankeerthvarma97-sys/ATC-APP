@@ -88,7 +88,7 @@ export async function updateSimulationConfig(
   updates: Partial<Omit<SimulationConfigDTO, "id" | "createdAt" | "updatedAt">>
 ): Promise<SimulationConfigDTO> {
   if (updates.staffCount !== undefined) {
-    updates.staffCount = Math.min(2000, Math.max(10, updates.staffCount));
+    updates.staffCount = Math.min(10000, Math.max(10, updates.staffCount));
     // Ensure staff pool is synchronized to target count
     await syncVirtualStaffPool(updates.staffCount);
   }

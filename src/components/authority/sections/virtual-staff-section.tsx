@@ -132,7 +132,7 @@ export function VirtualStaffSection() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
             <Users className="h-6 w-6 text-blue-400" />
-            2,000 Virtual Staff Operations Roster
+            10,000 Virtual Staff Operations Roster
           </h1>
           <p className="text-sm text-slate-400 mt-1">
             Server-side paged directory of simulated airport personnel handling air traffic control, ground turnarounds, ticketing, security, and baggage.

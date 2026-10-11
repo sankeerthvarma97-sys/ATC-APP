@@ -59,7 +59,7 @@ export const navigationCategories: NavSectionCategory[] = [
     title: "24/7 SIMULATION ENGINE",
     items: [
       { id: "simulation", label: "Simulation Ops", icon: Cpu, badge: "24/7", badgeVariant: "success" },
-      { id: "virtual-staff", label: "Virtual Staff (2,000)", icon: Users, badge: "2,000", badgeVariant: "secondary" },
+      { id: "virtual-staff", label: "Virtual Staff (10,000)", icon: Users, badge: "10,000", badgeVariant: "secondary" },
     ],
   },
   {

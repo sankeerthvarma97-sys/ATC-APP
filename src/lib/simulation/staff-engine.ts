@@ -15,10 +15,10 @@ export function getShiftForHour(hour: number): "SHIFT_A" | "SHIFT_B" | "SHIFT_C"
 }
 
 /**
- * Ensure the requested number of virtual staff exist in database/memory (up to 2,000).
+ * Ensure the requested number of virtual staff exist in database/memory (up to 10,000).
  */
 export async function syncVirtualStaffPool(targetCount: number, airportCode = "HYD"): Promise<number> {
-  const safeCount = Math.min(2000, Math.max(10, targetCount));
+  const safeCount = Math.min(10000, Math.max(10, targetCount));
 
   if (shouldUseDatabase()) {
     try {

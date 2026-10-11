@@ -1232,8 +1232,8 @@ export async function getPayrollCalendar(): Promise<{
       id: `scheduled-${currentMonthPeriod}`,
       period: currentMonthPeriod,
       title: `${now.toLocaleString("en-US", { month: "long" })} Automated Payroll`,
-      employeeCount: 2000,
-      netAmount: 145_000_000,
+      employeeCount: 10000,
+      netAmount: 725_000_000,
       scheduledDate: endOfMonth.toISOString(),
       status: "SCHEDULED",
     });

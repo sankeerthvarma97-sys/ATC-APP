@@ -952,7 +952,7 @@ export function AccountsFinanceSection({
                     Automated Serverless Payroll
                   </div>
                   <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Runs on scheduled server cron, automatically paying up to 2,000 virtual staff without browser open.
+                    Runs on scheduled server cron, automatically paying up to 10,000 virtual staff without browser open.
                   </p>
                 </div>
               </CardContent>

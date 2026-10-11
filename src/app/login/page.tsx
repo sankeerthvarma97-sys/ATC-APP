@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState, useEffect, useTransition, Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSession, signIn } from "next-auth/react";
 import {
@@ -471,6 +472,17 @@ function LoginForm() {
                   ? "Switch to Staff Operations Portal →"
                   : "Switch to Authority & Command Portal →"}
               </button>
+            </div>
+
+            {/* Legal & Compliance Footer Links */}
+            <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-center gap-3 text-[10px] text-slate-500 font-mono">
+              <Link href="/privacy" className="hover:text-slate-300 underline underline-offset-2">Privacy Policy</Link>
+              <span>&bull;</span>
+              <Link href="/terms" className="hover:text-slate-300 underline underline-offset-2">Terms</Link>
+              <span>&bull;</span>
+              <Link href="/refund" className="hover:text-slate-300 underline underline-offset-2">Refunds</Link>
+              <span>&bull;</span>
+              <Link href="/cookies" className="hover:text-slate-300 underline underline-offset-2">Cookie Policy</Link>
             </div>
           </div>
         </CardContent>

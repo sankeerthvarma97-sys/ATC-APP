@@ -151,7 +151,7 @@ export function SimulationControlSection({
             </Badge>
           </div>
           <p className="text-sm text-slate-400 mt-1">
-            Autonomous multi-agent airport simulator scaling up to 2,000 virtual staff, automated credit transactions, and live operational task rotation.
+            Autonomous multi-agent airport simulator scaling up to 10,000 virtual staff, automated credit transactions, and live operational task rotation.
           </p>
         </div>
 
@@ -229,7 +229,7 @@ export function SimulationControlSection({
             {metrics?.totalStaff ?? config?.staffCount ?? 500}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            Capacity up to 2,000
+            Capacity up to 10,000
           </div>
         </div>
 
@@ -307,7 +307,7 @@ export function SimulationControlSection({
             <div>
               <h2 className="text-base font-semibold text-white flex items-center gap-2">
                 <Users className="h-4 w-4 text-blue-400" />
-                Virtual Staff Pool Scaling (100 to 2,000)
+                Virtual Staff Pool Scaling (100 to 10,000)
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
                 Simulate realistic workforce across 11 departments and 3 rotating shifts.
@@ -323,8 +323,8 @@ export function SimulationControlSection({
               <input
                 type="range"
                 min="100"
-                max="2000"
-                step="50"
+                max="10000"
+                step="100"
                 value={config?.staffCount ?? 500}
                 onChange={(e) => handleStaffCountChange(Number(e.target.value))}
                 className="w-full accent-blue-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
@@ -332,9 +332,9 @@ export function SimulationControlSection({
             </div>
 
             {/* Quick scale presets */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-slate-400">Presets:</span>
-              {[100, 250, 500, 1000, 2000].map((preset) => (
+              {[500, 1000, 2500, 5000, 10000].map((preset) => (
                 <button
                   key={preset}
                   onClick={() => handleStaffCountChange(preset)}
@@ -393,7 +393,7 @@ export function SimulationControlSection({
                   onClick={() => onNavigateTo("virtual-staff")}
                   className="text-xs text-sky-400 hover:text-sky-300 font-medium underline flex items-center gap-1"
                 >
-                  Inspect 2,000 Virtual Staff Directory &rarr;
+                  Inspect 10,000 Virtual Staff Directory &rarr;
                 </button>
               )}
             </div>
