@@ -259,7 +259,7 @@ export function OperationsConsole({ initialSnapshot }: { initialSnapshot: Operat
     const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(socketUrl, {
       path: "/socket.io",
       transports: ["websocket", "polling"],
-      timeout: 5000,
+      timeout: 2500,
     });
     socketRef.current = socket;
     let fallbackTimer: ReturnType<typeof setInterval> | null = null;
@@ -271,6 +271,9 @@ export function OperationsConsole({ initialSnapshot }: { initialSnapshot: Operat
         setSnapshot(await response.json());
       }
     };
+
+    // Immediately fetch fresh operational data on mount to eliminate the 5-second initial freeze
+    void pollSnapshot();
 
     const stopFallbackPolling = () => {
       if (fallbackTimer) {

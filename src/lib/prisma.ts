@@ -10,9 +10,11 @@ const globalForPrisma = globalThis as unknown as {
 function createPgPool(): Pool {
   return new Pool({
     connectionString: process.env.DATABASE_URL ?? "",
-    max: 15, // Cap connection pool to prevent PostgreSQL saturation under high concurrent load
+    max: 25, // Cap connection pool to prevent PostgreSQL saturation under high concurrent load
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
+    connectionTimeoutMillis: 10000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
   });
 }
 

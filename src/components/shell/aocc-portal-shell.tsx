@@ -48,6 +48,29 @@ interface NavGroup {
   }[];
 }
 
+function useStaffPortalPerformanceDiagnostics() {
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_AOCC_PERF_DIAGNOSTICS !== "true") return;
+
+    const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    const paintEntries = performance.getEntriesByType("paint");
+    const firstPaint = paintEntries.find((entry) => entry.name === "first-paint");
+    const firstContentfulPaint = paintEntries.find((entry) => entry.name === "first-contentful-paint");
+
+    console.info("[AOCC_PERF]", JSON.stringify({
+      area: "staff_portal_browser",
+      hydrationEffectAtMs: Math.round(performance.now()),
+      responseStartMs: navigation ? Math.round(navigation.responseStart) : null,
+      domContentLoadedMs: navigation ? Math.round(navigation.domContentLoadedEventEnd) : null,
+      loadEventMs: navigation ? Math.round(navigation.loadEventEnd) : null,
+      firstPaintMs: firstPaint ? Math.round(firstPaint.startTime) : null,
+      firstContentfulPaintMs: firstContentfulPaint ? Math.round(firstContentfulPaint.startTime) : null,
+      transferSizeBytes: navigation ? navigation.transferSize : null,
+      encodedBodySizeBytes: navigation ? navigation.encodedBodySize : null,
+    }));
+  }, []);
+}
+
 export function AoccPortalShell({
   user,
   portalTitle,
@@ -57,6 +80,7 @@ export function AoccPortalShell({
   portalTitle?: string;
   children: React.ReactNode;
 }) {
+  useStaffPortalPerformanceDiagnostics();
   const [collapsed, setCollapsed] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);

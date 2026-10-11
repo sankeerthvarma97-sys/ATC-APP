@@ -111,7 +111,7 @@ interface CachedSnapshotData {
 
 let snapshotCache: CachedSnapshotData | null = null;
 let inflightSnapshotPromise: Promise<Omit<OperationsSnapshot, "currentUser">> | null = null;
-const SNAPSHOT_CACHE_TTL_MS = 1500;
+const SNAPSHOT_CACHE_TTL_MS = 4000;
 
 export function invalidateSnapshotCache() {
   snapshotCache = null;

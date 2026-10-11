@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAuthenticatedUser } from "@/lib/auth/session";
@@ -21,7 +22,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PasswordChangeCard } from "@/components/employee/password-change-card";
-import type { Role } from "@/lib/domain";
+import type { Role, UserDTO } from "@/lib/domain";
 
 import { getEmployeeByIdentifier } from "@/lib/services/staff-service";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -29,12 +30,56 @@ import { EmployeeIdLookupCard } from "@/components/employee/employee-id-lookup-c
 
 export const dynamic = "force-dynamic";
 
-export default async function StaffOverviewPage() {
-  const user = await getAuthenticatedUser();
-  if (!user) {
-    redirect("/login?callbackUrl=/staff");
-  }
+function StaffOverviewSkeleton({ user }: { user: UserDTO }) {
+  const role = user.role;
+  const isSuperAdmin = role === "SUPER_ADMIN";
+  const isAdmin = role === "ADMIN" || role === "AIRPORT_ADMIN" || isSuperAdmin;
 
+  return (
+    <div className="p-6 space-y-6 max-w-7xl mx-auto animate-pulse" aria-busy="true" aria-live="polite">
+      <div className="rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900 via-[#0c1424] to-slate-900 p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="border-cyan-500/40 bg-cyan-950/30 text-cyan-300 font-mono text-xs">
+              AIRPORT OPERATIONAL CLEARANCE
+            </Badge>
+            <div className="h-5 w-20 rounded bg-slate-800" />
+            <div className="h-5 w-24 rounded bg-slate-800" />
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+            Welcome, {user.name}
+          </h1>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 font-mono">
+            <div className="h-5 w-32 rounded bg-slate-800" />
+            <span>·</span>
+            <span>Role: <strong className="text-slate-200">{user.role}</strong></span>
+            <span>·</span>
+            <div className="h-5 w-28 rounded bg-slate-800" />
+          </div>
+        </div>
+        {isAdmin && (
+          <div className="shrink-0">
+            <Link
+              href="/admin"
+              className="inline-flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-950/30 hover:bg-amber-900/40 px-4 py-3 text-sm font-semibold text-amber-300 transition shadow-lg shadow-amber-950/30 font-mono text-xs"
+            >
+              <Shield className="h-4 w-4" />
+              Access Authority Control Center
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        )}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className="h-48 rounded-xl border border-slate-800 bg-slate-900/50" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+async function StaffOverviewContent({ user }: { user: UserDTO }) {
   const role = user.role;
   const isSuperAdmin = role === "SUPER_ADMIN";
   const isAdmin = role === "ADMIN" || role === "AIRPORT_ADMIN" || isSuperAdmin;
@@ -385,3 +430,17 @@ export default async function StaffOverviewPage() {
     </div>
   );
 }
+
+export default async function StaffOverviewPage() {
+  const user = await getAuthenticatedUser();
+  if (!user) {
+    redirect("/login?callbackUrl=/staff");
+  }
+
+  return (
+    <Suspense fallback={<StaffOverviewSkeleton user={user} />}>
+      <StaffOverviewContent user={user} />
+    </Suspense>
+  );
+}
+
