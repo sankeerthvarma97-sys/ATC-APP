@@ -55,19 +55,19 @@ export async function fetchStationMetar(stationCode = "HYD"): Promise<MetarRepor
     if (res.ok) {
       const rawMetar = (await res.text()).trim();
       if (rawMetar.length > 10) {
-        return parseMetar(rawMetar, airport.name, airport.runways);
+        return parseMetar(rawMetar, stationCode.toUpperCase(), airport.name, airport.runways);
       }
     }
   } catch {
     // Fall back to authentic generated report on network restriction
   }
 
-  return generateRealisticMetar(airport.icao, airport.name, airport.runways);
+  return generateRealisticMetar(stationCode.toUpperCase(), airport.icao, airport.name, airport.runways);
 }
 
-function parseMetar(raw: string, stationName: string, runways: number[]): MetarReport {
+function parseMetar(raw: string, stationCode: string, stationName: string, runways: number[]): MetarReport {
   const parts = raw.split(/\s+/);
-  const station = parts[0] || "VOHY";
+  const station = stationCode.toUpperCase();
   
   // Default values
   let windDir = 90;
@@ -152,11 +152,11 @@ function parseMetar(raw: string, stationName: string, runways: number[]): MetarR
   };
 }
 
-function generateRealisticMetar(icao: string, stationName: string, runways: number[]): MetarReport {
+function generateRealisticMetar(stationCode: string, icao: string, stationName: string, runways: number[]): MetarReport {
   const zuluHour = new Date().getUTCHours();
   const zuluMin = new Date().getUTCMinutes();
   const timeCode = `${String(new Date().getUTCDate()).padStart(2, "0")}${String(zuluHour).padStart(2, "0")}${String(zuluMin).padStart(2, "0")}Z`;
   const raw = `${icao} ${timeCode} 08011KT 9999 FEW030 SCT090 29/19 Q1012 NOSIG`;
 
-  return parseMetar(raw, stationName, runways);
+  return parseMetar(raw, stationCode, stationName, runways);
 }

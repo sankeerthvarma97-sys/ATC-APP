@@ -254,6 +254,7 @@ export function AuthorityControlCenter({
       case "airports":
         return (
           <AirportsSection
+            activeStation={activeAirport?.iata}
             onSelectStation={(iata) => {
               const apt = airports.find((a) => a.iata === iata);
               if (apt) setActiveAirport(apt);

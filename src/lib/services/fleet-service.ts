@@ -416,13 +416,15 @@ export async function listGates(): Promise<GateDTO[]> {
 }
 
 export async function updateGateStatus(
-  gateCode: string,
+  gateCodeOrId: string,
   status: GateDTO["status"],
   assignedFlightId?: string
 ) {
   memoryGates = memoryGates.map((g) =>
-    g.code === gateCode ? { ...g, status, assignedFlightId } : g
+    g.code === gateCodeOrId || g.id === gateCodeOrId
+      ? { ...g, status, assignedFlightId }
+      : g
   );
-  return memoryGates.find((g) => g.code === gateCode);
+  return memoryGates.find((g) => g.code === gateCodeOrId || g.id === gateCodeOrId);
 }
 
