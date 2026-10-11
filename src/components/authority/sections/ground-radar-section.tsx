@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   AlertOctagon,
   AlertTriangle,
@@ -24,9 +24,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import type { FlightDTO } from "@/lib/domain";
 
-interface GroundTarget {
+export interface GroundTarget {
   id: string;
   callsign: string;
   type: "AIRCRAFT" | "VEHICLE";
@@ -40,18 +41,34 @@ interface GroundTarget {
   runwayConflict?: boolean;
 }
 
+// Station specific aerodrome geometry & active runway labels
+const STATION_RUNWAYS: Record<
+  string,
+  { primaryRwy: string; secondaryRwy: string; twyMain: string; twyCross: string }
+> = {
+  HYD: { primaryRwy: "09L/27R", secondaryRwy: "09R/27L", twyMain: "TWY Alpha", twyCross: "TWY Echo" },
+  BOM: { primaryRwy: "09/27", secondaryRwy: "14/32", twyMain: "TWY Kilo", twyCross: "TWY November" },
+  DEL: { primaryRwy: "10/28", secondaryRwy: "11/29", twyMain: "TWY Papa", twyCross: "TWY Romeo" },
+  BLR: { primaryRwy: "09L/27R", secondaryRwy: "09R/27L", twyMain: "TWY Bravo", twyCross: "TWY Delta" },
+  MAA: { primaryRwy: "07/25", secondaryRwy: "12/30", twyMain: "TWY Charlie", twyCross: "TWY Foxtrot" },
+  JFK: { primaryRwy: "04L/22R", secondaryRwy: "13L/31R", twyMain: "TWY Alpha", twyCross: "TWY Bravo" },
+};
+
 export function GroundRadarSection({
   activeFlights = [],
+  activeStation = "HYD",
 }: {
   activeFlights?: FlightDTO[];
+  activeStation?: string;
 }) {
+  const stationInfo = STATION_RUNWAYS[activeStation] || STATION_RUNWAYS.HYD;
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [incursionActive, setIncursionActive] = useState(false);
   const [incursionDetails, setIncursionDetails] = useState<string | null>(null);
   const [stopBarsRed, setStopBarsRed] = useState(false);
   const [filterMode, setFilterMode] = useState<"ALL" | "AIRCRAFT" | "VEHICLES">("ALL");
 
-  // Synthetic Ground targets
+  // Initial synthetic & hydrated ground targets
   const [targets, setTargets] = useState<GroundTarget[]>([
     {
       id: "tgt-1",
@@ -63,11 +80,11 @@ export function GroundRadarSection({
       speedKt: 14,
       headingDeg: 44,
       status: "TAXIING",
-      assignedTaxiway: "TWY Alpha",
+      assignedTaxiway: `${stationInfo.twyMain} to RWY ${stationInfo.primaryRwy.split("/")[0]}`,
     },
     {
       id: "tgt-2",
-      callsign: "AA1204",
+      callsign: "AV245",
       type: "AIRCRAFT",
       aircraftModel: "A321",
       x: 48,
@@ -75,11 +92,11 @@ export function GroundRadarSection({
       speedKt: 0,
       headingDeg: 133,
       status: "HOLDING_SHORT",
-      assignedTaxiway: "TWY Bravo (Hold RWY 04L)",
+      assignedTaxiway: `${stationInfo.twyCross} (Hold Short RWY ${stationInfo.primaryRwy.split("/")[0]})`,
     },
     {
       id: "tgt-3",
-      callsign: "BAW178",
+      callsign: "BH310",
       type: "AIRCRAFT",
       aircraftModel: "A350",
       x: 75,
@@ -87,7 +104,7 @@ export function GroundRadarSection({
       speedKt: 135,
       headingDeg: 224,
       status: "FINAL_APPROACH",
-      assignedTaxiway: "ILS RWY 22R Final (1.8 NM)",
+      assignedTaxiway: `ILS Final RWY ${stationInfo.primaryRwy.split("/")[1]} (1.6 NM)`,
     },
     {
       id: "tgt-4",
@@ -95,32 +112,45 @@ export function GroundRadarSection({
       type: "VEHICLE",
       x: 22,
       y: 84,
-      speedKt: 8,
+      speedKt: 6,
       headingDeg: 310,
-      status: "TAXIING",
-      assignedTaxiway: "Apron Stand A2",
+      status: "PUSHBACK",
+      assignedTaxiway: "Apron Stand B12",
     },
     {
       id: "tgt-5",
-      callsign: "ARFF-RED1",
+      callsign: "ARFF-01",
       type: "VEHICLE",
       x: 60,
       y: 40,
       speedKt: 0,
       headingDeg: 90,
       status: "HOLDING_SHORT",
-      assignedTaxiway: "ARFF Station East",
+      assignedTaxiway: "Crash-Fire Station East",
+    },
+    {
+      id: "tgt-6",
+      callsign: "FM-01",
+      type: "VEHICLE",
+      x: 38,
+      y: 70,
+      speedKt: 16,
+      headingDeg: 44,
+      status: "TAXIING",
+      assignedTaxiway: "Follow-Me Escort Lead",
     },
   ]);
 
-  // Audio alert tone generator
+  // Audio alarm tone generator
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   const triggerIncursionAlarm = () => {
     if (!audioEnabled || typeof window === "undefined") return;
     try {
       if (!audioCtxRef.current) {
-        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         audioCtxRef.current = new AudioCtx();
       }
       const ctx = audioCtxRef.current;
@@ -149,12 +179,14 @@ export function GroundRadarSection({
   // Trigger simulated incursion
   const handleSimulateIncursion = () => {
     setIncursionActive(true);
-    setIncursionDetails("AA1204 crossed Hold Short Bar into active RWY 04L during BAW178 Final Approach!");
+    setIncursionDetails(
+      `AV245 crossed Hold Short Line into active RWY ${stationInfo.primaryRwy.split("/")[0]} during BH310 Final Approach!`,
+    );
     triggerIncursionAlarm();
 
     setTargets((prev) =>
       prev.map((t) => {
-        if (t.callsign === "AA1204") {
+        if (t.callsign === "AV245") {
           return {
             ...t,
             x: 52,
@@ -165,7 +197,7 @@ export function GroundRadarSection({
           };
         }
         return t;
-      })
+      }),
     );
   };
 
@@ -175,14 +207,14 @@ export function GroundRadarSection({
     setIncursionDetails(null);
     setTargets((prev) =>
       prev.map((t) => {
-        if (t.callsign === "BAW178") {
+        if (t.callsign === "BH310") {
           return {
             ...t,
             status: "FINAL_APPROACH",
-            assignedTaxiway: "MISSED APPROACH &bull; Climbing to 3,000 ft",
+            assignedTaxiway: "MISSED APPROACH · Climbing to 4,000 ft",
           };
         }
-        if (t.callsign === "AA1204") {
+        if (t.callsign === "AV245") {
           return {
             ...t,
             x: 48,
@@ -192,7 +224,7 @@ export function GroundRadarSection({
           };
         }
         return t;
-      })
+      }),
     );
   };
 
@@ -213,14 +245,14 @@ export function GroundRadarSection({
           <div>
             <div className="flex items-center gap-2">
               <CardTitle className="text-sm font-bold text-white tracking-wide">
-                A-SMGCS / ASDE-X SURFACE MOVEMENT RADAR
+                A-SMGCS / ASDE-X SURFACE MOVEMENT RADAR &bull; {activeStation} HUB
               </CardTitle>
               <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px]">
                 LEVEL 4 SURVEILLANCE
               </Badge>
             </div>
-            <CardDescription className="text-xs text-slate-400">
-              Airport Surface Detection Equipment &bull; Real-time taxiway tracking & runway incursion safety alerts.
+            <CardDescription className="text-xs text-slate-400 font-mono">
+              Airport Surface Detection Equipment &bull; Real-time taxiway node tracking, pushback tugs & runway incursion alerts.
             </CardDescription>
           </div>
         </div>
@@ -234,16 +266,17 @@ export function GroundRadarSection({
             className="h-7 text-xs border-slate-700 text-slate-300"
           >
             {audioEnabled ? <Volume2 className="h-3.5 w-3.5 mr-1 text-emerald-400" /> : <VolumeX className="h-3.5 w-3.5 mr-1" />}
-            {audioEnabled ? "Audio Warning ON" : "Audio Muted"}
+            {audioEnabled ? "Audio Alarm ON" : "Audio Muted"}
           </Button>
 
           <Button
             size="sm"
             variant={stopBarsRed ? "destructive" : "outline"}
             onClick={() => setStopBarsRed(!stopBarsRed)}
-            className={`h-7 text-xs ${
-              stopBarsRed ? "bg-red-600 text-white font-bold" : "border-slate-700 text-slate-300"
-            }`}
+            className={cn(
+              "h-7 text-xs font-mono",
+              stopBarsRed ? "bg-red-600 text-white font-bold" : "border-slate-700 text-slate-300",
+            )}
           >
             <ShieldAlert className="h-3.5 w-3.5 mr-1" />
             {stopBarsRed ? "STOP BARS: ACTIVE RED" : "Stop Bars: Normal"}
@@ -258,10 +291,10 @@ export function GroundRadarSection({
             <div className="flex items-center gap-2.5">
               <AlertOctagon className="h-5 w-5 text-red-400 shrink-0" />
               <div>
-                <span className="font-bold text-sm tracking-wide text-white block">
-                  🚨 CRITICAL: RUNWAY INCURSION DETECTED
+                <span className="font-bold text-sm tracking-wide text-white block font-mono">
+                  🚨 CRITICAL: RUNWAY INCURSION DETECTED ON RWY {stationInfo.primaryRwy.split("/")[0]}
                 </span>
-                <span className="text-xs text-red-300">{incursionDetails}</span>
+                <span className="text-xs text-red-300 font-mono">{incursionDetails}</span>
               </div>
             </div>
 
@@ -269,7 +302,7 @@ export function GroundRadarSection({
               <Button
                 size="sm"
                 onClick={handleIssueGoAround}
-                className="h-8 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase shadow-[0_0_10px_#ef4444]"
+                className="h-8 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase shadow-[0_0_10px_#ef4444] font-mono"
               >
                 <Siren className="h-4 w-4 mr-1" />
                 COMMAND GO-AROUND (MISSED APPROACH)
@@ -289,41 +322,50 @@ export function GroundRadarSection({
             <div className="w-[200px] h-[200px] rounded-full border border-emerald-500/15" />
           </div>
 
-          {/* Runway 04L / 22R */}
+          {/* Primary Runway */}
           <div className="absolute top-[18%] left-[25%] w-[55%] h-12 bg-slate-800/90 border-y-2 border-emerald-400/60 rotate-[28deg] flex items-center justify-between px-3 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-            <span className="text-[11px] font-bold text-white bg-black/60 px-1 rounded">04L</span>
+            <span className="text-[11px] font-bold text-white bg-black/60 px-1 rounded font-mono">
+              {stationInfo.primaryRwy.split("/")[0]}
+            </span>
             <div className="flex-1 h-0.5 border-t-2 border-dashed border-white/60 mx-4" />
-            <span className="text-[11px] font-bold text-white bg-black/60 px-1 rounded">22R</span>
+            <span className="text-[11px] font-bold text-white bg-black/60 px-1 rounded font-mono">
+              {stationInfo.primaryRwy.split("/")[1]}
+            </span>
           </div>
 
-          {/* Runway 13L / 31R */}
+          {/* Secondary Runway */}
           <div className="absolute top-[35%] left-[20%] w-[60%] h-10 bg-slate-800/80 border-y-2 border-emerald-400/40 -rotate-[35deg] flex items-center justify-between px-3">
-            <span className="text-[10px] font-bold text-slate-300 bg-black/60 px-1 rounded">13L</span>
+            <span className="text-[10px] font-bold text-slate-300 bg-black/60 px-1 rounded font-mono">
+              {stationInfo.secondaryRwy.split("/")[0]}
+            </span>
             <div className="flex-1 h-0.5 border-t-2 border-dashed border-white/40 mx-4" />
-            <span className="text-[10px] font-bold text-slate-300 bg-black/60 px-1 rounded">31R</span>
+            <span className="text-[10px] font-bold text-slate-300 bg-black/60 px-1 rounded font-mono">
+              {stationInfo.secondaryRwy.split("/")[1]}
+            </span>
           </div>
 
-          {/* Taxiways (TWY Alpha, TWY Bravo) */}
+          {/* Taxiways */}
           <div className="absolute top-[52%] left-[10%] w-[75%] h-3 bg-slate-900/90 border border-yellow-500/40 rotate-[28deg]" />
           <div className="absolute top-[42%] left-[42%] w-24 h-3 bg-slate-900/90 border border-yellow-500/40 -rotate-[60deg]" />
 
-          {/* Illuminated Hold-Short Stop Bars */}
+          {/* Hold Short Stop Bars */}
           <div
-            className={`absolute top-[48%] left-[47%] w-10 h-1.5 rounded transition-all duration-300 ${
+            className={cn(
+              "absolute top-[48%] left-[47%] w-10 h-1.5 rounded transition-all duration-300",
               stopBarsRed || incursionActive
                 ? "bg-red-500 shadow-[0_0_12px_#ef4444] animate-pulse"
-                : "bg-amber-400/80"
-            }`}
+                : "bg-amber-400/80",
+            )}
           />
 
           {/* Terminal Apron Gates Area */}
-          <div className="absolute bottom-4 left-6 p-2 rounded-lg bg-black/70 border border-slate-800 text-[10px] text-slate-400">
-            <div className="text-emerald-400 font-bold mb-1">TERMINAL 1 APRON (STANDS A1-A4)</div>
+          <div className="absolute bottom-4 left-6 p-2 rounded-lg bg-black/70 border border-slate-800 text-[10px] text-slate-400 font-mono">
+            <div className="text-emerald-400 font-bold mb-1 uppercase">Terminal 1 Apron &bull; {activeStation}</div>
             <div className="flex gap-2 text-slate-300">
-              <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700">A1: OCCUPIED</span>
-              <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700">A2: TUG-04</span>
+              <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700">B12: OCCUPIED</span>
+              <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700">B14: PUSHING</span>
               <span className="px-1.5 py-0.5 rounded bg-emerald-950 border border-emerald-700 text-emerald-300">
-                A3: AVAILABLE
+                A2: AVAILABLE
               </span>
             </div>
           </div>
@@ -332,9 +374,10 @@ export function GroundRadarSection({
           {filteredTargets.map((target) => (
             <div
               key={target.id}
-              className={`absolute transition-all duration-700 flex flex-col items-center pointer-events-none ${
-                target.runwayConflict ? "scale-110 z-20 animate-bounce" : "z-10"
-              }`}
+              className={cn(
+                "absolute transition-all duration-700 flex flex-col items-center pointer-events-none",
+                target.runwayConflict ? "scale-110 z-20 animate-bounce" : "z-10",
+              )}
               style={{
                 left: `${target.x}%`,
                 top: `${target.y}%`,
@@ -343,13 +386,14 @@ export function GroundRadarSection({
             >
               {/* Target Symbol */}
               <div
-                className={`grid place-items-center h-6 w-6 rounded-full border shadow-lg ${
+                className={cn(
+                  "grid place-items-center h-6 w-6 rounded-full border shadow-lg",
                   target.runwayConflict
                     ? "bg-red-600 border-white text-white shadow-[0_0_15px_#ef4444]"
                     : target.type === "AIRCRAFT"
                     ? "bg-emerald-500/20 border-emerald-400 text-emerald-300"
-                    : "bg-amber-500/20 border-amber-400 text-amber-300"
-                }`}
+                    : "bg-amber-500/20 border-amber-400 text-amber-300",
+                )}
                 style={{
                   transform: `rotate(${target.headingDeg}deg)`,
                 }}
@@ -363,11 +407,12 @@ export function GroundRadarSection({
 
               {/* Data Tag Block */}
               <div
-                className={`mt-1 px-1.5 py-0.5 rounded text-[9px] font-mono leading-tight whitespace-nowrap border ${
+                className={cn(
+                  "mt-1 px-1.5 py-0.5 rounded text-[9px] font-mono leading-tight whitespace-nowrap border",
                   target.runwayConflict
                     ? "bg-red-950/90 border-red-500 text-red-100 font-bold"
-                    : "bg-black/85 border-slate-700 text-slate-300"
-                }`}
+                    : "bg-black/85 border-slate-700 text-slate-300",
+                )}
               >
                 <div className="flex items-center gap-1">
                   <span className="font-bold text-white">{target.callsign}</span>
@@ -385,7 +430,7 @@ export function GroundRadarSection({
         </div>
 
         {/* Bottom Tactical Controls & Incursion Drill Injector */}
-        <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/60 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/60 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
           <div className="flex items-center gap-2">
             <span className="text-slate-400 uppercase text-[10px]">Filter Display:</span>
             <Button
