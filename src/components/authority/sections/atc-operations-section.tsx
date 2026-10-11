@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import type { FlightDTO } from "@/lib/domain";
+import type { FlightDTO, AirportDTO } from "@/lib/domain";
 
 const FlightMap = dynamic(
   () => import("@/components/maps/flight-map").then((mod) => mod.FlightMap),
@@ -39,8 +39,10 @@ const FlightMap = dynamic(
 
 export function AtcOperationsSection({
   onOpenConsole,
+  activeAirport,
 }: {
   onOpenConsole?: () => void;
+  activeAirport?: AirportDTO;
 }) {
   const [flights, setFlights] = useState<FlightDTO[]>([]);
   const [loading, setLoading] = useState(false);
@@ -174,7 +176,7 @@ export function AtcOperationsSection({
             <CardHeader className="py-3 px-4 border-b border-border/50 flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Navigation className="h-4 w-4 text-primary" />
-                Airfield & Sector Radar Display (KJFK Center)
+                Airfield & Sector Radar Display ({activeAirport?.iata || "HYD"} Terminal Area)
               </CardTitle>
               <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
                 <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
@@ -182,7 +184,12 @@ export function AtcOperationsSection({
               </div>
             </CardHeader>
             <CardContent className="p-0 h-[480px]">
-              <FlightMap flights={flights} />
+              <FlightMap
+                flights={flights}
+                activeAirport={activeAirport}
+                selectedFlightId={selectedFlight?.id}
+                onSelectFlight={handleSelectFlight}
+              />
             </CardContent>
           </Card>
 

@@ -242,7 +242,7 @@ export function AuthorityControlCenter({
           />
         );
       case "atc":
-        return <AtcOperationsSection onOpenConsole={onOpenConsole} />;
+        return <AtcOperationsSection onOpenConsole={onOpenConsole} activeAirport={activeAirport} />;
       case "ground":
         return <GroundOpsSection onNavigateTo={(sec) => handleNavigateTo(sec)} />;
       case "baggage":
