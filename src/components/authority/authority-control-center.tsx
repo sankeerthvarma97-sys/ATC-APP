@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type {
   AirportDTO,
   AirportMetrics,
@@ -152,7 +152,31 @@ const DEFAULT_AIRPORTS: AirportDTO[] = [
   { id: "apt-bdq", iata: "BDQ", icao: "VABO", name: "Vadodara Airport", city: "Vadodara", state: "Gujarat", country: "India", latitude: 22.3361, longitude: 73.2263, elevationFt: 127, status: "ACTIVE" },
 ];
 
+function useAdminDashboardPerformanceDiagnostics() {
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_AOCC_PERF_DIAGNOSTICS !== "true") return;
+
+    const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    const paintEntries = performance.getEntriesByType("paint");
+    const firstPaint = paintEntries.find((entry) => entry.name === "first-paint");
+    const firstContentfulPaint = paintEntries.find((entry) => entry.name === "first-contentful-paint");
+
+    console.info("[AOCC_PERF]", JSON.stringify({
+      area: "admin_dashboard_browser",
+      hydrationEffectAtMs: Math.round(performance.now()),
+      responseStartMs: navigation ? Math.round(navigation.responseStart) : null,
+      domContentLoadedMs: navigation ? Math.round(navigation.domContentLoadedEventEnd) : null,
+      loadEventMs: navigation ? Math.round(navigation.loadEventEnd) : null,
+      firstPaintMs: firstPaint ? Math.round(firstPaint.startTime) : null,
+      firstContentfulPaintMs: firstContentfulPaint ? Math.round(firstContentfulPaint.startTime) : null,
+      transferSizeBytes: navigation ? navigation.transferSize : null,
+      encodedBodySizeBytes: navigation ? navigation.encodedBodySize : null,
+    }));
+  }, []);
+}
+
 export function AuthorityControlCenter({
+  useAdminDashboardPerformanceDiagnostics();
   currentUser,
   initialAirports = DEFAULT_AIRPORTS,
   initialSnapshot,
