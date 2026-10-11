@@ -248,7 +248,7 @@ export function AuthorityControlCenter({
       case "baggage":
         return <BaggageSection onNavigateTo={(sec) => handleNavigateTo(sec)} />;
       case "emergencies":
-        return <EmergenciesSection />;
+        return <EmergenciesSection activeStation={activeAirport?.iata} />;
       case "weather":
         return <WeatherSection />;
       case "airports":

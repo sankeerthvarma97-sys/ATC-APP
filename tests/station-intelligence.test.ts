@@ -116,4 +116,43 @@ describe("AOCC Station Intelligence, METAR Weather & Resource Persistence", () =
       await updateAircraftStatus(ac.registration, ac.status);
     });
   });
+
+  describe("Tactical Crisis Response & Distress Squawk Management", () => {
+    it("updates flight emergency status and transponder squawk with runway isolation", async () => {
+      const { updateFlightStatus } = await import("@/lib/services/flight-service");
+      const flightId = "flt-sc101";
+
+      const updated = await updateFlightStatus(
+        flightId,
+        "EMERGENCY",
+        {
+          squawk: "7700",
+          runway: "09L",
+          phase: "Emergency Rollout Active",
+        },
+        { id: "crisis-admin", name: "Crisis Command" }
+      );
+
+      expect(updated).toBeDefined();
+      expect(updated?.status).toBe("EMERGENCY");
+      expect(updated?.squawk).toBe("7700");
+      expect(updated?.runway).toBe("09L");
+      expect(updated?.phase).toBe("Emergency Rollout Active");
+
+      // Resolve back to normal
+      const resolved = await updateFlightStatus(
+        flightId,
+        "SCHEDULED",
+        {
+          squawk: "1200",
+          phase: "Pre-flight boarding preparation",
+        },
+        { id: "crisis-admin", name: "Crisis Command" }
+      );
+
+      expect(resolved).toBeDefined();
+      expect(resolved?.status).toBe("SCHEDULED");
+      expect(resolved?.squawk).toBe("1200");
+    });
+  });
 });

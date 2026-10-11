@@ -845,20 +845,42 @@ export async function createFlight(input: CreateFlightInput): Promise<FlightDTO>
 export async function updateFlightStatus(
   flightId: string,
   status: FlightStatus,
+  extraOrActor?: { squawk?: string; phase?: string; runway?: string; gate?: string; id?: string; name?: string },
   actor?: { id?: string; name?: string },
 ): Promise<FlightDTO | null> {
-  const flight = memoryFlights.find((f) => f.id === flightId || f.callsign === flightId);
+  const flight = memoryFlights.find((f) => f.id === flightId || f.callsign === flightId || f.flightNumber === flightId);
   if (!flight) return null;
 
   const oldStatus = flight.status;
   flight.status = status;
+
+  let extra: { squawk?: string; phase?: string; runway?: string; gate?: string } | undefined;
+  let effectiveActor: { id?: string; name?: string } | undefined = actor;
+
+  if (extraOrActor && ("squawk" in extraOrActor || "phase" in extraOrActor || "runway" in extraOrActor || "gate" in extraOrActor)) {
+    extra = extraOrActor;
+  } else if (extraOrActor && ("id" in extraOrActor || "name" in extraOrActor)) {
+    effectiveActor = extraOrActor;
+  }
+
+  if (extra?.squawk) flight.squawk = extra.squawk;
+  if (extra?.phase) flight.phase = extra.phase;
+  if (extra?.runway) flight.runway = extra.runway;
+  if (extra?.gate) flight.gate = extra.gate;
   flight.updatedAt = new Date().toISOString();
 
   if (shouldUseDatabase()) {
     try {
       await prisma.flight.update({
         where: { id: flight.id },
-        data: { status, updatedAt: new Date() },
+        data: {
+          status,
+          ...(extra?.squawk ? { squawk: extra.squawk } : {}),
+          ...(extra?.phase ? { phase: extra.phase } : {}),
+          ...(extra?.runway ? { runway: extra.runway } : {}),
+          ...(extra?.gate ? { gate: extra.gate } : {}),
+          updatedAt: new Date(),
+        },
       });
     } catch (error) {
       console.warn("Database flight status update failed; updated in memory.", error);
@@ -866,13 +888,13 @@ export async function updateFlightStatus(
   }
 
   await logAuditEvent({
-    actorId: actor?.id,
-    actorName: actor?.name,
+    actorId: effectiveActor?.id,
+    actorName: effectiveActor?.name,
     action: "ADMIN_UPDATED_FLIGHT",
     entity: "FLIGHT",
     entityId: flight.flightNumber || flight.callsign,
     before: { status: oldStatus },
-    after: { status },
+    after: { status, ...(extra || {}) },
   });
 
   return flight;
