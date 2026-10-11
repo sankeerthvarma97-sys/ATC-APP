@@ -22,7 +22,15 @@ export const getCurrentUserOrDemo = cache(async (): Promise<UserDTO> => {
 });
 
 export const getAuthenticatedUser = cache(async (): Promise<UserDTO | null> => {
+  const startedAt = Date.now();
   const session = await getServerSession(authOptions);
+  if (process.env.AOCC_PERF_DIAGNOSTICS === "true") {
+    console.info("[AOCC_PERF]", JSON.stringify({
+      area: "authenticated_session_lookup",
+      durationMs: Date.now() - startedAt,
+      authenticated: Boolean(session?.user?.email),
+    }));
+  }
 
   if (!session?.user?.email) {
     return null;
