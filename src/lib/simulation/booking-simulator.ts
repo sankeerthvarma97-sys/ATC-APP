@@ -3,6 +3,7 @@ import { prisma, shouldUseDatabase } from "@/lib/prisma";
 import { createBooking } from "@/lib/services/booking-service";
 import { listFlights } from "@/lib/services/flight-service";
 import { getRandomElement } from "./virtual-staff-generator";
+import { getRushHourMultiplier } from "./logic";
 
 const FIRST_NAMES = [
   "Aarav", "Aditi", "Ananya", "Arjun", "Bhavna", "Chetan", "Deepika", "Dev",
@@ -104,7 +105,9 @@ export async function simulateBookingTick(options?: {
   maxBookings?: number;
   maxPerFlight?: number;
 }): Promise<BookingTickResult> {
-  const maxBookings = Math.min(25, Math.max(1, options?.maxBookings || 3));
+  const rush = getRushHourMultiplier();
+  const rawMax = options?.maxBookings || 3;
+  const maxBookings = Math.min(30, Math.max(1, Math.round(rawMax * rush.multiplier)));
   const maxPerFlight = options?.maxPerFlight || 180;
   const result: BookingTickResult = { generatedCount: 0, bookings: [], errors: [] };
 

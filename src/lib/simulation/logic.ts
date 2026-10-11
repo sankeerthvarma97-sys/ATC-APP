@@ -39,8 +39,121 @@ export function computeMetrics(flights: FlightDTO[], resources: AirportResourceD
   };
 }
 
+export type WakeTurbulenceCategory = "HEAVY" | "MEDIUM" | "LIGHT";
+
+export function getWakeCategory(aircraftType: string): WakeTurbulenceCategory {
+  const t = (aircraftType || "").toUpperCase();
+  if (t.includes("787") || t.includes("777") || t.includes("350") || t.includes("380") || t.includes("747") || t.includes("330")) {
+    return "HEAVY";
+  }
+  if (t.includes("320") || t.includes("321") || t.includes("737") || t.includes("190") || t.includes("220")) {
+    return "MEDIUM";
+  }
+  return "LIGHT";
+}
+
+export function getRequiredWakeSeparationNm(
+  leaderCat: WakeTurbulenceCategory,
+  followerCat: WakeTurbulenceCategory,
+): number {
+  if (leaderCat === "HEAVY") {
+    if (followerCat === "HEAVY") return 4.0;
+    if (followerCat === "MEDIUM") return 5.0;
+    return 6.0; // LIGHT behind HEAVY
+  }
+  if (leaderCat === "MEDIUM") {
+    if (followerCat === "LIGHT") return 5.0;
+    return 3.0; // Standard radar separation
+  }
+  return 3.0;
+}
+
+export function getRushHourMultiplier(hourIST?: number): {
+  multiplier: number;
+  periodName: string;
+  isPeak: boolean;
+} {
+  const hour = hourIST ?? (new Date().getUTCHours() + 5.5) % 24;
+  if (hour >= 7 && hour < 11) {
+    return { multiplier: 1.6, periodName: "Morning Departure Rush (Peak)", isPeak: true };
+  }
+  if (hour >= 16.5 && hour < 21) {
+    return { multiplier: 1.8, periodName: "Evening Peak Convergence (Peak)", isPeak: true };
+  }
+  if (hour >= 1 && hour < 5) {
+    return { multiplier: 0.4, periodName: "Overnight Cargo & Maintenance Window", isPeak: false };
+  }
+  return { multiplier: 1.0, periodName: "Nominal Daytime Operation", isPeak: false };
+}
+
+export function calculateDistanceNm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const dLat = (lat2 - lat1) * 60;
+  const dLon = (lon2 - lon1) * 60 * Math.cos(((lat1 + lat2) / 2) * (Math.PI / 180));
+  return Math.sqrt(dLat * dLat + dLon * dLon);
+}
+
 export function advanceFlights(flights: FlightDTO[], tickMs: number): FlightDTO[] {
-  return flights.map((flight, index) => advanceFlight(flight, tickMs, index));
+  // 1. Advance each individual aircraft along its trajectory
+  let advanced = flights.map((flight, index) => advanceFlight(flight, tickMs, index));
+
+  // 2. Wake Turbulence Spacing Regulation on Approach & Terminal Streams
+  const approachFlights = advanced.filter(
+    (f) => f.status === "APPROACH" || (f.status === "AIRBORNE" && f.altitudeFt < 6000),
+  );
+
+  for (let i = 0; i < approachFlights.length; i++) {
+    for (let j = 0; j < approachFlights.length; j++) {
+      if (i === j) continue;
+      const leader = approachFlights[i];
+      const follower = approachFlights[j];
+
+      // Check if follower is trailing at similar altitude / same runway
+      if (
+        follower.altitudeFt >= leader.altitudeFt &&
+        follower.runway &&
+        leader.runway &&
+        follower.runway === leader.runway
+      ) {
+        const distNm = calculateDistanceNm(leader.latitude, leader.longitude, follower.latitude, follower.longitude);
+        const reqNm = getRequiredWakeSeparationNm(
+          getWakeCategory(leader.aircraftType),
+          getWakeCategory(follower.aircraftType),
+        );
+
+        if (distNm < reqNm && distNm > 0.1) {
+          // Regulate follower speed for wake vortex spacing
+          advanced = advanced.map((f) => {
+            if (f.id === follower.id) {
+              const adjustedSpeed = clamp(f.speedKt - 12, 130, 210);
+              return {
+                ...f,
+                speedKt: adjustedSpeed,
+                phase: `Wake vortex spacing active: maintain ${reqNm}NM behind ${leader.callsign} (${leader.aircraftType})`,
+              };
+            }
+            return f;
+          });
+        }
+      }
+    }
+  }
+
+  // 3. Dynamic Weather Diversions under convective shear or fuel exhaustion
+  advanced = advanced.map((f) => {
+    if ((f.status === "HOLDING" || f.status === "APPROACH") && (f.fuelKg < 1600 || f.riskScore > 94)) {
+      return {
+        ...f,
+        status: "DIVERTED" as const,
+        destination: f.destination === "HYD" ? "BOM" : "BLR",
+        phase: `Diverting to alternate airfield due to convective weather & fuel reserve limits`,
+        riskScore: 72,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    return f;
+  });
+
+  return advanced;
 }
 
 export function syncResourcesWithFlights(
