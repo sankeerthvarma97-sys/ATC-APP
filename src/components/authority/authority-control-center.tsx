@@ -42,6 +42,9 @@ const LiveTrafficSection = dynamic(() => import("./sections/live-traffic-section
 const AtcOperationsSection = dynamic(() => import("./sections/atc-operations-section").then((m) => m.AtcOperationsSection), {
   loading: () => <SectionSkeleton name="ATC Radar & Sequencing" />,
 });
+const RadarReplaySection = dynamic(() => import("./sections/radar-replay-section").then((m) => m.RadarReplaySection), {
+  loading: () => <SectionSkeleton name="ADS-B 4D Radar Replay" />,
+});
 const GroundOpsSection = dynamic(() => import("./sections/ground-ops-section").then((m) => m.GroundOpsSection), {
   loading: () => <SectionSkeleton name="Ground & Turnaround" />,
 });
@@ -243,6 +246,8 @@ export function AuthorityControlCenter({
         );
       case "atc":
         return <AtcOperationsSection onOpenConsole={onOpenConsole} activeAirport={activeAirport} />;
+      case "radar-replay":
+        return <RadarReplaySection activeStation={activeAirport.iata} />;
       case "ground":
         return <GroundOpsSection activeStation={activeAirport?.iata} onNavigateTo={(sec) => handleNavigateTo(sec)} />;
       case "baggage":
