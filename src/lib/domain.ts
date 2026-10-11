@@ -1150,4 +1150,34 @@ export interface DisasterRecoveryStatusDTO {
   scaleToZeroEnabled: boolean;
 }
 
+export interface GateAllocationAssignmentDTO {
+  flightId: string;
+  callsign: string;
+  aircraftType: string;
+  airline: string;
+  eta: string;
+  allocatedGateCode: string;
+  terminal: string;
+  hasJetBridge: boolean;
+  turnaroundMinutes: number;
+  compatibilityReason: string;
+  confidenceScore: number;
+  conflictResolved?: boolean;
+}
+
+export interface GateAllocationPlanDTO {
+  airportCode: string;
+  generatedAt: string;
+  overallEfficiencyScore: number;
+  totalFlightsAllocated: number;
+  conflictsDetected: number;
+  conflictsResolved: number;
+  assignments: GateAllocationAssignmentDTO[];
+  unassignedFlights: {
+    flightId: string;
+    callsign: string;
+    reason: string;
+  }[];
+}
+
 

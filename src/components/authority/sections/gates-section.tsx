@@ -12,15 +12,18 @@ import {
   Plus,
   RefreshCw,
   Search,
+  ShieldCheck,
+  Sparkles,
   Warehouse,
   X,
+  Zap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/ui/copy-button";
-import type { GateDTO, ResourceStatus } from "@/lib/domain";
+import type { GateAllocationPlanDTO, GateDTO, ResourceStatus } from "@/lib/domain";
 
 interface GateWithDetails extends GateDTO {
   airportCode: string;
@@ -58,6 +61,53 @@ export function GatesSection({ activeStation = "HYD" }: { activeStation?: string
   const [assignGateTarget, setAssignGateTarget] = useState<GateWithDetails | null>(null);
   const [flightToAssign, setFlightToAssign] = useState("");
   const [airlineName, setAirlineName] = useState("");
+
+  // Intelligent Gate Optimization State
+  const [optimizationPlan, setOptimizationPlan] = useState<GateAllocationPlanDTO | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [planFeedback, setPlanFeedback] = useState<string | null>(null);
+
+  const handleRunOptimization = async () => {
+    setIsOptimizing(true);
+    setPlanFeedback(null);
+    try {
+      const res = await fetch("/api/operations/gate-allocation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          airportCode: stationFilter === "ALL" ? "HYD" : stationFilter,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to optimize gate allocations.");
+      const plan: GateAllocationPlanDTO = await res.json();
+      setOptimizationPlan(plan);
+      setPlanFeedback(`Calculated optimal plan with ${plan.overallEfficiencyScore}% efficiency.`);
+    } catch {
+      setPlanFeedback("Failed to run intelligent gate optimization.");
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
+  const handleApplyOptimizationPlan = () => {
+    if (!optimizationPlan) return;
+    setGates((prev) =>
+      prev.map((g) => {
+        const assignment = optimizationPlan.assignments.find((a) => a.allocatedGateCode === g.code);
+        if (assignment) {
+          return {
+            ...g,
+            status: "RESERVED",
+            assignedFlight: assignment.callsign,
+            airline: assignment.airline,
+            turnMinutes: assignment.turnaroundMinutes,
+          };
+        }
+        return g;
+      })
+    );
+    setPlanFeedback("Applied all optimized gate allocations successfully.");
+  };
 
   const fetchGates = async () => {
     setLoading(true);
@@ -207,6 +257,15 @@ export function GatesSection({ activeStation = "HYD" }: { activeStation?: string
             <option value="RESERVED">Reserved</option>
             <option value="MAINTENANCE">Maintenance</option>
           </select>
+          <Button
+            size="sm"
+            onClick={handleRunOptimization}
+            disabled={isOptimizing}
+            className="h-8 gap-1.5 font-semibold text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+          >
+            <Sparkles className={`h-3.5 w-3.5 ${isOptimizing ? "animate-spin text-amber-300" : "text-amber-300"}`} />
+            {isOptimizing ? "Optimizing..." : "Auto-Allocate Stands"}
+          </Button>
           <Button variant="outline" size="sm" onClick={fetchGates} disabled={loading} className="h-8">
             <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loading ? "animate-spin" : ""}`} />
             Refresh
@@ -268,6 +327,77 @@ export function GatesSection({ activeStation = "HYD" }: { activeStation?: string
           </CardContent>
         </Card>
       </div>
+
+      {planFeedback && (
+        <div className="p-3 rounded bg-emerald-950/20 border border-emerald-500/40 text-emerald-300 text-xs font-mono flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+            <span>{planFeedback}</span>
+          </div>
+          {optimizationPlan && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 text-[11px] border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/20"
+              onClick={handleApplyOptimizationPlan}
+            >
+              <Zap className="h-3 w-3 mr-1" />
+              Apply to All Gates
+            </Button>
+          )}
+        </div>
+      )}
+
+      {optimizationPlan && (
+        <Card className="border-primary/50 bg-primary/5">
+          <CardHeader className="py-3 px-4 border-b border-primary/20 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                <Sparkles className="h-4 w-4 text-amber-400" />
+                A-GAMS Intelligent Gate Allocation Plan ({optimizationPlan.airportCode})
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Generated allocation based on wingspan reference code, turnaround buffer, and terminal affinities.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs font-mono">
+                {optimizationPlan.overallEfficiencyScore}% Efficiency
+              </Badge>
+              <Badge variant="outline" className="text-xs font-mono">
+                {optimizationPlan.conflictsResolved} Conflicts Resolved
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto">
+              {optimizationPlan.assignments.map((a) => (
+                <div
+                  key={a.flightId}
+                  className="p-2.5 rounded border border-border/60 bg-card/90 text-xs space-y-1 font-mono"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-foreground flex items-center gap-1.5">
+                      <Plane className="h-3.5 w-3.5 text-primary" />
+                      {a.callsign}
+                    </span>
+                    <Badge variant="default" className="text-[10px] font-bold">
+                      GATE {a.allocatedGateCode}
+                    </Badge>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground flex items-center justify-between">
+                    <span>{a.aircraftType}</span>
+                    <span className="text-primary">{a.turnaroundMinutes}m Turn</span>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground truncate" title={a.compatibilityReason}>
+                    {a.compatibilityReason}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Gates Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
