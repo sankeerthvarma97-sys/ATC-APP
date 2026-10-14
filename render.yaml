@@ -1,0 +1,42 @@
+# Render Infrastructure Blueprint for AOCC Platform
+# Supports persistent WebSocket server + PostgreSQL for the educational simulation.
+services:
+  - type: web
+    name: aocc-aviation-platform
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    region: oregon
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: NEXTAUTH_URL
+        sync: false # Set to the canonical Render service URL when deploying there.
+      - key: NEXTAUTH_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aocc-postgres
+          property: connectionString
+      - key: AOCC_USE_DATABASE
+        value: "true"
+      - key: ADMIN_BOOTSTRAP_EMAIL
+        sync: false
+      - key: ADMIN_BOOTSTRAP_PASSWORD
+        sync: false
+      - key: AOCC_SIMULATION_TICK_MS
+        value: 1200
+      - key: NEXT_PUBLIC_AIRPORT_CODE
+        value: HYD
+      - key: NEXT_PUBLIC_AIRPORT_NAME
+        value: "Rajiv Gandhi International Airport (HYD)"
+
+databases:
+  - name: aocc-postgres
+    plan: free
+    region: oregon
+    databaseName: aocc_db
+    user: aocc_admin

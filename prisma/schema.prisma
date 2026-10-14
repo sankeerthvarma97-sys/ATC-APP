@@ -1,0 +1,1315 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  SUPER_ADMIN
+  AIRPORT_ADMIN
+  OPERATIONS_MANAGER
+  SUPERVISOR
+  ATC
+  ATC_CONTROLLER
+  SENIOR_ATC_CONTROLLER
+  GROUND
+  GROUND_OPERATOR
+  AIRLINE_OPERATOR
+  TICKETING_AGENT
+  GATE_AGENT
+  SECURITY_OFFICER
+  BAGGAGE_STAFF
+  MAINTENANCE_STAFF
+  FLIGHT_DISPATCHER
+  SIMULATOR_OPERATOR
+  PILOT
+  PASSENGER
+  ANALYST
+  VIEWER
+}
+
+enum Permission {
+  VIEW_DASHBOARD
+  VIEW_FLIGHTS
+  CREATE_FLIGHT
+  EDIT_FLIGHT
+  CANCEL_FLIGHT
+  VIEW_FLIGHT_STATUS
+  VIEW_TRAFFIC
+  CONTROL_ATC
+  SEND_ATC_COMMAND
+  VIEW_AIRCRAFT_POSITION
+  MANAGE_AIRLINES
+  MANAGE_AIRCRAFT
+  MANAGE_GATES
+  MANAGE_RUNWAYS
+  MANAGE_TERMINALS
+  VIEW_BOOKINGS
+  CREATE_BOOKING
+  MODIFY_BOOKING
+  CANCEL_BOOKING
+  VIEW_PASSENGERS
+  CHECK_IN_PASSENGER
+  BOARD_PASSENGER
+  VERIFY_TICKET
+  VIEW_TICKET
+  CREATE_TICKET
+  MANAGE_BAGGAGE
+  MANAGE_GROUND_OPERATIONS
+  MANAGE_STAFF
+  CREATE_STAFF
+  EDIT_STAFF
+  VERIFY_STAFF
+  SUSPEND_STAFF
+  MANAGE_ROLES
+  MANAGE_PERMISSIONS
+  ASSIGN_ROLES
+  ASSIGN_PERMISSIONS
+  VIEW_ANALYTICS
+  VIEW_AUDIT_LOGS
+  MANAGE_EMERGENCIES
+  MANAGE_SYSTEM_SETTINGS
+  MANAGE_SIMULATOR
+  SUPER_ADMIN_ALL_ACCESS
+  VIEW_FINANCE
+  VIEW_ACCOUNTS
+  VIEW_TRANSACTIONS
+  MANAGE_ACCOUNTS
+  MANAGE_EXPENSES
+  MANAGE_PAYROLL
+  CREATE_PAYROLL
+  APPROVE_PAYROLL
+  PROCESS_PAYROLL
+  MANAGE_SALARY
+  MANAGE_SALARY_HIKES
+  MANAGE_BONUSES
+  MANAGE_DEDUCTIONS
+  MANAGE_REFUNDS
+  MANAGE_CREDITS
+  VIEW_FINANCIAL_REPORTS
+  VIEW_EMPLOYEE_ACCOUNTS
+  VIEW_COUPONS
+  MANAGE_COUPONS
+}
+
+enum DepartmentType {
+  AIR_TRAFFIC_CONTROL
+  AIRPORT_OPERATIONS
+  GROUND_OPERATIONS
+  AIRLINE_OPERATIONS
+  TICKETING
+  PASSENGER_SERVICES
+  SECURITY
+  BAGGAGE
+  MAINTENANCE
+  EMERGENCY_RESPONSE
+  ADMINISTRATION
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  OFFLINE
+  ON_DUTY
+  PENDING
+  PENDING_VERIFICATION
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum FlightStatus {
+  SCHEDULED
+  BOARDING
+  PUSHBACK
+  TAXI_OUT
+  HOLDING
+  DEPARTING
+  AIRBORNE
+  APPROACH
+  LANDED
+  TAXI_IN
+  AT_GATE
+  ARRIVED
+  DELAYED
+  DIVERTED
+  CANCELLED
+  EMERGENCY
+}
+
+enum Severity {
+  INFO
+  ADVISORY
+  WARNING
+  CRITICAL
+}
+
+enum EventType {
+  FLIGHT_UPDATE
+  POSITION_UPDATE
+  ATC_MESSAGE
+  PILOT_MESSAGE
+  RESOURCE_CHANGE
+  COMMAND
+  EMERGENCY
+  NOTIFICATION
+  AI_ANALYSIS
+  FLIGHT_CREATED
+  GATE_ASSIGNED
+  RUNWAY_CHANGED
+  BOOKING_CREATED
+  TICKET_VERIFIED
+  PASSENGER_CHECKED_IN
+  PASSENGER_BOARDED
+  EMPLOYEE_CREATED
+}
+
+enum MessageDirection {
+  ATC_TO_PILOT
+  PILOT_TO_ATC
+  SYSTEM
+}
+
+enum ResourceType {
+  RUNWAY
+  GATE
+  STAND
+  BAGGAGE_BELT
+  CREW
+  VEHICLE
+}
+
+enum ResourceStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  MAINTENANCE
+  CLOSED
+}
+
+enum SeatClass {
+  ECONOMY
+  BUSINESS
+  FIRST
+}
+
+enum SeatStatus {
+  AVAILABLE
+  SELECTED
+  RESERVED
+  OCCUPIED
+  BLOCKED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  MODIFIED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+  REFUNDED
+}
+
+enum CheckInStatus {
+  NOT_CHECKED_IN
+  CHECKED_IN
+}
+
+enum BoardingStatus {
+  NOT_BOARDED
+  BOARDING
+  BOARDED
+}
+
+enum TicketStatus {
+  ACTIVE
+  USED
+  CANCELLED
+  EXPIRED
+}
+
+enum BaggageStatus {
+  CHECKED
+  LOADED
+  TRANSIT
+  CLAIMED
+}
+
+model User {
+  id              String             @id @default(cuid())
+  name            String
+  email           String             @unique
+  emailVerified   DateTime?
+  image           String?
+  passwordHash       String?
+  role               Role               @default(VIEWER)
+  shift              String?
+  creditBalance      Decimal            @default(10000.0) @db.Decimal(24, 2)
+  walletMode         WalletMode         @default(NORMAL)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  accounts           Account[]
+  sessions           Session[]
+  assignedFlights    Flight[]           @relation("AssignedController")
+  auditLogs          AuditLog[]
+  radioMessages      RadioMessage[]
+  events             OperationalEvent[]
+  aiAnalyses         AiAnalysis[]
+  employee           Employee?
+  createdBookings    Booking[]          @relation("BookingCreator")
+  creditTransactions CreditTransaction[]
+  financialAccount   FinancialAccount?  @relation("UserWalletAccount")
+
+  @@index([role])
+  @@index([createdAt])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Employee {
+  id                 String             @id @default(cuid())
+  employeeId         String             @unique
+  fullName           String
+  email              String             @unique
+  phone              String
+  department         DepartmentType
+  jobTitle           String
+  role               Role
+  airportCode        String             @default("HYD")
+  terminal           String?
+  gateArea           String?
+  shift              String             @default("MORNING")
+  status             EmployeeStatus     @default(ACTIVE)
+  verificationStatus VerificationStatus @default(VERIFIED)
+  joinDate           DateTime           @default(now())
+  lastLogin          DateTime?
+  permissions        String[]           @default([])
+  userId             String?            @unique
+  isVirtual          Boolean            @default(false)
+  currentTask        String?
+  currentLocation    String?
+  performanceScore   Int                @default(95)
+  tasksCompleted     Int                @default(0)
+  tasksFailed        Int                @default(0)
+  nextActivity       DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  user               User?              @relation(fields: [userId], references: [id])
+  simulationTasks    SimulationTask[]
+  salaryProfile      SalaryProfile?
+  salaryAccount      FinancialAccount?  @relation("EmployeeSalaryAccount")
+  payrollItems       PayrollItem[]
+
+  @@index([department])
+  @@index([role])
+  @@index([status])
+  @@index([airportCode])
+  @@index([shift])
+  @@index([isVirtual])
+}
+
+model Airport {
+  id          String     @id @default(cuid())
+  iata        String     @unique
+  icao        String     @unique
+  name        String
+  city        String
+  country     String     @default("India")
+  latitude    Float
+  longitude   Float
+  elevationFt Int        @default(0)
+  status      String     @default("ACTIVE")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  terminals   Terminal[]
+  runways     Runway[]
+
+  @@index([status])
+}
+
+model Terminal {
+  id        String   @id @default(cuid())
+  airportId String
+  code      String
+  name      String
+  createdAt DateTime @default(now())
+
+  airport   Airport  @relation(fields: [airportId], references: [id], onDelete: Cascade)
+  gates     Gate[]
+
+  @@unique([airportId, code])
+}
+
+model Runway {
+  id           String         @id @default(cuid())
+  airportId    String
+  code         String
+  headingDeg   Int            @default(0)
+  lengthMeters Int            @default(3200)
+  status       ResourceStatus @default(AVAILABLE)
+  wind         String?
+  approachType String?        @default("ILS")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  airport      Airport        @relation(fields: [airportId], references: [id], onDelete: Cascade)
+
+  @@unique([airportId, code])
+  @@index([status])
+}
+
+model Gate {
+  id               String         @id @default(cuid())
+  terminalId       String
+  code             String
+  status           ResourceStatus @default(AVAILABLE)
+  assignedFlightId String?
+  turnMinutes      Int            @default(45)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  terminal         Terminal       @relation(fields: [terminalId], references: [id], onDelete: Cascade)
+
+  @@unique([terminalId, code])
+  @@index([status])
+}
+
+model Airline {
+  id           String     @id @default(cuid())
+  name         String
+  iata         String     @unique
+  icao         String     @unique
+  logo         String?
+  country      String     @default("India")
+  contactPhone String?
+  contactEmail String?
+  status       String     @default("ACTIVE")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  aircraft     Aircraft[]
+  flights      Flight[]
+}
+
+model Aircraft {
+  id                 String   @id @default(cuid())
+  registration       String   @unique
+  model              String
+  manufacturer       String
+  airlineId          String
+  economyCapacity    Int      @default(150)
+  businessCapacity   Int      @default(20)
+  firstClassCapacity Int      @default(0)
+  totalCapacity      Int      @default(170)
+  status             String   @default("IN_SERVICE")
+  currentAirport     String?
+  currentGate        String?
+  currentFlightId    String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  airline            Airline  @relation(fields: [airlineId], references: [id])
+  flights            Flight[]
+
+  @@index([airlineId])
+  @@index([status])
+}
+
+model Flight {
+  id                   String             @id @default(cuid())
+  callsign             String             @unique
+  airline              String
+  aircraftType         String
+  status               FlightStatus       @default(SCHEDULED)
+  phase                String
+  origin               String
+  destination          String
+  gate                 String?
+  stand                String?
+  runway               String?
+  squawk               String
+  latitude             Float
+  longitude            Float
+  altitudeFt           Int
+  speedKt              Int
+  headingDeg           Int
+  verticalSpeedFpm     Int                @default(0)
+  fuelKg               Int
+  riskScore            Int                @default(12)
+  eta                  DateTime
+  assignedControllerId String?
+  flightNumber         String?
+  flightName           String?
+  airlineId            String?
+  aircraftId           String?
+  departureTime        DateTime?
+  arrivalTime          DateTime?
+  boardingTime         DateTime?
+  checkInCloseTime     DateTime?
+  terminal             String?
+  economyCapacity      Int                @default(150)
+  businessCapacity     Int                @default(20)
+  firstCapacity        Int                @default(0)
+  economyFare          Float              @default(4500)
+  businessFare         Float              @default(8500)
+  firstFare            Float              @default(15000)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  assignedController   User?              @relation("AssignedController", fields: [assignedControllerId], references: [id])
+  airlineRel           Airline?           @relation(fields: [airlineId], references: [id])
+  aircraftRel          Aircraft?          @relation(fields: [aircraftId], references: [id])
+  events               OperationalEvent[]
+  radioMessages        RadioMessage[]
+  seats                Seat[]
+  bookings             Booking[]
+
+  @@index([status])
+  @@index([riskScore])
+  @@index([eta])
+  @@index([origin, destination])
+  @@index([flightNumber])
+  @@index([departureTime])
+  @@index([arrivalTime])
+  @@index([airlineId])
+  @@index([aircraftId])
+  @@index([assignedControllerId])
+}
+
+model Passenger {
+  id          String    @id @default(cuid())
+  fullName    String
+  email       String
+  phone       String
+  dateOfBirth String?
+  gender      String?
+  nationality String    @default("IN")
+  idNumber    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  bookings    Booking[]
+
+  @@index([email])
+}
+
+model Seat {
+  id          String     @id @default(cuid())
+  flightId    String
+  seatNumber  String
+  seatClass   SeatClass  @default(ECONOMY)
+  status      SeatStatus @default(AVAILABLE)
+  passengerId String?
+  bookingId   String?
+  version     Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  flight      Flight     @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  booking     Booking?   @relation(fields: [bookingId], references: [id])
+
+  @@unique([flightId, seatNumber])
+  @@index([flightId, status])
+}
+
+model Booking {
+  id                 String             @id @default(cuid())
+  pnr                String             @unique
+  flightId           String
+  passengerId        String
+  seatNumber         String
+  travelClass        SeatClass          @default(ECONOMY)
+  fare               Float
+  originalFare       Float?
+  couponCode         String?
+  couponDiscount     Float?             @default(0)
+  passengerCategory  PassengerCategory  @default(GENERAL)
+  creditUsed         Float              @default(0)
+  paymentStatus      PaymentStatus      @default(SUCCESSFUL)
+  bookingStatus      BookingStatus      @default(CONFIRMED)
+  checkInStatus      CheckInStatus      @default(NOT_CHECKED_IN)
+  boardingStatus     BoardingStatus     @default(NOT_BOARDED)
+  verificationStatus VerificationStatus @default(PENDING)
+  createdById        String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  flight             Flight             @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  passenger          Passenger          @relation(fields: [passengerId], references: [id], onDelete: Cascade)
+  createdByUser      User?              @relation("BookingCreator", fields: [createdById], references: [id])
+  seats              Seat[]
+  ticket             Ticket?
+  boardingPass       BoardingPass?
+  checkIn            CheckIn?
+  baggage            Baggage[]
+  payments           Payment[]
+  redemptions        CouponRedemption[]
+
+  @@index([pnr])
+  @@index([flightId])
+  @@index([passengerId])
+  @@index([bookingStatus])
+  @@index([checkInStatus])
+  @@index([boardingStatus])
+  @@index([couponCode])
+  @@index([createdAt])
+}
+
+model Ticket {
+  id           String       @id @default(cuid())
+  bookingId    String       @unique
+  ticketNumber String       @unique
+  pnr          String
+  qrCode       String       @db.Text
+  issuedAt     DateTime     @default(now())
+  status       TicketStatus @default(ACTIVE)
+
+  booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([pnr])
+  @@index([status])
+  @@index([issuedAt])
+}
+
+model BoardingPass {
+  id            String         @id @default(cuid())
+  bookingId     String         @unique
+  passNumber    String         @unique
+  gate          String?
+  terminal      String?
+  seatNumber    String
+  boardingTime  DateTime?
+  boardingGroup String         @default("Group 1")
+  qrCode        String         @db.Text
+  status        BoardingStatus @default(NOT_BOARDED)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  booking       Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([gate])
+  @@index([boardingTime])
+}
+
+model CheckIn {
+  id              String   @id @default(cuid())
+  bookingId       String   @unique
+  checkedInAt     DateTime @default(now())
+  checkedInBy     String?
+  seatConfirmed   Boolean  @default(true)
+  baggageCount    Int      @default(0)
+  baggageWeightKg Float    @default(0)
+
+  booking         Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([checkedInAt])
+}
+
+model Baggage {
+  id        String        @id @default(cuid())
+  bookingId String
+  tagNumber String        @unique
+  weightKg  Float
+  status    BaggageStatus @default(CHECKED)
+  createdAt DateTime      @default(now())
+
+  booking   Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([status])
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  bookingId      String
+  amount         Float
+  currency       String        @default("INR")
+  method         String        @default("SIMULATED_CARD")
+  transactionRef String        @unique
+  status         PaymentStatus @default(SUCCESSFUL)
+  createdAt      DateTime      @default(now())
+
+  booking        Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+}
+
+model AirportResource {
+  id           String         @id @default(cuid())
+  resourceType ResourceType
+  code         String
+  status       ResourceStatus @default(AVAILABLE)
+  label        String
+  metadata     Json?
+  updatedAt    DateTime       @updatedAt
+  createdAt    DateTime       @default(now())
+
+  @@unique([resourceType, code])
+  @@index([resourceType, status])
+}
+
+model RadioMessage {
+  id         String           @id @default(cuid())
+  channel    String
+  direction  MessageDirection
+  text       String           @db.Text
+  priority   Severity         @default(INFO)
+  createdAt  DateTime         @default(now())
+  fromUserId String?
+  flightId   String?
+
+  fromUser   User?            @relation(fields: [fromUserId], references: [id])
+  flight     Flight?          @relation(fields: [flightId], references: [id])
+
+  @@index([createdAt])
+  @@index([flightId])
+}
+
+model OperationalEvent {
+  id         String    @id @default(cuid())
+  type       EventType
+  severity   Severity  @default(INFO)
+  title      String
+  detail     String    @db.Text
+  payload    Json?
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  flightId   String?
+  userId     String?
+
+  flight     Flight?   @relation(fields: [flightId], references: [id])
+  user       User?     @relation(fields: [userId], references: [id])
+
+  @@index([type, severity])
+  @@index([createdAt])
+}
+
+model AiAnalysis {
+  id          String   @id @default(cuid())
+  prompt      String   @db.Text
+  response    String   @db.Text
+  model       String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  createdById String?
+
+  createdBy   User?    @relation(fields: [createdById], references: [id])
+
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String?
+  before    Json?
+  after     Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  actor     User?    @relation(fields: [actorId], references: [id])
+
+  @@index([actorId, createdAt])
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+model RolePermission {
+  id         String     @id @default(cuid())
+  role       Role
+  permission Permission
+  createdAt  DateTime   @default(now())
+
+  @@unique([role, permission])
+  @@index([role])
+}
+
+enum CreditTransactionType {
+  CREDIT
+  BOOKING_DEBIT
+  REFUND
+  ADJUSTMENT
+  BONUS
+  REVERSAL
+  SIMULATION_TOP_UP
+  TICKET_PAYMENT
+  REFUND_CREDIT
+  ADMIN_ADJUSTMENT
+}
+
+model CreditTransaction {
+  id            String                @id @default(cuid())
+  userId        String
+  type          CreditTransactionType
+  amount        Decimal               @db.Decimal(24, 2)
+  balanceBefore Decimal               @db.Decimal(24, 2)
+  balanceAfter  Decimal               @db.Decimal(24, 2)
+  referenceType String?
+  referenceId   String?
+  description   String?
+  idempotencyKey String?              @unique
+  status         WalletTransactionStatus @default(COMPLETED)
+  unlimitedMode  Boolean               @default(false)
+  createdAt     DateTime              @default(now())
+
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, type, createdAt])
+  @@index([type])
+  @@index([referenceType, referenceId])
+}
+
+enum WalletMode {
+  NORMAL
+  UNLIMITED_SIMULATION
+}
+
+enum WalletTransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+enum SimulationStatus {
+  RUNNING
+  PAUSED
+  STOPPED
+  DEGRADED
+}
+
+enum SimulationTaskType {
+  ATC_MONITOR
+  GROUND_TURNAROUND
+  TICKET_CHECKIN
+  GATE_BOARDING
+  SECURITY_SCREENING
+  MAINTENANCE_INSPECTION
+  DISPATCH_PREPARATION
+  OPERATIONS_COORDINATION
+}
+
+enum SimulationTaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model SimulationConfig {
+  id                     String           @id @default("default")
+  status                 SimulationStatus @default(RUNNING)
+  staffCount             Int              @default(500)
+  speedMultiplier        Float            @default(1.0)
+  autoBookingEnabled     Boolean          @default(true)
+  autoFlightEnabled      Boolean          @default(true)
+  maxBookingsPerInterval Int              @default(5)
+  maxBookingsPerFlight   Int              @default(180)
+  totalBookingsGenerated Int              @default(0)
+  totalTasksProcessed    Int              @default(0)
+  lastTickAt             DateTime?
+  updatedAt              DateTime         @updatedAt
+  createdAt              DateTime         @default(now())
+}
+
+model SimulationTask {
+  id             String               @id @default(cuid())
+  type           SimulationTaskType
+  status         SimulationTaskStatus @default(PENDING)
+  priority       TaskPriority         @default(NORMAL)
+  staffId        String
+  flightId       String?
+  targetEntity   String?
+  targetEntityId String?
+  payload        Json?
+  scheduledAt    DateTime             @default(now())
+  startedAt      DateTime?
+  completedAt    DateTime?
+  error          String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  staff          Employee             @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId, status])
+  @@index([status, scheduledAt])
+  @@index([type])
+  @@index([flightId])
+}
+
+model SimulationEvent {
+  id        String   @id @default(cuid())
+  eventType String
+  message   String
+  details   Json?
+  actorId   String?
+  createdAt DateTime @default(now())
+
+  @@index([eventType, createdAt])
+}
+
+enum FinancialAccountType {
+  COMPANY_TREASURY
+  OPERATING_ACCOUNT
+  PAYROLL_ACCOUNT
+  REFUND_ACCOUNT
+  REVENUE_ACCOUNT
+  EXPENSE_ACCOUNT
+  EMPLOYEE_SALARY_ACCOUNT
+  USER_CREDIT_ACCOUNT
+}
+
+enum AccountStatus {
+  ACTIVE
+  FROZEN
+  CLOSED
+}
+
+enum FinancialTransactionType {
+  INITIAL_CAPITAL
+  INTERNAL_TRANSFER
+  REVENUE
+  EXPENSE
+  PAYROLL
+  REFUND
+  ADJUSTMENT
+  REVERSAL
+}
+
+enum TransactionDirection {
+  DEBIT
+  CREDIT
+  TRANSFER
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+enum SalaryType {
+  MONTHLY
+  HOURLY
+  CONTRACT
+}
+
+enum SalaryChangeType {
+  INITIAL
+  HIKE_PERCENTAGE
+  HIKE_FIXED
+  REDUCTION
+  CORRECTION
+}
+
+enum BonusType {
+  PERFORMANCE
+  ATTENDANCE
+  EMERGENCY
+  OPERATIONAL
+  SIMULATOR
+  MANUAL
+}
+
+enum DeductionType {
+  ABSENCE
+  PENALTY
+  ADVANCE_RECOVERY
+  OTHER
+}
+
+enum PayrollFrequency {
+  MONTHLY
+  WEEKLY
+  BIWEEKLY
+  DAILY
+  CUSTOM
+}
+
+enum PayrollStatus {
+  DRAFT
+  SCHEDULED
+  PROCESSING
+  PENDING_APPROVAL
+  APPROVED
+  PAID
+  FAILED
+  CANCELLED
+  PARTIALLY_FAILED
+}
+
+enum PayrollItemStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum ExpenseCategory {
+  PAYROLL
+  MAINTENANCE
+  FUEL_SIMULATION
+  GROUND_OPERATIONS
+  AIRPORT_OPERATIONS
+  SECURITY
+  EQUIPMENT
+  UTILITIES
+  MARKETING
+  EMERGENCY_OPERATIONS
+  OTHER
+}
+
+model FinancialAccount {
+  id            String               @id @default(cuid())
+  accountNumber String               @unique
+  accountName   String
+  accountType   FinancialAccountType
+  currency      String               @default("INR")
+  balance       Decimal              @default(0.0) @db.Decimal(18, 2)
+  status        AccountStatus        @default(ACTIVE)
+  employeeId    String?              @unique
+  userId        String?              @unique
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  employee      Employee?            @relation("EmployeeSalaryAccount", fields: [employeeId], references: [id], onDelete: Cascade)
+  user          User?                @relation("UserWalletAccount", fields: [userId], references: [id], onDelete: Cascade)
+  sourceTx      FinancialTransaction[] @relation("SourceAccount")
+  destTx        FinancialTransaction[] @relation("DestAccount")
+
+  @@index([accountType])
+  @@index([status])
+}
+
+model FinancialTransaction {
+  id                   String                   @id @default(cuid())
+  transactionNumber    String                   @unique
+  type                 FinancialTransactionType
+  category             String
+  amount               Decimal                  @db.Decimal(18, 2)
+  currency             String                   @default("INR")
+  direction            TransactionDirection     @default(TRANSFER)
+  sourceAccountId      String?
+  destinationAccountId String?
+  referenceType        String?
+  referenceId          String?
+  description          String
+  status               TransactionStatus        @default(COMPLETED)
+  createdBy            String?
+  metadata             Json?
+  createdAt            DateTime                 @default(now())
+
+  sourceAccount        FinancialAccount?        @relation("SourceAccount", fields: [sourceAccountId], references: [id])
+  destinationAccount   FinancialAccount?        @relation("DestAccount", fields: [destinationAccountId], references: [id])
+
+  @@index([transactionNumber])
+  @@index([type])
+  @@index([category])
+  @@index([sourceAccountId])
+  @@index([destinationAccountId])
+  @@index([referenceType, referenceId])
+  @@index([createdAt])
+}
+
+model SalaryProfile {
+  id             String              @id @default(cuid())
+  employeeId     String              @unique
+  baseSalary     Decimal             @db.Decimal(18, 2)
+  allowances     Decimal             @default(0.0) @db.Decimal(18, 2)
+  overtime       Decimal             @default(0.0) @db.Decimal(18, 2)
+  bonus          Decimal             @default(0.0) @db.Decimal(18, 2)
+  deductions     Decimal             @default(0.0) @db.Decimal(18, 2)
+  grossSalary    Decimal             @db.Decimal(18, 2)
+  netSalary      Decimal             @db.Decimal(18, 2)
+  salaryType     SalaryType          @default(MONTHLY)
+  effectiveDate  DateTime            @default(now())
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  employee       Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  revisions      SalaryRevision[]
+  bonuses        EmployeeBonus[]
+  deductionItems EmployeeDeduction[]
+
+  @@index([effectiveDate])
+}
+
+model SalaryRevision {
+  id                  String           @id @default(cuid())
+  salaryProfileId     String
+  previousBaseSalary  Decimal          @db.Decimal(18, 2)
+  newBaseSalary       Decimal          @db.Decimal(18, 2)
+  previousGrossSalary Decimal          @db.Decimal(18, 2)
+  newGrossSalary      Decimal          @db.Decimal(18, 2)
+  previousNetSalary   Decimal          @db.Decimal(18, 2)
+  newNetSalary        Decimal          @db.Decimal(18, 2)
+  changeType          SalaryChangeType
+  percentageChange    Float?
+  fixedChange         Decimal?         @db.Decimal(18, 2)
+  reason              String
+  effectiveDate       DateTime
+  createdBy           String?
+  createdAt           DateTime         @default(now())
+
+  salaryProfile       SalaryProfile    @relation(fields: [salaryProfileId], references: [id], onDelete: Cascade)
+
+  @@index([salaryProfileId])
+  @@index([effectiveDate])
+}
+
+model EmployeeBonus {
+  id              String        @id @default(cuid())
+  salaryProfileId String
+  bonusType       BonusType     @default(MANUAL)
+  amount          Decimal       @db.Decimal(18, 2)
+  reason          String
+  payrollPeriod   String?
+  applied         Boolean       @default(false)
+  createdBy       String?
+  createdAt       DateTime      @default(now())
+
+  salaryProfile   SalaryProfile @relation(fields: [salaryProfileId], references: [id], onDelete: Cascade)
+
+  @@index([salaryProfileId])
+  @@index([payrollPeriod])
+}
+
+model EmployeeDeduction {
+  id              String        @id @default(cuid())
+  salaryProfileId String
+  deductionType   DeductionType @default(OTHER)
+  amount          Decimal       @db.Decimal(18, 2)
+  reason          String
+  payrollPeriod   String?
+  applied         Boolean       @default(false)
+  createdBy       String?
+  createdAt       DateTime      @default(now())
+
+  salaryProfile   SalaryProfile @relation(fields: [salaryProfileId], references: [id], onDelete: Cascade)
+
+  @@index([salaryProfileId])
+  @@index([payrollPeriod])
+}
+
+model Payroll {
+  id                   String           @id @default(cuid())
+  payrollPeriod        String           @unique
+  title                String
+  frequency            PayrollFrequency @default(MONTHLY)
+  status               PayrollStatus    @default(DRAFT)
+  scheduledDate        DateTime
+  paymentDate          DateTime?
+  totalEmployees       Int              @default(0)
+  grossAmount          Decimal          @default(0.0) @db.Decimal(18, 2)
+  totalBonuses         Decimal          @default(0.0) @db.Decimal(18, 2)
+  totalDeductions      Decimal          @default(0.0) @db.Decimal(18, 2)
+  netAmount            Decimal          @default(0.0) @db.Decimal(18, 2)
+  companyBalanceBefore Decimal?         @db.Decimal(18, 2)
+  companyBalanceAfter  Decimal?         @db.Decimal(18, 2)
+  approvedBy           String?
+  approvedAt           DateTime?
+  processedBy          String?
+  failureReason        String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  items                PayrollItem[]
+
+  @@index([payrollPeriod])
+  @@index([status])
+  @@index([scheduledDate])
+}
+
+model PayrollItem {
+  id            String            @id @default(cuid())
+  payrollId     String
+  employeeId    String
+  employeeName  String
+  department    DepartmentType
+  role          Role
+  baseSalary    Decimal           @db.Decimal(18, 2)
+  allowances    Decimal           @default(0.0) @db.Decimal(18, 2)
+  overtime      Decimal           @default(0.0) @db.Decimal(18, 2)
+  bonus         Decimal           @default(0.0) @db.Decimal(18, 2)
+  deductions    Decimal           @default(0.0) @db.Decimal(18, 2)
+  grossSalary   Decimal           @db.Decimal(18, 2)
+  netSalary     Decimal           @db.Decimal(18, 2)
+  status        PayrollItemStatus @default(PENDING)
+  paidAt        DateTime?
+  failureReason String?
+  createdAt     DateTime          @default(now())
+
+  payroll       Payroll           @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  employee      Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([payrollId])
+  @@index([employeeId])
+  @@index([status])
+}
+
+model CompanyExpense {
+  id            String          @id @default(cuid())
+  expenseNumber String          @unique
+  category      ExpenseCategory
+  amount        Decimal         @db.Decimal(18, 2)
+  description   String
+  reference     String?
+  expenseDate   DateTime        @default(now())
+  approvedBy    String?
+  status        String          @default("APPROVED")
+  createdAt     DateTime        @default(now())
+
+  @@index([expenseNumber])
+  @@index([category])
+  @@index([expenseDate])
+}
+
+model FinanceConfig {
+  id                 String           @id @default("default")
+  initialCapital     Decimal          @default(100000000.0) @db.Decimal(18, 2)
+  autoPayrollEnabled Boolean          @default(true)
+  payrollFrequency   PayrollFrequency @default(MONTHLY)
+  payrollPaymentDay  Int              @default(30)
+  payrollPaymentTime String           @default("09:00")
+  payrollTimezone    String           @default("Asia/Kolkata")
+  approvalRequired   Boolean          @default(false)
+  minWalletTopUp     Decimal          @default(100.0) @db.Decimal(18, 2)
+  maxWalletTopUp     Decimal          @default(1000000000000.0) @db.Decimal(18, 2)
+  maxWalletBalance   Decimal          @default(1000000000000.0) @db.Decimal(18, 2)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum CouponStatus {
+  ACTIVE
+  EXPIRED
+  EXHAUSTED
+  DISABLED
+}
+
+enum PassengerCategory {
+  GENERAL
+  STUDENT
+  ARMED_FORCES
+  SENIOR_CITIZEN
+  STAFF
+}
+
+model Coupon {
+  id                   String            @id @default(cuid())
+  code                 String            @unique
+  description          String
+  discountType         DiscountType      @default(PERCENTAGE)
+  discountValue        Decimal           @db.Decimal(10, 2)
+  maxDiscountCap       Decimal?          @db.Decimal(10, 2)
+  minBookingFare       Decimal?          @default(0.0) @db.Decimal(10, 2)
+  category             PassengerCategory @default(GENERAL)
+  applicableClasses    String[]          @default([])
+  maxTotalRedemptions  Int?
+  redemptionsCount     Int               @default(0)
+  maxPerPassenger      Int?              @default(1)
+  validFrom            DateTime          @default(now())
+  validUntil           DateTime
+  status               CouponStatus      @default(ACTIVE)
+  requiresVerification Boolean           @default(false)
+  isArchived           Boolean           @default(false)
+  createdBy            String?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  redemptions          CouponRedemption[]
+
+  @@index([code])
+  @@index([status])
+  @@index([category])
+  @@index([validFrom, validUntil])
+  @@index([isArchived])
+}
+
+model CouponRedemption {
+  id             String   @id @default(cuid())
+  couponId       String
+  bookingId      String
+  pnr            String
+  passengerId    String
+  passengerName  String
+  originalFare   Decimal  @db.Decimal(10, 2)
+  discountAmount Decimal  @db.Decimal(10, 2)
+  finalFare      Decimal  @db.Decimal(10, 2)
+  redeemedAt     DateTime @default(now())
+
+  coupon         Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  booking        Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([couponId])
+  @@index([bookingId])
+  @@index([pnr])
+  @@index([passengerId])
+  @@index([redeemedAt])
+}

@@ -1,0 +1,164 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+:root {
+  --background: #f8fafc;
+  --foreground: #111827;
+  --card: #ffffff;
+  --card-foreground: #111827;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+  --primary: #0284c7;
+  --primary-foreground: #f8fafc;
+  --secondary: #e2e8f0;
+  --secondary-foreground: #0f172a;
+  --muted: #e5e7eb;
+  --muted-foreground: #64748b;
+  --accent: #e0f2fe;
+  --accent-foreground: #0f172a;
+  --destructive: #dc2626;
+  --destructive-foreground: #fff7ed;
+  --border: #d1d5db;
+  --input: #cbd5e1;
+  --ring: #38bdf8;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: #070a0f;
+  --foreground: #e5edf7;
+  --card: #0d121b;
+  --card-foreground: #e5edf7;
+  --popover: #0d121b;
+  --popover-foreground: #e5edf7;
+  --primary: #38bdf8;
+  --primary-foreground: #061018;
+  --secondary: #172033;
+  --secondary-foreground: #dbeafe;
+  --muted: #131b2a;
+  --muted-foreground: #93a4b8;
+  --accent: #152338;
+  --accent-foreground: #e5edf7;
+  --destructive: #ef4444;
+  --destructive-foreground: #fff7ed;
+  --border: #243044;
+  --input: #2c3850;
+  --ring: #38bdf8;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) * 1.25);
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  letter-spacing: 0;
+}
+
+.leaflet-container {
+  background: #0b1220;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+}
+
+.aocc-aircraft-marker div {
+  display: grid;
+  height: 26px;
+  width: 26px;
+  place-items: center;
+  color: var(--aircraft-color);
+  font-size: 20px;
+  text-shadow: 0 0 8px color-mix(in oklab, var(--aircraft-color), transparent 40%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =========================================================================
+   Universal Text Selection & Copy Support Across Every Domain
+   ========================================================================= */
+html,
+body,
+main,
+section,
+article,
+div,
+p,
+span,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+li,
+td,
+th,
+pre,
+code,
+label,
+blockquote {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+::selection {
+  background: rgba(14, 165, 233, 0.4);
+  color: #ffffff;
+}
+
+::-moz-selection {
+  background: rgba(14, 165, 233, 0.4);
+  color: #ffffff;
+}
+
